@@ -47,18 +47,18 @@ void SystemInit(void)
 {
 #if defined(CORE_M4)
     /* set ARM Vector Table Offset Register to point to our vector table */
-	extern void *g_pfnVectors;
-	unsigned int *VTOR = (unsigned int *) 0xE000ED08;
-	*VTOR = (unsigned int) &g_pfnVectors;
+    extern void *g_pfnVectors;
+    unsigned int *VTOR = (unsigned int *) 0xE000ED08;
+    *VTOR = (unsigned int) &g_pfnVectors;
 
-	/* do early FPU init */
-	fpuInit(); /* in chip library */
+    /* do early FPU init */
+    fpuInit(); /* in chip library */
 
-	/* derive core clock from external crystal, set chip-default base clocks */
-	Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, true);
+    /* derive core clock from external crystal, set chip-default base clocks */
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, true);
 
-	/* Reset and enable 32Khz oscillator */
-	LPC_CREG->CREG0 &= ~((1 << 3) | (1 << 2));
-	LPC_CREG->CREG0 |= (1 << 1) | (1 << 0);
+    /* Reset and enable 32Khz oscillator */
+    LPC_CREG->CREG0 &= ~((1 << 3) | (1 << 2));
+    LPC_CREG->CREG0 |= (1 << 1) | (1 << 0);
 #endif /* defined(CORE_M4) */
 }

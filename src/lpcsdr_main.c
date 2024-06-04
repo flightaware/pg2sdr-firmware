@@ -30,8 +30,8 @@ int main(void) {
     lpcsdr_usb_init();
 
     while (1) {
-    	/* Everything is currently interrupt-driven, so just sleep and wait for interrupts */
-    	__WFI();
+        /* Everything is currently interrupt-driven, so just sleep and wait for interrupts */
+        __WFI();
     }
 
     // not reached
