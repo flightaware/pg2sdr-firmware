@@ -54,8 +54,10 @@ void SystemInit(void)
     /* do early FPU init */
     fpuInit(); /* in chip library */
 
-    /* derive core clock from external crystal, set chip-default base clocks */
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, true);
+    /* derive core clock from external crystal, set chip-default base clocks.
+     * set M4 base clock to 96MHz for lower power consumption before USB enumeration
+     */
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, /* MAX_CLOCK_FREQ */ 96000000, true);
 
     /* Reset and enable 32Khz oscillator */
     LPC_CREG->CREG0 &= ~((1 << 3) | (1 << 2));

@@ -1,3 +1,4 @@
+#include "lpcsdr_common.h"
 #include "lpcsdr_usb.h"
 #include "lpcsdr_gpio.h"
 #include "lpcsdr_spifi.h"
@@ -9,9 +10,9 @@
 
 #define static_assert _Static_assert
 
-/* Use 32kB AHB SRAM at 2000 0000 .. 2000 7FFF for USB buffers */
-#define USB_MEM_BASE   0x20000000
-#define USB_MEM_SIZE   0x00008000
+/* Use 72kB local SRAM at 1008 0000 .. 1009 1FFF for USB stack workspace and buffers */
+#define USB_MEM_BASE   0x10080000
+#define USB_MEM_SIZE   0x00012000
 
 const USBD_API_T* g_pUsbApi;
 static USBD_HANDLE_T usb_handle;
@@ -218,101 +219,238 @@ void USB0_IRQHandler(void)
     USBD_API->hw->ISR(usb_handle);
 }
 
-/* Endpoint transfer descriptor and queue head structure; see UM10503 section 24.9 */
-
-typedef volatile struct ALIGNED(32) {
-    volatile uint32_t next_link_pointer_terminate;
-#define DTD_TERMINATE _BIT(0)
-
-    volatile uint32_t total_bytes_ioc_multo_status;
-#define DTD_TOTAL_BYTES(x) ((x) << 16)
-#define DTD_IOC _BIT(15)
-#define DTD_MULTO_0 0
-#define DTD_MULTO_1 _BIT(10)
-#define DTD_MULTO_2 _BIT(11)
-#define DTD_MULTO_3 (_BIT(10) | _BIT(11))
-#define DTD_STATUS_ACTIVE _BIT(7)
-#define DTD_STATUS_HALTED _BIT(6)
-#define DTD_STATUS_BUFERR _BIT(5)
-#define DTD_STATUS_TXNERR _BIT(4)
-
-    volatile uint32_t page0_curr_offs;
-    volatile uint32_t page1_frame_n;
-    volatile uint32_t page2;
-    volatile uint32_t page3;
-    volatile uint32_t page4;
-    volatile uint32_t pad;         /* pad to 32 bytes */
-} USB_DTD_T;
-
-typedef volatile struct ALIGNED(64) {
-    volatile uint32_t caps;
-    volatile uint32_t current_dtd;
-    volatile uint32_t o_next_link_pointer_terminate;
-    volatile uint32_t o_total_bytes_ioc_multo_status;
-    volatile uint32_t o_page0_curr_offs;
-    volatile uint32_t o_page1_frame_n;
-    volatile uint32_t o_page2;
-    volatile uint32_t o_page3;
-    volatile uint32_t o_page4;
-    volatile uint32_t reserved;
-    volatile uint32_t setup[2];
-    volatile uint32_t pad[4];     /* pad to 64 bytes */
-} USB_DQH_T;
-
-/* Pointers to the dTDs (and corresponding data buffers) that we will allocate in a ring */
-#define NUM_DTDS 4
-#define DTD_BUFFER_SIZE 4096
+/* Pointers to the dTDs and corresponding data buffers */
 USB_DTD_T *usb_dtds[NUM_DTDS];
 uint8_t *usb_buffers[NUM_DTDS];
 
-/* Index into ENDPOINTLIST for a given endpoint */
-#define EP_OUT_INDEX(x) ((x) * 2)
-#define EP_IN_INDEX(x) ((x) * 2 + 1)
+static volatile USB_DTD_T *dtd_active_head = NULL; /* active dTD list, head */
+static volatile USB_DTD_T *dtd_active_tail = NULL; /* active dTD list, tail */
+static volatile USB_DTD_T *dtd_free_head = NULL;   /* dTD freelist, head */
 
-/* Prime bit in ENDPTPRIME for a given endpoint */
-#define EP_OUT_BIT(x) _BIT(x)
-#define EP_IN_BIT(x) _BIT((x) + 16)
+static void dtd_set_buffer(USB_DTD_T *dtd, void *user_buffer, uint32_t length)
+{
+    /* Assign dTD page values pointing to the pages of the user buffer.
+     *
+     * Buffer 0 can start at an arbitrary address (bits 11:0 may be non-zero). Buffer 1..4 must be page aligned (bits 11:0 must be zero)
+     * so we allocate the user buffer to the buffer pointers like this:
+     *
+     *     === page boundary ===
+     *     ... other data (user buffer doesn't need to start at the start of a page)
+     *       user buffer starts here          <- buffer 0 pointer
+     *     ... <= 4k data ...
+     *     === page boundary ===              <- buffer 1 pointer
+     *     ... 4k data
+     *     === page boundary ===              <- buffer 2 pointer
+     *     ... 4k data
+     *     === page boundary ===              <- buffer 3 pointer
+     *     ... 4k data
+     *     === page boundary ===              <- buffer 4 pointer
+     *     ... <= 4k data
+     *       end of user buffer
+     *     ...
+     *     === page boundary ===
+     * For shorter user buffers, the data just ends mid-page as determined by total_bytes,
+     * and any subsequent buffer pointers are zeroed.
+     */
+    uint32_t buffer = (uint32_t) user_buffer;
+    uint32_t end = buffer + length;
+    for (unsigned i = 0; i < 5; ++i) {
+        dtd->pages[i] = (buffer >= end) ? 0 : buffer;
+        buffer = (buffer + 4096) & ~4095; /* advance to start of next page */
+    }
+}
 
-volatile unsigned next_dtd_index = 0;
+/* extract the next pointer from a dTD, using the hardware's convention of DTD_TERMINATE meaning NULL */
+static inline USB_DTD_T *dtd_get_next(USB_DTD_T *dtd)
+{
+    return (dtd->next_link_pointer_terminate & DTD_TERMINATE) ? NULL : (USB_DTD_T *)dtd->next_link_pointer_terminate;
+}
 
-/* Callback on USB reset. Nothing much to do here. */
+/* set the next pointer of a dTD, using the hardware's convention of DTD_TERMINATE meaning NULL */
+static inline void dtd_set_next(USB_DTD_T *dtd, USB_DTD_T *next)
+{
+    dtd->next_link_pointer_terminate = next ? (uint32_t)next : DTD_TERMINATE;
+}
+
+/* move all dTDs onto the freelist. For busy dTDs, mark them for cancellation. */
+static void reset_dtd_lists()
+{
+    WITH_DISABLED_INTERRUPTS {
+        dtd_active_head = dtd_active_tail = NULL;
+        dtd_free_head = NULL;
+        for (unsigned i = 0; i < NUM_DTDS; ++i) {
+            USB_DTD_T *dtd = usb_dtds[i];
+            if (dtd->total_bytes_ioc_multo_status == DTD_STATUS_BUSY)   /* Being filled by the main loop, can't free it yet.. */
+                dtd->total_bytes_ioc_multo_status = DTD_STATUS_CANCEL;  /* .. so mark it for reclamation later */
+            else {
+                dtd->total_bytes_ioc_multo_status = DTD_STATUS_FREE;
+                dtd_set_next(dtd, dtd_free_head);
+                dtd_free_head = dtd;
+            }
+        }
+    }
+}
+
+/* remove a free dTD from the freelist and return it, or NULL if none are available */
+USB_DTD_T *lpcsdr_usb_get_dtd()
+{
+    USB_DTD_T *head;
+    WITH_DISABLED_INTERRUPTS {
+        if (!lpcsdr_usb_is_ready()) {
+            head = NULL;
+        } else {
+            head = dtd_free_head;
+            if (head) {
+                dtd_free_head = dtd_get_next(head);
+                head->total_bytes_ioc_multo_status = DTD_STATUS_BUSY;
+            }
+        }
+    }
+    return head;
+}
+
+/* return a dTD to the freelist */
+static void free_dtd_interrupts_disabled(USB_DTD_T *dtd)
+{
+    if (dtd->total_bytes_ioc_multo_status == DTD_STATUS_FREE)
+        return; /* this is a bug if it happens, but at least avoid totally screwing up the freelist */
+
+    bool was_empty = (dtd_free_head == NULL);
+    dtd->total_bytes_ioc_multo_status = DTD_STATUS_FREE;
+    dtd_set_next(dtd, dtd_free_head);
+    dtd_free_head = dtd;
+
+    if (was_empty) /* tell main loop when space becomes available */
+        lpcsdr_usb_space_available();
+}
+
+void lpcsdr_usb_free_dtd(USB_DTD_T *dtd)
+{
+    WITH_DISABLED_INTERRUPTS {
+        free_dtd_interrupts_disabled(dtd);
+    }
+}
+
+/* schedule a dTD to be sent over USB */
+static bool queue_dtd_interrupts_disabled(unsigned ep, USB_DTD_T *dtd, uint32_t bytes)
+{
+    /* caller should ensure interrupts are disabled */
+
+    if (bytes > DTD_BUFFER_SIZE) {
+        /* wat? */
+        free_dtd_interrupts_disabled(dtd);
+        return false;
+    }
+
+    if (dtd->total_bytes_ioc_multo_status == DTD_STATUS_CANCEL) {
+        /* We had a USB reset or SetConfiguration while the main loop was busy working with
+         * this dTD. It's not safe to return the dTD to the freelist immediately, so we
+         * mark it with CANCEL and when the main loop eventually tries to send the dTD
+         * we'll instead discard and free the dTD here.
+         */
+        free_dtd_interrupts_disabled(dtd);
+        return false;
+    }
+
+    if (!lpcsdr_usb_is_ready()) {
+        /* EP1 not configured yet */
+        free_dtd_interrupts_disabled(dtd);
+        return false;
+    }
+
+    /* (re)prepare page pointers. These are clobbered when transmitted, so we need to re-set them each time
+     * even though the buffer is unchanged
+     */
+    dtd_set_buffer(dtd, dtd->buffer, DTD_BUFFER_SIZE);
+
+    /* append dTD to active list, fill in length */
+    dtd->total_bytes_ioc_multo_status = DTD_TOTAL_BYTES(bytes) | DTD_STATUS_ACTIVE | DTD_IOC;
+    dtd->next_link_pointer_terminate = DTD_TERMINATE;
+    dtd_set_next(dtd, NULL);
+
+    USB_DTD_T *old_tail = dtd_active_tail;
+    if (old_tail)
+        dtd_set_next(old_tail, dtd);
+    dtd_active_tail = dtd;
+    if (!dtd_active_head)
+        dtd_active_head = dtd;
+
+    /* work out if we need to re-prime the endpoint */
+    const unsigned ep_bit = EP_IN_BIT(ep);
+
+    if (old_tail) {
+        // UM10503 24.10.11.3 - "linked list is not empty"
+
+        if (LPC_USB0->ENDPTPRIME & ep_bit)  // Endpoint priming already requested, we are done
+            return true;
+
+        // set the tripwire bit, read transmit buffer status
+        // if hardware clears the tripwire bit, we need to re-check the status
+        bool etbr;
+        do {
+            LPC_USB0->USBCMD_D |= USBCMD_ATDTW;
+            etbr = (LPC_USB0->ENDPTSTAT & ep_bit) != 0;
+        } while (!(LPC_USB0->USBCMD_D & USBCMD_ATDTW));
+        LPC_USB0->USBCMD_D &= ~USBCMD_ATDTW;
+
+        if (etbr)   // hardware reports ndpoint transmit buffer ready, no need to re-prime
+            return true;
+
+        // Endpoint not ready and not priming, we need to prime it.
+        // This happens when there is a race between
+        //   * the USB hardware reaching the end of the old tail of the transmit list and halting the endpoint, and
+        //   * software updating the next-link-pointer of the old tail to add the new dTD
+    }
+
+    // endpoint not primed, prime it to send the new dTD we added
+    // UM10503 24.10.11.3 - "linked list is empty"
+    USB_DQH_T *dqh_list = (USB_DQH_T *)LPC_USB0->ENDPOINTLISTADDR;
+    USB_DQH_T *dqh = &dqh_list[EP_IN_INDEX(ep)];
+    dqh->o_next_link_pointer_terminate = (uint32_t) dtd;
+    dqh->o_total_bytes_ioc_multo_status &= ~(DTD_STATUS_ACTIVE | DTD_STATUS_HALTED);
+    LPC_USB0->ENDPTPRIME |= ep_bit;
+
+    return true;
+}
+
+bool lpcsdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t bytes)
+{
+    bool result;
+    WITH_DISABLED_INTERRUPTS {
+        result = queue_dtd_interrupts_disabled(1, dtd, bytes);
+    }
+    return result;
+}
+
+static void retire_completed_dtds()
+{
+    WITH_DISABLED_INTERRUPTS {
+        while (dtd_active_head && (dtd_active_head->total_bytes_ioc_multo_status & DTD_STATUS_ACTIVE) == 0) {
+            // head DTD is completed, remove it from the active list
+            USB_DTD_T *old_head = dtd_active_head;
+            dtd_active_head = dtd_get_next(old_head);
+            if (!dtd_active_head)
+                dtd_active_tail = NULL;
+            free_dtd_interrupts_disabled(old_head);
+        }
+    }
+}
+
+/* Callback on USB reset */
 static ErrorCode_t reset_handler(USBD_HANDLE_T handle)
 {
+    reset_dtd_lists();
+    lpcsdr_usb_state_changed();
     return LPC_OK;
 }
 
 /* Callback on USB configuration (after enumeration, when the host sets the configuration to use).
- * This is the point where we could power things up and start drawing more than 100mA.
+ * This is the point where we can start drawing >100mA
  */
 static ErrorCode_t configure_handler(USBD_HANDLE_T handle)
 {
-    /* Set up a loop of dTDs for endpoint 1 IN that continuously send data
-     * whenever the host requests it.
-     */
-
-    const unsigned index = 3; // EP_IN_INDEX(1);
-    const uint32_t prime_bit = 1<<17; // EP_IN_BIT(1);
-
-    /* reset all dTDs */
-    for (unsigned i = 0; i < NUM_DTDS; ++i) {
-        usb_dtds[next_dtd_index]->total_bytes_ioc_multo_status = DTD_TOTAL_BYTES(DTD_BUFFER_SIZE) | DTD_STATUS_ACTIVE | DTD_IOC;
-    }
-    next_dtd_index = 0;
-
-    /* update the hardware queue head (assumes no pending transfer!). From UM10503:
-     *
-     * 1. Write dQH next pointer AND dQH terminate bit to 0 as a single DWord operation.
-     * 2. Clear active and halt bits in dQH (in case set from a previous error).
-     * 3. Prime endpoint by writing ‘1’ to correct bit position in ENDPTPRIME.
-     */
-
-    USB_DQH_T *dQH = (USB_DQH_T *) LPC_USB0->ENDPOINTLISTADDR;
-    dQH[index].o_next_link_pointer_terminate = (uint32_t) usb_dtds[0];                     /* set next pointer, with terminate bit = 0 */
-    dQH[index].o_total_bytes_ioc_multo_status &= ~(DTD_STATUS_ACTIVE | DTD_STATUS_HALTED); /* clear active/halted status bits */
-    LPC_USB0->ENDPTPRIME |= prime_bit;                                                     /* prime endpoint */
-
-    lpcsdr_led_set(true);
-
+    reset_dtd_lists();
+    lpcsdr_usb_state_changed();
     return LPC_OK;
 }
 
@@ -330,25 +468,11 @@ static ErrorCode_t ep1_in_handler(USBD_HANDLE_T handle, void *data, uint32_t eve
 
     switch (event) {
     case USB_EVT_IN:
-        /* Walk the list for completed dTDs, and make them active again */
-        while (!(usb_dtds[next_dtd_index]->total_bytes_ioc_multo_status & DTD_STATUS_ACTIVE)) {
-            usb_dtds[next_dtd_index]->total_bytes_ioc_multo_status = DTD_TOTAL_BYTES(DTD_BUFFER_SIZE) | DTD_STATUS_ACTIVE | DTD_IOC;
-            next_dtd_index = (next_dtd_index + 1) % NUM_DTDS;
-        }
+        retire_completed_dtds();
         return LPC_OK;
 
     default:
         return LPC_OK;
-    }
-}
-
-/* a little linear congruential PRNG, just to get some randomness in the USB data we transfer */
-static uint32_t random_state = 123456789;
-static void random_fill(uint8_t *buffer, unsigned size)
-{
-    for (unsigned i = 0; i < size; ++i) {
-        random_state = random_state * 0xD9F5 + 1;
-        *buffer++ = (uint8_t) (random_state >> 24);
     }
 }
 
@@ -541,6 +665,13 @@ static ErrorCode_t ep0_handler(USBD_HANDLE_T handle, void *data, uint32_t event)
     }
 }
 
+/* returns true if we're ready to use USB (connected, configured, in highspeed mode) */
+bool lpcsdr_usb_is_ready(void)
+{
+    USB_CORE_CTRL_T *core = (USB_CORE_CTRL_T*) usb_handle;
+    return (core->config_value != 0 && core->device_speed == USB_HIGH_SPEED);
+}
+
 /* Set up the USB PLL and PHY. Can be called multiple times, only does
  * something the first time. This exists so we can get USB0PLL programmed
  * (for use by SPIFI) before needing to fully set up USB.
@@ -591,91 +722,25 @@ ErrorCode_t lpcsdr_usb_init(void)
     /* todo: break this out into a reasonable allocator */
     uint32_t usb_pool = USB_MEM_BASE + usb_param.mem_size;
 
-#define ALIGN_TO(x,y) ( ((x)+(y)-1) & ~((y)-1) )
-#define CHECK(x) do {} while (!(x))
-
-    /* Allocate space for transfer DTDs */
+    /* Allocate space for transfer dTDs and their associated buffers */
     for (unsigned i = 0; i < NUM_DTDS; ++i) {
-        usb_pool = ALIGN_TO(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
-        CHECK((usb_pool & 31) == 0);
+        usb_pool = align_to(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
 
         usb_dtds[i] = (USB_DTD_T*) usb_pool;
+        memset((void*) usb_dtds[i], 0, sizeof(USB_DTD_T));
         usb_pool += sizeof(USB_DTD_T);
-    }
 
-    /* Allocate space for the transfer buffers */
-    for (unsigned i = 0; i < NUM_DTDS; ++i) {
-        usb_pool = ALIGN_TO(usb_pool, 4);      /* word-align buffers */
-        usb_buffers[i] = (uint8_t*) usb_pool;
-        random_fill(usb_buffers[i], DTD_BUFFER_SIZE);
+        usb_pool = align_to(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
+        usb_dtds[i]->buffer = (uint8_t*) usb_pool;
         usb_pool += DTD_BUFFER_SIZE;
     }
 
-    /* Populate the DTD loop */
-    for (unsigned i = 0; i < NUM_DTDS; ++i) {
-        USB_DTD_T *dtd = usb_dtds[i];
-
-        dtd->next_link_pointer_terminate = (uint32_t) usb_dtds[(i + 1) % NUM_DTDS];
-        dtd->total_bytes_ioc_multo_status = DTD_TOTAL_BYTES(DTD_BUFFER_SIZE) | DTD_STATUS_ACTIVE | DTD_IOC;
-
-        /* Assign buffer pointers pointing to the pages of the user buffer.
-         *
-         * Buffer 0 can start at an arbitrary address (bits 11:0 may be non-zero). Buffer 1..4 must be page aligned (bits 11:0 must be zero)
-         * so we allocate the user buffer to the buffer pointers like this:
-         *
-         *     === page boundary ===
-         *     ... other data (user buffer doesn't need to start at the start of a page)
-         *       user buffer starts here          <- buffer 0 pointer
-         *     ... <= 4k data ...
-         *     === page boundary ===              <- buffer 1 pointer
-         *     ... 4k data
-         *     === page boundary ===              <- buffer 2 pointer
-         *     ... 4k data
-         *     === page boundary ===              <- buffer 3 pointer
-         *     ... 4k data
-         *     === page boundary ===              <- buffer 4 pointer
-         *     ... <= 4k data
-         *       end of user buffer
-         *     ...
-         *     === page boundary ===
-         *
-         * For shorter user buffers, the data just ends mid-page as determined by total_bytes,
-         * and any subsequent buffer pointers are zeroed.
-         */
-        uint32_t buffer = (uint32_t) usb_buffers[i];
-        uint32_t remaining = DTD_BUFFER_SIZE;
-
-        dtd->page0_curr_offs = buffer; /* buffer0 has the start of the buffer, until the next page boundary */
-        dtd->page1_frame_n = dtd->page2 = dtd->page3 = dtd->page4 = 0;
-
-        uint32_t size = 4096 - (buffer & 4095);
-        buffer += size;
-        remaining -= size;
-        if (remaining > 0) {
-            dtd->page1_frame_n = buffer;
-            size = (remaining > 4096 ? 4096 : remaining);
-            buffer += size;
-            remaining -= size;
-        }
-        if (remaining > 0) {
-            dtd->page2 = buffer;
-            size = (remaining > 4096 ? 4096 : remaining);
-            buffer += size;
-            remaining -= size;
-        }
-        if (remaining > 0) {
-            dtd->page3 = buffer;
-            size = (remaining > 4096 ? 4096 : remaining);
-            buffer += size;
-            remaining -= size;
-        }
-        if (remaining > 0) {
-            dtd->page4 = buffer;
-            size = (remaining > 4096 ? 4096 : remaining);
-            buffer += size;
-            remaining -= size;
-        }
+    while (usb_pool > USB_MEM_BASE + USB_MEM_SIZE) {
+        /* if we get here, things are broken! */
     }
+
+    /* Put everything on the freelist */
+    reset_dtd_lists();
 
     /* Initialize the USB ROM API and patch errata */
     ErrorCode_t ret = USBD_API->hw->Init(&usb_handle, &desc, &usb_param);
@@ -683,12 +748,12 @@ ErrorCode_t lpcsdr_usb_init(void)
         return ret;
     errata_usbrom2_patch(usb_handle);
 
-    /* register our setup handler */
+    /* handler for setup packets received on EP0*/
     ret = USBD_API->core->RegisterClassHandler(usb_handle, ep0_handler, NULL);
     if (ret != LPC_OK)
         return ret;
 
-    /* register EP1 IN handler */
+    /* handler for EP1-IN events (specifically, notification when one or more dTDs are completed) */
     ret = USBD_API->core->RegisterEpHandler(usb_handle, EP_IN_INDEX(1), ep1_in_handler, NULL);
     if (ret != LPC_OK)
         return ret;
