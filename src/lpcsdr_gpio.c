@@ -33,6 +33,14 @@ ErrorCode_t lpcsdr_gpio_init(void)
         Chip_GPIO_SetPinState(LPC_GPIO_PORT, led_pins[i].gpioport, led_pins[i].gpiopin, false);
     }
 
+    /* prototype board, SW1 (BOOT2) on P2_8 / GPIO5[7], 2.2k pullup to VDD or direct connection to GND */
+    Chip_SCU_PinMuxSet(2, 8, SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC4);
+    Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, 5, 7);
+
+    /* prototype board, SW2 on P2_13 / GPIO1[13], floating or direct connection to GND, no pullup */
+    Chip_SCU_PinMuxSet(2, 13, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0);
+    Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, 1, 13);
+
     return LPC_OK;
 }
 
@@ -47,4 +55,14 @@ void lpcsdr_led_set(bool onoff)
 void lpcsdr_led_toggle(void)
 {
     lpcsdr_led_set(!led_state);
+}
+
+bool lpcsdr_read_sw1(void)
+{
+    return Chip_GPIO_GetPinState(LPC_GPIO_PORT, 5, 7);
+}
+
+bool lpcsdr_read_sw2(void)
+{
+    return Chip_GPIO_GetPinState(LPC_GPIO_PORT, 1, 13);
 }

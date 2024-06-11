@@ -569,6 +569,11 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
             return ep0_data_in(handle, spi_buffer, ctrl->SetupPacket.wLength);
         }
 
+        case 0x06:
+            /* Read switch states */
+            ctrl->EP0Buf[0] = (lpcsdr_read_sw1() ? 1 : 0) | (lpcsdr_read_sw2() ? 2 : 0);
+            return ep0_data_in(handle, ctrl->EP0Buf, 1);
+
         default:
             return ERR_USBD_UNHANDLED;
         }
