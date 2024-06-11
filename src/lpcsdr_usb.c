@@ -263,7 +263,8 @@ static void dtd_set_buffer(USB_DTD_T *dtd, void *user_buffer, uint32_t length)
 /* extract the next pointer from a dTD, using the hardware's convention of DTD_TERMINATE meaning NULL */
 static inline USB_DTD_T *dtd_get_next(USB_DTD_T *dtd)
 {
-    return (dtd->next_link_pointer_terminate & DTD_TERMINATE) ? NULL : (USB_DTD_T *)dtd->next_link_pointer_terminate;
+    uint32_t link = dtd->next_link_pointer_terminate; // volatile, only read it once
+    return (link & DTD_TERMINATE) ? NULL : (USB_DTD_T *)link;
 }
 
 /* set the next pointer of a dTD, using the hardware's convention of DTD_TERMINATE meaning NULL */
