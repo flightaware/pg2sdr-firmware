@@ -8,8 +8,6 @@
 
 #include <string.h>
 
-#define static_assert _Static_assert
-
 /* Use 72kB local SRAM at 1008 0000 .. 1009 1FFF for USB stack workspace and buffers */
 #define USB_MEM_BASE   0x10080000
 #define USB_MEM_SIZE   0x00012000

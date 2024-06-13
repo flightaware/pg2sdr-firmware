@@ -4,8 +4,6 @@
 #include "lpcsdr_common.h"
 #include "error.h"
 
-#define ALIGN(n) __attribute__(( aligned(n) ))
-
 /* Endpoint transfer descriptor and queue head structure; see UM10503 section 24.9 */
 
 typedef volatile struct ALIGN(32) _USB_DTD_T {

@@ -33,5 +33,8 @@ __attribute__ ((always_inline)) static inline uint32_t align_to(uint32_t addr, u
     return (addr + alignment - 1) & ~(alignment - 1);
 }
 
+#define ALIGN(n) __attribute__(( aligned(n) ))
+
+#define static_assert _Static_assert
 
 #endif
