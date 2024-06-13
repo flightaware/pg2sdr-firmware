@@ -71,7 +71,7 @@ static uint32_t compute_ndec(uint32_t nsel)
 bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
 {
     /* divisor sanity checks */
-    if (config->n_divisor > 128)
+    if (config->n_divisor > 256)
         return false;
 
     if (config->p_divisor > 32)
