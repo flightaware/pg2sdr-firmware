@@ -510,6 +510,92 @@ static ErrorCode_t ep0_prepare_data_out(USBD_HANDLE_T handle, uint8_t *data, uin
     return LPC_OK;
 }
 
+/* Measure the frequency of a clock input using the CGU's FREQ_MON registry.
+ * This produces a frequency estimate relative to the internal IRC 12MHz clock.
+ *
+ * clkin: the CLKIN_* constant for the clock input to measure (should be a real clock input, not CLKINPUT_PD)
+ * cycles: approximate number of IRC clock cycles to measure over
+ * *rcnt_sum: on return, total number of clock cycles of the IRC clock seen over the measurement period
+ * *fcnt_sum: on return, total number of clock cycles of the measured input seen over the measurement period
+ *
+ * The measured clock frequency is approximately (12e6 * (*fcnt_sum) / (*rcnt_sum))
+ */
+static void measure_frequency_raw(CHIP_CGU_CLKIN_T clkin, uint32_t cycles, uint32_t *rcnt_sum, uint32_t *fcnt_sum)
+{
+    uint32_t r_sum = 0, f_sum = 0;
+
+    uint32_t rcnt_initial = 0x1FF;
+    while (r_sum < cycles) {
+        LPC_CGU->FREQ_MON =
+                rcnt_initial | /* RCNT */
+                ((clkin & 0x1F) << 24); /* CLK_SEL */
+        for (int delay = 100; delay; --delay)
+            ;
+        LPC_CGU->FREQ_MON |= _BIT(23); /* set MEAS */
+
+        unsigned timeout = 200000;
+        uint32_t stat;
+        while ( ((stat = LPC_CGU->FREQ_MON) & _BIT(23)) && --timeout )
+            __NOP();
+        if (!timeout)
+            break;
+
+        uint32_t rcnt = rcnt_initial - (stat & 0x1FF);
+        uint32_t fcnt = (stat >> 9) & 0x3FFF;
+
+        r_sum += rcnt;
+        f_sum += fcnt;
+
+        if (fcnt == 0x3FFF) {
+            /* measurement stopped because fcnt saturated;
+             * for subsequent loops, use a smaller rcnt.
+             *
+             * This is because we only measure an exact
+             * count for whichever counter saturates first;
+             * the other counter might be mid-clock-cycle
+             * when saturation happens, producing a measurement
+             * error. So we prefer the counter for the slower
+             * clock (longer clock cycle) to saturate first, to
+             * reduce the measurement error.
+             */
+            rcnt_initial = rcnt - rcnt/16;
+            r_sum = f_sum = 0;
+        }
+    }
+
+    *rcnt_sum = r_sum;
+    *fcnt_sum = f_sum;
+}
+
+/* Measure the frequency of a given clock input, using the 12MHz crystal oscillator
+ * as a reference.
+ *
+ * This measures both the crystal oscillator and the requested clock input against
+ * the internal IRC clock using measure_frequency_raw, then returns an adjusted
+ * measurement assuming that the crystal is at exactly 12MHz.
+ *
+ * Returns a frequency in Hz, or 0 if something went wrong
+ */
+static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
+{
+    if (clkin >= CLKINPUT_PD)
+        return 0;
+    if (clkin == CLKIN_CRYSTAL)
+        return 12000000; /* by definition */
+
+    uint32_t rcnt_xtal, fcnt_xtal;
+    measure_frequency_raw(CLKIN_CRYSTAL, loops, &rcnt_xtal, &fcnt_xtal);
+    if (!fcnt_xtal)
+        return 0;
+
+    uint32_t rcnt, fcnt;
+    measure_frequency_raw(clkin, loops, &rcnt, &fcnt);
+    if (!rcnt)
+        return 0;
+
+    return (uint64_t)12000000 * fcnt / rcnt * rcnt_xtal / fcnt_xtal;
+}
+
 /* Page buffer holding data SPI control transfers (the built-in EP0 buffer is only 64 bytes, so we need a separate buffer for this) */
 static uint8_t spi_buffer[256];
 
@@ -572,6 +658,35 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
             /* Read switch states */
             ctrl->EP0Buf[0] = (lpcsdr_read_sw1() ? 1 : 0) | (lpcsdr_read_sw2() ? 2 : 0);
             return ep0_data_in(handle, ctrl->EP0Buf, 1);
+
+        case 0x07: {
+            /* Measure clock input frequency */
+            CHIP_CGU_CLKIN_T clkin = ctrl->SetupPacket.wIndex.W;
+            uint32_t measured = measure_frequency(clkin, 120000);
+            *(uint32_t*)ctrl->EP0Buf = measured;
+            return ep0_data_in(handle, ctrl->EP0Buf, 4);
+        }
+
+        case 0x08: {
+            /* Measure base clock frequency */
+            CHIP_CGU_BASE_CLK_T base = ctrl->SetupPacket.wIndex.W;
+            CHIP_CGU_CLKIN_T clkin = Chip_Clock_GetBaseClock(base);
+            uint32_t measured = measure_frequency(clkin, 120000);
+            *(uint32_t*)ctrl->EP0Buf = measured;
+            return ep0_data_in(handle, ctrl->EP0Buf, 4);
+        }
+
+        case 0x09: {
+            /* read PLL0AUDIO regs */
+            uint32_t *out = (uint32_t*) ctrl->EP0Buf;
+            out[0] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
+            out[1] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
+            out[2] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
+            out[3] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV;
+            out[4] = LPC_CGU->PLL0AUDIO_FRAC;
+            out[5] = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
+            return ep0_data_in(handle, ctrl->EP0Buf, 6*4);
+        }
 
         default:
             return ERR_USBD_UNHANDLED;
