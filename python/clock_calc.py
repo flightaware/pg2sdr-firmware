@@ -26,7 +26,7 @@ for i in i_dividers:
         else:
             post_dividers[d] = (p, i)
 
-def clocks_for(target_frequency):
+def settings_for(target_frequency):
     min_fcco = 275e6
     max_fcco = 550e6
     mid_fcco = (min_fcco + max_fcco)/2
@@ -63,10 +63,7 @@ def clocks_for(target_frequency):
             if best_int is None or (error,n) < best_int[0:2]:
                 best_int = (error, n, integer_m, p, i, actual_fcco, actual_frequency)
 
-    if best_frac[0] < best_int[0] or best_frac[1] < best_int[1]:
-        return (best_int, best_frac)
-    else:
-        return (best_int,)
+    return best_int, best_frac
 
 def show(f, x):
     error, n, m, p, i, actual_fcco, actual_frequency = x
@@ -76,6 +73,7 @@ def show(f, x):
     else:
         print(f'{f/1e6:6.3f}MHZ => FRACTIONAL  N={n:3d} M={m:9.5f} P={p:2d} I={i:3d}  fCCO={actual_fcco/1e6:7.3f}MHz  fOut={actual_frequency/1e6:6.3f}MHz  error={error:.1f}Hz')
 
-for f in (2.4e6, 4.8e6, 6e6, 10e6, 12e6, 18e6, 20e6, 24e6, 1.041667e6*2*2, 1234567, 24.576e6):    
-    for option in clocks_for(f):
-        show(f, option)
+if __name__ == '__main__':
+    for f in (2.4e6, 4.8e6, 6e6, 10e6, 12e6, 18e6, 20e6, 24e6, 1.041667e6*2*2, 1234567, 24.576e6):
+        for x in settings_for(f):
+            show(f, x)

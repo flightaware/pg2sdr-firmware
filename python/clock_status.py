@@ -53,6 +53,8 @@ def stat_reg(stat):
         r.append('LOCK')
     if stat & 2:
         r.append('FR')
+    if not (stat & 1):
+        r.append('(no PLL lock)')
     return ' '.join(r)
 
 def ctrl_reg(ctrl):
@@ -118,7 +120,7 @@ def query_regs(dev):
 
     pllfract_ctrl = frac & 0x1FFFFF
     fractional_m = pllfract_ctrl / (1<<15)
-
+    
     print(f'MDIV:  {mdiv:08x}  MDEC={mdec:5d} MSEL={msel:5d}  SELP={selp} SELI={seli} SELR={selr}')
     print(f'NPDIV: {npdiv:08x}  PDEC={pdec:3d} PSEL={psel:2d}  NDEC={ndec:3d} NSEL={nsel:3d}')
     print(f'FRAC:  {frac:08x}  FRACTIONAL_M={fractional_m:.5f}')
@@ -127,38 +129,46 @@ def query_regs(dev):
 
     if ctrl & (1<<2):
         fRef = 12e6
+        n = '0 (disabled)'
     elif nsel is None:
         fRef = 0
+        n = 'invalid'
     else:
         fRef = 12e6 / nsel
-    print(f'fRef:  {fRef/1e6:.3f}MHz')
+        n = nsel
 
     if not (ctrl & (1<<13)):
         m = fractional_m
     elif msel is None:
-        m = 0
+        m = 'invalid'
     else:
         m = msel
-    print(f'M:     {m:.5f}')
-
     fCCO = 2 * m * fRef
-    print(f'fCCO:  {fCCO/1e6:.3f}MHz')
 
     if ctrl & (1<<3):
-        fOut = fCCO
+        fPLL = fCCO
+        p = '0 (disabled)'
     elif psel is None:
-        fOut = 0
+        fPLL = 0
+        p = 'invalid'
     else:
-        fOut = fCCO / 2 / psel
-    print(f'fOut:  {fOut/1e6:.3f}MHz')
+        fPLL = fCCO / 2 / psel
+        p = psel
 
     if (idiv & 1):
-        fADC = fOut
+        fADC = fPLL
+        i = '0 (disabled)'
     else:
         idiv_divisor = 1 + (idiv>>2)&0xFF
-        fADC = fOut / idiv_divisor
+        fADC = fPLL / idiv_divisor
+        i = idiv_divisor
 
-    print(f'fADC:  {fADC/1e6:.3f}MHz')
+    print('-----')
+    print(f'N={n} M={m:.5f} P={p} I={i}')
+    print(f'computed fRef: {fRef/1e6:.3f} MHz')
+    print(f'computed fCCO: {fCCO/1e6:.3f} MHz')
+    print(f'computed fPLL: {fPLL/1e6:.3f} MHz')
+    print(f'computed fADC: {fADC/1e6:.3f} MHz')
 
 def measure_clock_input(dev, clkin):
     data = dev.ctrl_transfer(bmRequestType=usb.util.build_request_type(direction=usb.util.CTRL_IN,
@@ -225,8 +235,8 @@ if __name__ == '__main__':
     dev.set_configuration()
 
     query_regs(dev)
-    print(f'Measured PLL0A: {measure_pll0audio(dev)/1e6:.3f}MHz')
-    print(f'Measured HSADC: {measure_hsadc(dev)/1e6:.3f}MHz')
+    print(f'Measured fPLL: {measure_pll0audio(dev)/1e6:.3f}MHz')
+    print(f'Measured fADC: {measure_hsadc(dev)/1e6:.3f}MHz')
 
     show_clocks(dev)
     
