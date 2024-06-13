@@ -128,6 +128,10 @@ int main(void) {
     lpcsdr_spifi_init();
     lpcsdr_usb_init();
 
+    /* enable CLK0/CLK2 for ADC clock measurement */
+    Chip_SCU_ClockPinMuxSet(0, SCU_MODE_FUNC1 | SCU_MODE_INACT);
+    Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
+
     while (1) {
         m4_work();
 

@@ -163,10 +163,12 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
         /* PLL0AUDIO -> IDIV_E -> HSADC */
         Chip_Clock_SetDivider(CLK_IDIV_E, CLKIN_AUDIOPLL, config->idiv_divisor);
         Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKIN_IDIVE, true, false);
+        Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKIN_IDIVE, true, false);
     } else {
         /* PLL0AUDIO -> HSADC, disable IDIV_E */
         Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
         Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKIN_AUDIOPLL, true, false);
+        Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKIN_AUDIOPLL, true, false);
     }
 
     /* Enable ADC branch clock */
