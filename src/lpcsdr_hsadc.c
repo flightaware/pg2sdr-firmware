@@ -81,7 +81,7 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
         return false;
 
     uint32_t integer_m = config->m_divisor >> 15;
-    bool fractional = (config->m_divisor & 0x3FFF) != 0;
+    bool fractional = (config->m_divisor & 0x7FFF) != 0;
 
     if (config->m_divisor == 0 || (!fractional && integer_m > 32768) || (fractional && integer_m > 128))
         return false;
