@@ -1,0 +1,19 @@
+#ifndef LPCSDR_HSADC_H
+#define LPCSDR_HSADC_H
+
+#include "lpc_types.h"
+
+typedef struct {
+    uint32_t n_divisor;     /* PLL0AUDIO pre-divisor (0 = bypass divider */
+    uint32_t m_divisor;     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part */
+    uint32_t p_divisor;     /* PLL0AUDIO post-divisor (0 = bypass divider */
+    uint32_t idiv_divisor;  /* IDIV_E divisor (0 = don't use IDIV_E) */
+} hsadc_clock_config_t;
+
+bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config);
+void lpcsdr_hsadc_clock_stop(void);
+
+void lpcsdr_hsadc_start(void);
+void lpcsdr_hsadc_stop(void);
+
+#endif

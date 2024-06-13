@@ -2,6 +2,7 @@
 #include "lpcsdr_usb.h"
 #include "lpcsdr_gpio.h"
 #include "lpcsdr_spifi.h"
+#include "lpcsdr_hsadc.h"
 
 #include "chip.h"
 #include "usbd_rom_api.h"
@@ -717,6 +718,11 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
             return LPC_OK;
         }
 
+        case 0x12: {
+            /* Start ADC clock */
+            return ep0_prepare_data_out(handle, ctrl->EP0Buf, sizeof(hsadc_clock_config_t));
+        }
+
         default:
             return ERR_USBD_UNHANDLED;
         }
@@ -753,6 +759,17 @@ static ErrorCode_t ep0_out_handler(USBD_HANDLE_T handle)
 
         ErrorCode_t spi_error = lpcsdr_spifi_page_program(address, spi_buffer, ctrl->SetupPacket.wLength); /* up to 3ms */
         if (spi_error != LPC_OK)
+            return ep0_stall(handle);
+
+        USBD_API->core->StatusInStage(handle);
+        return LPC_OK;
+
+    case 0x12:
+        /* set ADC clock */
+        if (ctrl->SetupPacket.wLength < sizeof(hsadc_clock_config_t))
+            return ep0_stall(handle);
+
+        if (!lpcsdr_hsadc_clock_start((hsadc_clock_config_t *) ctrl->EP0Buf))
             return ep0_stall(handle);
 
         USBD_API->core->StatusInStage(handle);

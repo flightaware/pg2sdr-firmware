@@ -13,6 +13,7 @@
 #include "chip.h"
 #include "stopwatch.h"
 #include "lpcsdr_usb.h"
+#include "lpcsdr_hsadc.h"
 #include "lpcsdr_spifi.h"
 #include "lpcsdr_gpio.h"
 
