@@ -35,25 +35,47 @@ void lpcsdr_usb_state_changed(void)
     wake_m4();
 }
 
-static void pack_samples(const void *src, void *dst, uint32_t src_len)
+/* Given `count` words of HSADC samples in `src`, with 8 12-bit samples per 4 words,
+ * copy and pack the samples into `dst` with 6 12-bit samples per 3 words.
+ */
+static void pack_samples(const uint32_t *src, uint32_t *dst, uint32_t count)
 {
+#if 0
+    for (; count > 3; src += 4, dst += 3, count -= 4) {
+        dst[0] = (src[0] & ~0xF000F000) | ((src[3] & 0x0F000F00) << 4);
+        dst[1] = (src[1] & ~0xF000F000) | ((src[3] & 0x00F000F0) << 8);
+        dst[2] = (src[2] & ~0xF000F000) | ((src[3] & 0x000F000F) << 12);
+    }
+#else
+    // hand-rolled assembly implementing the same loop as above
+
+    count /= 4;
+    if (!count)
+        return;
+
+    uint32_t scratch;
     __asm__ volatile (
-            "1: ldm.w %0!, {r1,r2,r3,r4}\n\t"    // load 4 words (8 samples)
-            "bic r1,r1,#0xF000F000\n\t"          // clear high 4 bits of first 6 samples (could be omitted if we trust the hardware)
-            "bic r2,r2,#0xF000F000\n\t"
-            "bic r3,r3,#0xF000F000\n\t"
-            "and r5,r4,#0x0F000F00\n\t"          // extract bits 11:8 of samples 7/8
-            "orr r1,r1,r5,lsl #4\n\t"            //  and insert into the top 4 bits of samples 1/2
-            "and r5,r4,#0x00F000F0\n\t"          // extract bits 7:4 of samples 7/8
-            "orr r2,r2,r5,lsl #8\n\t"            //  and insert into the top 4 bits of samples 3/4
-            "and r5,r4,#0x000F000F\n\t"          // extract bits 3:0 of samples 7/8
-            "orr r3,r3,r5,lsl #12\n\t"           //  and insert into the top 4 bits of samples 5/6
-            "stm.w %1!, {r1,r2,r3}\n\t"          // store 3 words
-            "subs %2,%2,#16\n\t"
-            "bgt 1b"                             // loop until done
-            : "+r" (src), "+r" (dst), "+r" (src_len)       /* outputs */
-            :                                              /* inputs */
-            : "r1", "r2", "r3", "r4", "r5", "cc", "memory" /* clobber */);
+            "1: ldm %[src]!, {r3,r4,r5,r6}\n\t"          // load 4 words (8 samples)
+            "bic r3,r3,#0xF000F000\n\t"                  // clear high 4 bits of first 6 samples (could be omitted if we trust the hardware)
+            "bic r4,r4,#0xF000F000\n\t"                  //   --"--
+            "bic r5,r5,#0xF000F000\n\t"                  //   --"--
+            "and %[scratch],r6,#0x0F000F00\n\t"          // extract bits 11:8 of samples 7/8
+            "orr r3,r3,%[scratch],lsl #4\n\t"            //  and insert into the top 4 bits of samples 1/2
+            "and %[scratch],r6,#0x00F000F0\n\t"          // extract bits 7:4 of samples 7/8
+            "orr r4,r4,%[scratch],lsl #8\n\t"            //  and insert into the top 4 bits of samples 3/4
+            "and %[scratch],r6,#0x000F000F\n\t"          // extract bits 3:0 of samples 7/8
+            "orr r5,r5,%[scratch],lsl #12\n\t"           //  and insert into the top 4 bits of samples 5/6
+            "stm %[dst]!, {r3,r4,r5}\n\t"                // store 3 words
+            "subs %[count],%[count],#1\n\t"              // loop if more data
+            "bne 1b\n\t"
+            : /* outputs */
+              [src] "+r" (src),
+              [dst] "+r" (dst),
+              [count] "+r" (count),
+              [scratch] "=&r" (scratch)
+            : /* inputs */
+            : /* clobber */ "r3", "r4", "r5", "r6", "cc", "memory");
+#endif
 }
 
 #if 0
