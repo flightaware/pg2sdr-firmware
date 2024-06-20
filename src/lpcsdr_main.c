@@ -17,7 +17,6 @@
 #include "lpcsdr_spifi.h"
 #include "lpcsdr_gpio.h"
 
-#include <cr_section_macros.h>
 
 static volatile bool wakeup_requested = false;
 
