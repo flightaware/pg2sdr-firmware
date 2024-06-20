@@ -485,6 +485,8 @@ void SysTick_Handler(void) {
     }
 }
 
+void unexpected_interrupt(void);
+
 //*****************************************************************************
 //
 // Processor ends up here if an unexpected interrupt occurs or a specific
@@ -493,6 +495,5 @@ void SysTick_Handler(void) {
 //*****************************************************************************
 __attribute__ ((section(".after_vectors")))
 void IntDefaultHandler(void) {
-    while (1) {
-    }
+    unexpected_interrupt();
 }
