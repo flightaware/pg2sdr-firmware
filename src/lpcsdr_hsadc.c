@@ -68,6 +68,8 @@ static uint32_t compute_ndec(uint32_t nsel)
 #define PLL_CTRL_MOD_PD       _BIT(14)
 #define PLL_CTRL_CLK_SEL(n)   (((n) & 0x1F) << 24)
 
+static uint32_t hsadc_frequency;
+
 bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
 {
     /* divisor sanity checks */
@@ -85,8 +87,6 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
 
     if (config->m_divisor == 0 || (!fractional && integer_m > 32768) || (fractional && integer_m > 128))
         return false;
-
-    const CHIP_CGU_CLKIN_T clkin = CLKIN_CRYSTAL;
 
     /* derive fCCO, fADC */
     uint32_t fCCO;
@@ -111,7 +111,7 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
         return false;
 
     /* encode PLL0AUDIO register settings */
-    uint32_t ctrl = PLL_CTRL_CLK_SEL(clkin);
+    uint32_t ctrl = PLL_CTRL_CLK_SEL(CLKIN_CRYSTAL) | PLL_CTRL_AUTOBLOCK;
 
     uint32_t mdiv;
     uint32_t fract;
@@ -134,23 +134,19 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
 
     /* power down existing PLL */
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_PD | PLL_CTRL_MOD_PD;
-    StopWatch_DelayMs(10);
 
     /* reprogram PLL */
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV = mdiv;
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV = npdiv;
     LPC_CGU->PLL0AUDIO_FRAC = fract;
-    StopWatch_DelayMs(10);
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL = ctrl;
-    StopWatch_DelayMs(10);
 
     /* power up PLL */
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL &= ~PLL_CTRL_PD;
-    StopWatch_DelayMs(10);
 
-    /* wait for PLL lock */
+    /* wait up to 100ms for PLL lock */
     uint32_t start = StopWatch_Start();
-    uint32_t timeout = StopWatch_MsToTicks(500);
+    uint32_t timeout = StopWatch_MsToTicks(100);
     while (StopWatch_Elapsed(start) < timeout) {
         if (LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT & PLL_STAT_LOCK)
             break;
@@ -173,11 +169,16 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
 
     /* Enable ADC branch clock */
     Chip_Clock_EnableOpts(CLK_ADCHS, true, true, 1);
+
+    hsadc_frequency = fADC;
     return true;
 }
 
 void lpcsdr_hsadc_clock_stop(void)
 {
+    /* Disable ADC branch clock */
+    Chip_Clock_Disable(CLK_ADCHS);
+    /* Power down base clock PLL/divider */
     Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_PD | PLL_CTRL_MOD_PD;
 }
