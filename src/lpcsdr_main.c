@@ -132,7 +132,9 @@ static void m4_copy_hsadc_buffer(dma_lli_t *buffer, uint32_t dma_status)
         memset(out_samples + out_words, 0, pad);
     }
 
-    static_assert(sizeof(*header) + out_words * 4 + pad <= DTD_BUFFER_SIZE);
+    const uint32_t total_block_len = sizeof(*header) + out_words * 4 + pad;
+    static_assert(total_block_len <= DTD_BUFFER_SIZE);
+    header->block_len = total_block_len;
 
     /* We're done copying to the USB buffer. Check that the source buffer is
      * still valid - it may have started to get clobbered while we were halfway
