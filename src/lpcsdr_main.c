@@ -187,7 +187,7 @@ static void set_low_power_mode(void)
 static void set_high_power_mode(void)
 {
     high_power_mode = true;
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, /* MAX_CLOCK_FREQ */ 120000000, false);
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, false);
     SystemCoreClockUpdate();
     StopWatch_Init();
 }
@@ -195,9 +195,9 @@ static void set_high_power_mode(void)
 static void m4_update_power_state()
 {
     if (!high_power_mode && lpcsdr_usb_is_ready()) {
-        set_low_power_mode();
-    } else if (high_power_mode && !lpcsdr_usb_is_ready()) {
         set_high_power_mode();
+    } else if (high_power_mode && !lpcsdr_usb_is_ready()) {
+        set_low_power_mode();
     }
 }
 
