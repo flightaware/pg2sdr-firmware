@@ -3,6 +3,7 @@
 #include "lpcsdr_gpio.h"
 #include "lpcsdr_spifi.h"
 #include "lpcsdr_hsadc.h"
+#include "lpcsdr_dma.h"
 
 #include "chip.h"
 #include "usbd_rom_api.h"
@@ -689,6 +690,33 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
             return ep0_data_in(handle, ctrl->EP0Buf, 6*4);
         }
 
+        case 0x0A: {
+            /* read random status stuff */
+            uint32_t *out = (uint32_t*) spi_buffer;
+
+            /* ADCHS */
+            out[0] = LPC_ADCHS->CONFIG;
+            out[1] = LPC_ADCHS->INTS[0].STATUS;
+            out[2] = LPC_ADCHS->FIFO_STS;
+            out[3] = LPC_ADCHS->DSCR_STS;
+
+            /* DMA */
+            out[4] = LPC_GPDMA->CONFIG;
+            out[5] = LPC_GPDMA->ENBLDCHNS;
+            out[6] = LPC_GPDMA->RAWINTTCSTAT;
+            out[7] = LPC_GPDMA->RAWINTERRSTAT;
+            out[8] = LPC_GPDMA->CH[0].CONFIG;
+            out[9] = LPC_GPDMA->CH[0].CONTROL;
+            out[10] = LPC_GPDMA->CH[0].SRCADDR;
+            out[11] = LPC_GPDMA->CH[0].DESTADDR;
+            out[12] = LPC_GPDMA->CH[0].LLI;
+            out[13] = (uint32_t) hsadc_current_lli;
+            out[14] = hsadc_next_sequence;
+            out[15] = 0xDEADBEEF;
+
+            return ep0_data_in(handle, spi_buffer, 16*4);
+        }
+
         default:
             return ERR_USBD_UNHANDLED;
         }
@@ -722,6 +750,21 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
             /* Start ADC clock */
             return ep0_prepare_data_out(handle, ctrl->EP0Buf, sizeof(hsadc_clock_config_t));
         }
+
+        case 0x13:
+            /* Start ADC conversion & bulk transfer */
+            lpcsdr_dma_hsadc_start();
+            lpcsdr_hsadc_conversion_start();
+            lpcsdr_led_set(true);
+            USBD_API->core->StatusInStage(handle);
+            return LPC_OK;
+
+        case 0x14:
+            /* Stop ADC conversion & bulk transfer */
+            lpcsdr_dma_hsadc_stop();
+            lpcsdr_hsadc_conversion_stop();
+            USBD_API->core->StatusInStage(handle);
+            return LPC_OK;
 
         default:
             return ERR_USBD_UNHANDLED;
