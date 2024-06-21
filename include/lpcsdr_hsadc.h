@@ -10,10 +10,12 @@ typedef struct {
     uint32_t idiv_divisor;  /* IDIV_E divisor (0 = don't use IDIV_E) */
 } hsadc_clock_config_t;
 
+void lpcsdr_hsadc_init(void);
+
 bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config);
 void lpcsdr_hsadc_clock_stop(void);
 
-void lpcsdr_hsadc_start(void);
-void lpcsdr_hsadc_stop(void);
+void lpcsdr_hsadc_conversion_start(void);
+void lpcsdr_hsadc_conversion_stop(void);
 
 #endif

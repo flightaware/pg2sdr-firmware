@@ -183,25 +183,103 @@ void lpcsdr_hsadc_clock_stop(void)
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_PD | PLL_CTRL_MOD_PD;
 }
 
-void lpcsdr_hsadc_start()
+void lpcsdr_hsadc_init()
 {
-    /* configure the ADC */
-    Chip_HSADC_Init(LPC_ADCHS);
-
-    /* basic config */
-    Chip_HSADC_DisableInts(LPC_ADCHS, /* group */ 0, /* mask */ 0xFFFFFFF);
-    Chip_HSADC_DisableInts(LPC_ADCHS, /* group */ 1, /* mask */ 0xFFFFFFF);
-    Chip_HSADC_SetACDCBias(LPC_ADCHS, /* channel */ 0, /* dcInNeg */ HSADC_CHANNEL_DCBIAS, /* dcInPos */ HSADC_CHANNEL_DCBIAS);
-    Chip_HSADC_SetPowerSpeed(LPC_ADCHS, /* two's complement */ true);
-    Chip_HSADC_SetupFIFO(LPC_ADCHS, /* trip */ 8, /* packed */ true);
-    Chip_HSADC_EnablePower(LPC_ADCHS);
-
-    /* descriptor table with one entry that captures channel 0, then loops back to the top */
-    Chip_HSADC_SetupDescEntry(LPC_ADCHS, /* table */ 0, /* descriptor */ 0, /* entry */ HSADC_DESC_CH(0) | HSADC_DESC_BRANCH_FIRST);
-    Chip_HSADC_UpdateDescTable(LPC_ADCHS, /* table */ 0);
-    Chip_HSADC_SetActiveDescriptor(LPC_ADCHS, /* table */ 0, /* descriptor */ 0);
-
-    /* start collecting */
-    Chip_HSADC_SWTrigger(LPC_ADCHS);
+    /* Enable register clock, reset ADC */
+    Chip_Clock_EnableOpts(CLK_MX_ADCHS, true, true, 1);
+    Chip_RGU_TriggerReset(RGU_ADCHS_RST);
+    while (Chip_RGU_InReset(RGU_ADCHS_RST))
+        __NOP();
 }
 
+void lpcsdr_hsadc_conversion_start()
+{
+    lpcsdr_hsadc_conversion_stop();
+
+    /* basic config */
+    LPC_ADCHS->INTS[0].CLR_EN = 0xFFFFFFFF; // interrupt 0, disable all interrupts
+    LPC_ADCHS->INTS[1].CLR_EN = 0xFFFFFFFF; // interrupt 1, disable all interrupts
+    LPC_ADCHS->FIFO_CFG =
+            _BIT(0) |   // PACKED_READ, pack two samples per FIFO word
+            (8 << 1);   // FIFO_LEVEL = 8, raise DMA request when the FIFO has >= 8 words
+    LPC_ADCHS->CONFIG =
+            (1 << 0) |  // TRIGGER_MASK = 1, software trigger only
+            _BIT(5)  |  // CHANNEL_ID_EN, store channel IDs (always zero)
+            (144 << 6); // RECOVERY_TIME = 144 fADC cycles
+
+    // see UM10503 47.6.11 and 47.6.12 for ADC/speed selection rules
+    uint32_t crs, adc_speed;
+    if (hsadc_frequency > 65000000) {
+        crs = 4;
+        adc_speed = 0x00EEEEEE;
+    } else if (hsadc_frequency > 50000000) {
+        crs = 3;
+        adc_speed = 0x00FFFFFF;
+    } else if (hsadc_frequency > 30000000) {
+        crs = 2;
+        adc_speed = 0;
+    } else if (hsadc_frequency > 20000000) {
+        crs = 1;
+        adc_speed = 0;
+    } else {
+        crs = 0;
+        adc_speed = 0;
+    }
+
+    LPC_ADCHS->POWER_CONTROL =
+            (crs << 0)   |    // CRS
+            (0x01 << 4)  |    // DCINNEG=1, enable DC bias, negative side, channel 0
+            (0x01 << 10) |    // DCINPOS=1, enable DC bias, positive side, channel 0
+            _BIT(16)     |    // TWOS=1, output format is two's complement
+            _BIT(17)     |    // POWER_SWITCH=1, ADC active
+            _BIT(18);         // BGAP_SWITCH=1, band gap reference active
+    LPC_ADCHS->ADC_SPEED = adc_speed;
+
+    // Populate descriptor tables, with extra paranoia
+    for (unsigned i = 0; i < 6; ++i) {
+            LPC_ADCHS->DESCRIPTOR[0][i] = // Subsequent samples, convert on every fADC cycle
+                    (0 << 0) |            // CHANNEL_NR=0, convert channel 0
+                    (0x01 << 6) |         // BRANCH=1, branch to first descriptor of this table (table 0)
+                    _BIT(24);             // RESET_TIMER=1, reset timer
+    }
+    LPC_ADCHS->DESCRIPTOR[0][7] = // First sample, wait for RECOVERY_TIME before first conversion
+            (0 << 0) |            // CHANNEL_NR=0, convert channel 0
+            (0x01 << 6) |         // BRANCH=1, branch to first descriptor of this table
+            (144 << 8) |          // MATCH_VALUE=144, execute after 144 fADC cycles
+            _BIT(24);             // RESET_TIMER=1, reset timer
+
+    for (unsigned i = 0; i < 7; ++i) {
+        LPC_ADCHS->DESCRIPTOR[1][i] = // Subsequent samples, convert on every fADC cycle
+                (0 << 0) |            // CHANNEL_NR=0, convert channel 0
+                (0x02 << 6) |         // BRANCH=2, branch to first descriptor of other table (table 0)
+                _BIT(24);             // RESET_TIMER=1, reset timer
+    }
+
+    LPC_ADCHS->DESCRIPTOR[0][0] |= _BIT(31); // Load table 0 into shadow table
+    LPC_ADCHS->DESCRIPTOR[1][0] |= _BIT(31); // Load table 1 into shadow table
+
+    LPC_ADCHS->DSCR_STS =
+            (0 << 0) |      // active descriptor table = 0
+            (7 << 1);       // active descriptor index = 7
+
+    LPC_ADCHS->POWER_DOWN = 0; // clear power-down bit
+
+    /* wait 110us for powerup */
+    StopWatch_DelayUs(110);
+
+    LPC_ADCHS->FLUSH = 1;      // clear FIFO, just in case
+
+    /* clear stale status bits */
+    LPC_ADCHS->INTS[0].CLR_STAT = 0xFFFFFFFF;
+    LPC_ADCHS->INTS[1].CLR_STAT = 0xFFFFFFFF;
+
+    /* software trigger, go */
+    LPC_ADCHS->TRIGGER = 1;
+}
+
+void lpcsdr_hsadc_conversion_stop()
+{
+    Chip_RGU_TriggerReset(RGU_ADCHS_RST);
+    while (Chip_RGU_InReset(RGU_ADCHS_RST))
+        __NOP();
+}
