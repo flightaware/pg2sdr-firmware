@@ -13,26 +13,34 @@
 #include "chip.h"
 #include "stopwatch.h"
 #include "lpcsdr_usb.h"
+#include "lpcsdr_dma.h"
 #include "lpcsdr_hsadc.h"
 #include "lpcsdr_spifi.h"
 #include "lpcsdr_gpio.h"
+#include "lpcsdr_ipc.h"
+#include "lpcsdr_protocol.h"
+#include <string.h>
 
+static bool bulk_test_mode = false;
+static bool high_power_mode = false;
 
-static volatile bool wakeup_requested = false;
-
-static void wake_m4(void)
-{
-    wakeup_requested = true;
-}
-
+/* callback from USB code to indicate it's got a free buffer available */
 void lpcsdr_usb_space_available(void)
 {
-    wake_m4();
+    if (bulk_test_mode)
+        lpcsdr_ipc_send_m4(M4_QUEUE_TEST_DATA, 0, 0, 0);
 }
 
+/* callback from USB code to indicate the USB connection state changed (USB reset or reconfiguration) */
 void lpcsdr_usb_state_changed(void)
 {
-    wake_m4();
+    lpcsdr_ipc_send_m4(M4_UPDATE_POWER_STATE, 0, 0, 0);
+}
+
+/* callback from DMA code to indicate there's a new HSADC buffer waiting to be copied */
+bool lpcsdr_dma_hsadc_buffer_ready(dma_lli_t *buffer, uint32_t status)
+{
+    return lpcsdr_ipc_send_m4(M4_COPY_HSADC_BUFFER, (uint32_t) buffer, status, 0);
 }
 
 /* Given `count` words of HSADC samples in `src`, with 8 12-bit samples per 4 words,
@@ -49,6 +57,8 @@ static void pack_samples(const uint32_t *src, uint32_t *dst, uint32_t count)
 #else
     // hand-rolled assembly implementing the same loop as above
 
+    // pre-conditioning of `count` lives on the C side, so the compiler can
+    // do constant propagation etc.
     count /= 4;
     if (!count)
         return;
@@ -78,17 +88,72 @@ static void pack_samples(const uint32_t *src, uint32_t *dst, uint32_t count)
 #endif
 }
 
-#if 0
-/* a little linear congruential PRNG, just to get some randomness in the USB data we transfer */
-static uint32_t random_state = 123456789;
-static void random_fill_byte(uint8_t *buffer, unsigned size)
+static uint32_t pending_usb_status; /* Status bits waiting to be sent in the next successfully-queued block */
+
+static void m4_copy_hsadc_buffer(dma_lli_t *buffer, uint32_t dma_status)
 {
-    for (unsigned i = 0; i < size; ++i) {
-        random_state = random_state * 0xD9F5 + 1;
-        *buffer++ = (uint8_t) (random_state >> 24);
+    pending_usb_status |= dma_status; /* accumulate status bits */
+
+    uint32_t start_seq = buffer->sequence;
+    if (buffer->status & LLI_STATUS_CLOBBERED) {
+        /* buffer got clobbered while it was waiting on the IPC queue, drop data.
+         * we do this check early to avoid doing redundant work -- the same
+         * check also happens again after copying/packing is complete.
+         */
+        pending_usb_status |= BLOCK_STATUS_PACKING_OVERRUN;
+        lpcsdr_dma_hsadc_copy_complete(buffer);
+        return;
+    }
+
+    USB_DTD_T *dTD = lpcsdr_usb_get_dtd();
+    if (!dTD) {
+        /* No available USB buffer, host is not keeping up, drop data */
+        pending_usb_status |= BLOCK_STATUS_USB_OVERRUN;
+        lpcsdr_dma_hsadc_copy_complete(buffer);
+        return;
+    }
+
+    usb_header_t *header = (usb_header_t*) dTD->buffer;
+    header->magic = 0xDEADBEEF;
+    header->samples = HSADC_BUFFER_SIZE / 2;
+    header->sequence = start_seq;
+    header->status = pending_usb_status;
+
+    uint32_t *out_samples = (uint32_t*) (header + 1);
+
+    const uint32_t in_words = HSADC_BUFFER_SIZE/4;
+    static_assert(in_words % 4 == 0);
+    pack_samples((uint32_t *)buffer->destaddr, (uint32_t *)out_samples, in_words);
+
+    const uint32_t out_words = in_words * 3 / 4;
+    const uint32_t used = sizeof(*header) + out_words * 4;
+    const uint32_t pad = ((used + 511) & ~511) - used;
+    if (pad > 0) {
+        memset(out_samples + out_words, 0, pad);
+    }
+
+    static_assert(sizeof(*header) + out_words * 4 + pad <= DTD_BUFFER_SIZE);
+
+    /* We're done copying to the USB buffer. Check that the source buffer is
+     * still valid - it may have started to get clobbered while we were halfway
+     * through the copy. If it was clobbered, we don't know that we got a good copy,
+     * so discard the buffer.
+     */
+    memory_barrier();
+    uint32_t status = lpcsdr_dma_hsadc_copy_complete(buffer);
+    if (buffer->sequence == start_seq && !(status & LLI_STATUS_CLOBBERED)) {
+        /* we copied everything out successfully with no clobber, send the data */
+        lpcsdr_usb_queue_dtd(dTD, used + pad);
+        pending_usb_status = 0;
+    } else {
+        /* clobbered during the copy, drop data and return the dTD to the pool */
+        pending_usb_status |= BLOCK_STATUS_PACKING_OVERRUN;
+        lpcsdr_usb_free_dtd(dTD);
     }
 }
 
+/* a little linear congruential PRNG, just to get some randomness in the USB data we transfer */
+static uint32_t random_state = 123456789;
 static void random_fill_word(uint8_t *buffer, unsigned size)
 {
     uint32_t *u32 = (uint32_t*) buffer;
@@ -97,9 +162,17 @@ static void random_fill_word(uint8_t *buffer, unsigned size)
         *u32++ = random_state;
     }
 }
-#endif
 
-static bool high_power_mode = false;
+static void m4_queue_test_data()
+{
+    while (bulk_test_mode) {
+        USB_DTD_T *dTD = lpcsdr_usb_get_dtd();
+        if (!dTD)
+            break;
+        random_fill_word(dTD->buffer, DTD_BUFFER_SIZE);
+        lpcsdr_usb_queue_dtd(dTD, DTD_BUFFER_SIZE);
+    }
+}
 
 static void set_low_power_mode(void)
 {
@@ -117,28 +190,29 @@ static void set_high_power_mode(void)
     StopWatch_Init();
 }
 
-static void m4_work(void)
+static void m4_update_power_state()
 {
-    bool usb_ready = lpcsdr_usb_is_ready();
-    if (!usb_ready && high_power_mode) {
+    if (!high_power_mode && lpcsdr_usb_is_ready()) {
         set_low_power_mode();
-    } else if (usb_ready && !high_power_mode) {
-        // later: have a control transfer to enable high-power mode / start sampling
+    } else if (high_power_mode && !lpcsdr_usb_is_ready()) {
         set_high_power_mode();
     }
+}
 
-    while (usb_ready) {
-        USB_DTD_T *dtd = lpcsdr_usb_get_dtd();
-        if (!dtd)
-            break;
+static void m4_handle_message(const ipc_message_t *message)
+{
+    switch (message->message) {
+    case M4_QUEUE_TEST_DATA:
+        m4_queue_test_data();
+        break;
 
-//        sequence_fill(dtd->buffer, DTD_BUFFER_SIZE);
-//        random_fill_word(dtd->buffer, DTD_BUFFER_SIZE);
-//        random_fill_byte(dtd->buffer, DTD_BUFFER_SIZE);
-        pack_samples((uint32_t*) 0x20000000, dtd->buffer, (DTD_BUFFER_SIZE / 12) * 16);
-        lpcsdr_usb_queue_dtd(dtd, DTD_BUFFER_SIZE);
+    case M4_UPDATE_POWER_STATE:
+        m4_update_power_state();
+        break;
 
-        usb_ready = lpcsdr_usb_is_ready();
+    case M4_COPY_HSADC_BUFFER:
+        m4_copy_hsadc_buffer((dma_lli_t*) message->values[0], message->values[1]);
+        break;
     }
 }
 
@@ -147,21 +221,16 @@ int main(void) {
 
     lpcsdr_gpio_init();
     lpcsdr_spifi_init();
+    lpcsdr_dma_init();
+    lpcsdr_hsadc_init();
+    lpcsdr_ipc_init();
     lpcsdr_usb_init();
 
     /* enable CLK0/CLK2 for ADC clock measurement */
     Chip_SCU_ClockPinMuxSet(0, SCU_MODE_FUNC1 | SCU_MODE_INACT);
     Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
 
-    while (1) {
-        m4_work();
-
-        __disable_irq();
-        if (!wakeup_requested)
-            __WFI();
-        wakeup_requested = false;
-        __enable_irq();
-    }
+    lpcsdr_ipc_handle_messages_forever(m4_handle_message);
 
     // not reached
 }
