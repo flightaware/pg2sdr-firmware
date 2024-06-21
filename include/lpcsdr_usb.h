@@ -64,13 +64,13 @@ typedef volatile struct ALIGN(64) {
  *
  * say N buffers, each a multiple of 512 bytes, with at least 20 bytes of header space, fitting into 70kB (leaving 2kB for other USB stack space)
  *
- * N=5, buffer: 14336 (28 * 512) bytes = 9544 samples + 20 bytes header, total: 71680, spare: 2048  (Too large for 16k ADCHS buffers)
+ * N=5, buffer: 14336 (28 * 512) bytes = 9544 samples + 20 bytes header, total: 71680, spare: 2048
  * N=6, buffer: 11776 (23 * 512) bytes = 6376 samples + 28 bytes header, total: 70656, spare: 3072
  * N=7, buffer: 10240 (20 * 512) bytes = 6808 samples + 28 bytes header, total: 71680, spare: 2048   <== use this
  * N=8, buffer: 8704  (17 * 512) bytes = 5784 samples + 28 bytes header, total: 69632, spare: 4096
  */
 #define NUM_DTDS 7
-#define DTD_BUFFER_SIZE 8704
+#define DTD_BUFFER_SIZE 10240
 
 /* Set up USB PHY and PLL0USB clock. May be called multiple times, idempotent */
 void lpcsdr_usb_clock_init(void);
