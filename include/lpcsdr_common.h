@@ -42,6 +42,28 @@ __attribute__ ((always_inline)) static inline uint32_t align_to(uint32_t addr, u
     return (addr + alignment - 1) & ~(alignment - 1);
 }
 
+/* Atomically test and set one or more bits */
+__attribute__ ((always_inline)) static inline uint32_t test_and_set_bits(uint32_t bits, volatile uint32_t *addr)
+{
+    uint32_t result;
+    do {
+        result = __LDREXW(addr);
+    } while (__STREXW(result | bits, addr));
+
+    return result;
+}
+
+/* Atomically test and clear one or more bits */
+__attribute__ ((always_inline)) static inline uint32_t test_and_clear_bits(uint32_t bits, volatile uint32_t *addr)
+{
+    uint32_t result;
+    do {
+        result = __LDREXW(addr);
+    } while (__STREXW(result & ~bits, addr));
+
+    return result;
+}
+
 /* Align a type to the given alignment */
 #define ALIGN(n) __attribute__(( aligned(n) ))
 
