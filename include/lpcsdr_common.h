@@ -31,7 +31,7 @@ __attribute__ ((always_inline)) static inline void enable_interrupts(uint32_t ol
 #define WITH_DISABLED_INTERRUPTS for (uint32_t __once = 1, __save = disable_interrupts(); __once; enable_interrupts(__save), __once = 0)
 
 /* CMSIS __DMB is insufficient to prevent compiler reordering, so add a memory clobber.. */
-__attribute__ ((always_inline)) static inline void DMB(void)
+__attribute__ ((always_inline)) static inline void memory_barrier(void)
 {
     __asm__ volatile ("dmb" : : : "memory");
 }
