@@ -486,15 +486,21 @@ static void m4_usb_ep0_out(const ipc_message_t *message)
 
     case 0x13:
         /* Start ADC conversion & bulk transfer */
+        lpcsdr_usb_ep1_reset();
         lpcsdr_dma_hsadc_start();
-        lpcsdr_hsadc_conversion_start();
+        if (!lpcsdr_hsadc_conversion_start()) {
+            lpcsdr_dma_hsadc_stop();
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
         lpcsdr_usb_ep0_out_ack();
         return;
 
     case 0x14:
         /* Stop ADC conversion & bulk transfer */
-        lpcsdr_dma_hsadc_stop();
         lpcsdr_hsadc_conversion_stop();
+        lpcsdr_dma_hsadc_stop();
+        lpcsdr_usb_ep1_reset();
         lpcsdr_usb_ep0_out_ack();
         return;
 

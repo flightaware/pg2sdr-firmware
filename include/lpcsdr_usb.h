@@ -107,6 +107,9 @@ void lpcsdr_usb_free_dtd(USB_DTD_T *dtd);
  */
 void lpcsdr_usb_space_available(void);
 
+/* Clear any pending transfers on EP1 and reset the endpoint */
+void lpcsdr_usb_ep1_reset(void);
+
 /* Callback, called to notify that the USB connection/configuration state changed */
 void lpcsdr_usb_state_changed(void);
 

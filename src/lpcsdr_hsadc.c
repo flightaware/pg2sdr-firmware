@@ -68,6 +68,11 @@ static uint32_t compute_ndec(uint32_t nsel)
 #define PLL_CTRL_MOD_PD       _BIT(14)
 #define PLL_CTRL_CLK_SEL(n)   (((n) & 0x1F) << 24)
 
+#define PLL_MIN_FCCO (275000000)
+#define PLL_MAX_FCCO (550000000)
+#define CRYSTAL_FREQ (12000000)
+#define HSADC_MAX_FREQ (80000000)
+
 static uint32_t hsadc_frequency;
 
 bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
@@ -90,13 +95,13 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
 
     /* derive fCCO, fADC */
     uint32_t fCCO;
-    uint32_t fIn = 12000000;
+    uint32_t fIn = CRYSTAL_FREQ;
     uint32_t fRef = fIn;
     if (config->n_divisor)
         fRef /= config->n_divisor;
 
     fCCO = (uint64_t)2 * config->m_divisor * fRef / 32768;
-    if (fCCO < 275000000 || fCCO > 550000000)
+    if (fCCO < PLL_MIN_FCCO || fCCO > PLL_MAX_FCCO)
         return false;
 
     uint32_t fPLL = fCCO;
@@ -107,7 +112,7 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
     if (config->idiv_divisor)
         fADC /= config->idiv_divisor;
 
-    if (fADC > 80000000)
+    if (fADC > HSADC_MAX_FREQ)
         return false;
 
     /* encode PLL0AUDIO register settings */
@@ -151,6 +156,7 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
         if (LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT & PLL_STAT_LOCK)
             break;
     }
+    /* PLL lock doesn't seem very reliable, so don't treat a lock failure as an error here */
 
     /* enable PLL0AUDIO output */
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_CLKEN;
@@ -181,6 +187,7 @@ void lpcsdr_hsadc_clock_stop(void)
     /* Power down base clock PLL/divider */
     Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_PD | PLL_CTRL_MOD_PD;
+    hsadc_frequency = 0;
 }
 
 void lpcsdr_hsadc_init()
@@ -192,9 +199,14 @@ void lpcsdr_hsadc_init()
         __NOP();
 }
 
-void lpcsdr_hsadc_conversion_start()
+bool lpcsdr_hsadc_conversion_start()
 {
     lpcsdr_hsadc_conversion_stop();
+
+    if (!hsadc_frequency) {
+        /* ADC clock not configured yet, bail out  */
+        return false;
+    }
 
     /* basic config */
     LPC_ADCHS->INTS[0].CLR_EN = 0xFFFFFFFF; // interrupt 0, disable all interrupts
@@ -275,6 +287,8 @@ void lpcsdr_hsadc_conversion_start()
 
     /* software trigger, go */
     LPC_ADCHS->TRIGGER = 1;
+
+    return true;
 }
 
 void lpcsdr_hsadc_conversion_stop()

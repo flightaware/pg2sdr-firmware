@@ -275,20 +275,18 @@ static inline void dtd_set_next(USB_DTD_T *dtd, USB_DTD_T *next)
 }
 
 /* move all dTDs onto the freelist. For busy dTDs, mark them for cancellation. */
-static void reset_dtd_lists()
+static void reset_dtd_lists_interrupts_disabled()
 {
-    WITH_DISABLED_INTERRUPTS {
-        dtd_active_head = dtd_active_tail = NULL;
-        dtd_free_head = NULL;
-        for (unsigned i = 0; i < NUM_DTDS; ++i) {
-            USB_DTD_T *dtd = usb_dtds[i];
-            if (dtd->total_bytes_ioc_multo_status == DTD_STATUS_BUSY)   /* Being filled by the main loop, can't free it yet.. */
-                dtd->total_bytes_ioc_multo_status = DTD_STATUS_CANCEL;  /* .. so mark it for reclamation later */
-            else {
-                dtd->total_bytes_ioc_multo_status = DTD_STATUS_FREE;
-                dtd_set_next(dtd, dtd_free_head);
-                dtd_free_head = dtd;
-            }
+    dtd_active_head = dtd_active_tail = NULL;
+    dtd_free_head = NULL;
+    for (unsigned i = 0; i < NUM_DTDS; ++i) {
+        USB_DTD_T *dtd = usb_dtds[i];
+        if (dtd->total_bytes_ioc_multo_status == DTD_STATUS_BUSY)   /* Being filled by the main loop, can't free it yet.. */
+            dtd->total_bytes_ioc_multo_status = DTD_STATUS_CANCEL;  /* .. so mark it for reclamation later */
+        else {
+            dtd->total_bytes_ioc_multo_status = DTD_STATUS_FREE;
+            dtd_set_next(dtd, dtd_free_head);
+            dtd_free_head = dtd;
         }
     }
 }
@@ -424,6 +422,15 @@ bool lpcsdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t bytes)
     return result;
 }
 
+/* Reset EP1 and associate dTDs */
+void lpcsdr_usb_ep1_reset(void)
+{
+    WITH_DISABLED_INTERRUPTS {
+        USBD_API->hw->ResetEP(usb_handle, /* EP 1 IN */0x81);
+        reset_dtd_lists_interrupts_disabled();
+    }
+}
+
 static void retire_completed_dtds()
 {
     WITH_DISABLED_INTERRUPTS {
@@ -441,7 +448,7 @@ static void retire_completed_dtds()
 /* Callback on USB reset */
 static ErrorCode_t reset_handler(USBD_HANDLE_T handle)
 {
-    reset_dtd_lists();
+    reset_dtd_lists_interrupts_disabled();
     lpcsdr_usb_state_changed();
     return LPC_OK;
 }
@@ -451,7 +458,7 @@ static ErrorCode_t reset_handler(USBD_HANDLE_T handle)
  */
 static ErrorCode_t configure_handler(USBD_HANDLE_T handle)
 {
-    reset_dtd_lists();
+    reset_dtd_lists_interrupts_disabled();
     lpcsdr_usb_state_changed();
     return LPC_OK;
 }
@@ -723,7 +730,7 @@ ErrorCode_t lpcsdr_usb_init(void)
     }
 
     /* Put everything on the freelist */
-    reset_dtd_lists();
+    reset_dtd_lists_interrupts_disabled();
 
     /* Initialize the USB ROM API and patch errata */
     ErrorCode_t ret = USBD_API->hw->Init(&usb_handle, &desc, &usb_param);
