@@ -14,6 +14,8 @@ typedef enum {
     M4_QUEUE_TEST_DATA,
     M4_UPDATE_POWER_STATE,
     M4_COPY_HSADC_BUFFER,
+    M4_USB_EP0_IN,
+    M4_USB_EP0_OUT,
     M4_MAX_MESSAGE = 0x7FFFFFFF,
 } m4_ipc_message_type_t;
 

@@ -175,8 +175,8 @@ def measure_clock_input(dev, clkin):
                                                                        type=usb.util.CTRL_TYPE_VENDOR,
                                                                        recipient=usb.util.CTRL_RECIPIENT_DEVICE),
                              bRequest=0x07,
-                             wValue=0,
-                             wIndex=clkin,
+                             wValue=clkin,
+                             wIndex=0,
                              data_or_wLength=4,
                              timeout=2000)
     freq, = struct.unpack('<I', data)
@@ -187,8 +187,8 @@ def measure_base_clock(dev, baseclk):
                                                                        type=usb.util.CTRL_TYPE_VENDOR,
                                                                        recipient=usb.util.CTRL_RECIPIENT_DEVICE),
                              bRequest=0x08,
-                             wValue=0,
-                             wIndex=baseclk,
+                             wValue=baseclk,
+                             wIndex=0,
                              data_or_wLength=4,
                              timeout=2000)
     freq, = struct.unpack('<I', data)

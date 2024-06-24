@@ -113,4 +113,24 @@ void lpcsdr_usb_state_changed(void);
 /* Returns true if the USB layer is ready for use */
 bool lpcsdr_usb_is_ready(void);
 
+/*
+ * Control endpoint handling. Most of the work is done from the main loop,
+ * the ISR just arranges to fill the buffer (for OUT transfers) then passes an
+ * IPC message with the details. The main loop then uses these functions to
+ * complete the control transfer. This avoids keeping interrupts disabled for an
+ * extended period for control transfers that take some time to complete.
+ */
+
+/* Shared control-transfer buffer */
+extern uint8_t lpcsdr_usb_control_buffer[256];
+
+/* Respond to an IN control transfer, providing some data */
+void lpcsdr_usb_ep0_data_in(const uint8_t *buf, uint32_t length);
+
+/* Respond to an OUT control transfer, successfully completing the transfer (STATUS stage) */
+void lpcsdr_usb_ep0_out_ack();
+
+/* Respond to an IN or OUT control transfer, stalling the endpoint to indicate an error */
+void lpcsdr_usb_ep0_stall();
+
 #endif /* LPCSDR_USB_H */

@@ -4,6 +4,7 @@
 #include "lpcsdr_spifi.h"
 #include "lpcsdr_hsadc.h"
 #include "lpcsdr_dma.h"
+#include "lpcsdr_ipc.h"
 
 #include "chip.h"
 #include "usbd_rom_api.h"
@@ -455,9 +456,7 @@ static ErrorCode_t configure_handler(USBD_HANDLE_T handle)
     return LPC_OK;
 }
 
-/* EP1 event callback. We'll get a USB_EVT_IN whenever a dTD is completely sent; since we're just sending
- * in a loop, we just keep the DTD in the loop and make it active again.
- */
+/* EP1 event callback. We'll get a USB_EVT_IN whenever a dTD is completely sent */
 static ErrorCode_t ep1_in_handler(USBD_HANDLE_T handle, void *data, uint32_t event)
 {
     /* toggle LED every 1k interrupts */
@@ -477,132 +476,70 @@ static ErrorCode_t ep1_in_handler(USBD_HANDLE_T handle, void *data, uint32_t eve
     }
 }
 
-/* helper: while processing a setup request, respond with an endpoint stall */
-static ErrorCode_t ep0_stall(USBD_HANDLE_T handle)
-{
-    USBD_API->core->StallEp0(handle);
-    return LPC_OK;
-}
+/* Shared buffer for control transfer data */
+uint8_t lpcsdr_usb_control_buffer[256];
 
-/* helper: while processing a setup request (device to host), respond to the request with some data */
-static ErrorCode_t ep0_data_in(USBD_HANDLE_T handle, uint8_t *data, uint32_t length)
-{
-    USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) handle;
+/* True if a control transfer is currently being processed by the main loop */
+static bool ep0_busy;
 
-    if (ctrl->SetupPacket.bmRequestType.BM.Dir != REQUEST_DEVICE_TO_HOST || ctrl->SetupPacket.wLength > length)
-        return ep0_stall(handle);
-
-    ctrl->EP0Data.pData = data;
-    ctrl->EP0Data.Count = ctrl->SetupPacket.wLength;
-    USBD_API->core->DataInStage(ctrl);
-    return LPC_OK;
-}
-
-/* helper: while processing a setup request (host to device), set up to receive data from the host */
-static ErrorCode_t ep0_prepare_data_out(USBD_HANDLE_T handle, uint8_t *data, uint32_t length)
-{
-    USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) handle;
-
-    if (ctrl->SetupPacket.bmRequestType.BM.Dir != REQUEST_HOST_TO_DEVICE || ctrl->SetupPacket.wLength > length)
-        return ep0_stall(handle);
-
-    ctrl->EP0Data.pData = data;
-    ctrl->EP0Data.Count = ctrl->SetupPacket.wLength;
-    USBD_API->core->DataOutStage(ctrl); /* We will get a USB_EVT_OUT event later, when the data is ready */
-    return LPC_OK;
-}
-
-/* Measure the frequency of a clock input using the CGU's FREQ_MON registry.
- * This produces a frequency estimate relative to the internal IRC 12MHz clock.
- *
- * clkin: the CLKIN_* constant for the clock input to measure (should be a real clock input, not CLKINPUT_PD)
- * cycles: approximate number of IRC clock cycles to measure over
- * *rcnt_sum: on return, total number of clock cycles of the IRC clock seen over the measurement period
- * *fcnt_sum: on return, total number of clock cycles of the measured input seen over the measurement period
- *
- * The measured clock frequency is approximately (12e6 * (*fcnt_sum) / (*rcnt_sum))
+/* True if we got a second control transfer while one was being processed by the main loop;
+ * in this state we should not respond to the first transfer when the main loop eventually
+ * comes up with a response.
  */
-static void measure_frequency_raw(CHIP_CGU_CLKIN_T clkin, uint32_t cycles, uint32_t *rcnt_sum, uint32_t *fcnt_sum)
+static bool ep0_clobber;
+
+/* Called from the main loop to stall EP0 in response to a control transfer */
+void lpcsdr_usb_ep0_stall()
 {
-    uint32_t r_sum = 0, f_sum = 0;
-
-    uint32_t rcnt_initial = 0x1FF;
-    while (r_sum < cycles) {
-        LPC_CGU->FREQ_MON =
-                rcnt_initial | /* RCNT */
-                ((clkin & 0x1F) << 24); /* CLK_SEL */
-        for (int delay = 100; delay; --delay)
-            ;
-        LPC_CGU->FREQ_MON |= _BIT(23); /* set MEAS */
-
-        unsigned timeout = 200000;
-        uint32_t stat;
-        while ( ((stat = LPC_CGU->FREQ_MON) & _BIT(23)) && --timeout )
-            __NOP();
-        if (!timeout)
-            break;
-
-        uint32_t rcnt = rcnt_initial - (stat & 0x1FF);
-        uint32_t fcnt = (stat >> 9) & 0x3FFF;
-
-        r_sum += rcnt;
-        f_sum += fcnt;
-
-        if (fcnt == 0x3FFF) {
-            /* measurement stopped because fcnt saturated;
-             * for subsequent loops, use a smaller rcnt.
-             *
-             * This is because we only measure an exact
-             * count for whichever counter saturates first;
-             * the other counter might be mid-clock-cycle
-             * when saturation happens, producing a measurement
-             * error. So we prefer the counter for the slower
-             * clock (longer clock cycle) to saturate first, to
-             * reduce the measurement error.
-             */
-            rcnt_initial = rcnt - rcnt/16;
-            r_sum = f_sum = 0;
+    WITH_DISABLED_INTERRUPTS {
+        if (ep0_clobber) {
+            ep0_busy = ep0_clobber = false;
+        } else if (ep0_busy) {
+            ep0_busy = false;
+            USBD_API->core->StallEp0(usb_handle);
         }
     }
-
-    *rcnt_sum = r_sum;
-    *fcnt_sum = f_sum;
 }
 
-/* Measure the frequency of a given clock input, using the 12MHz crystal oscillator
- * as a reference.
- *
- * This measures both the crystal oscillator and the requested clock input against
- * the internal IRC clock using measure_frequency_raw, then returns an adjusted
- * measurement assuming that the crystal is at exactly 12MHz.
- *
- * Returns a frequency in Hz, or 0 if something went wrong
- */
-static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
+/* Called from the main loop to provide EP0 IN data in response to a control transfer */
+void lpcsdr_usb_ep0_data_in(const uint8_t *data, uint32_t length)
 {
-    if (clkin >= CLKINPUT_PD)
-        return 0;
-    if (clkin == CLKIN_CRYSTAL)
-        return 12000000; /* by definition */
+    USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) usb_handle;
 
-    uint32_t rcnt_xtal, fcnt_xtal;
-    measure_frequency_raw(CLKIN_CRYSTAL, loops, &rcnt_xtal, &fcnt_xtal);
-    if (!fcnt_xtal)
-        return 0;
+    WITH_DISABLED_INTERRUPTS {
+        if (ep0_clobber) {
+            ep0_busy = ep0_clobber = false;
+        } else if (ep0_busy) {
+            ep0_busy = false;
 
-    uint32_t rcnt, fcnt;
-    measure_frequency_raw(clkin, loops, &rcnt, &fcnt);
-    if (!rcnt)
-        return 0;
-
-    return (uint64_t)12000000 * fcnt / rcnt * rcnt_xtal / fcnt_xtal;
+            if (!length) {
+                // Not sure what we do in the no-data-stage case here ..
+                USBD_API->core->StatusOutStage(ctrl);
+            } else {
+                ctrl->EP0Data.pData = (uint8_t *)data;
+                ctrl->EP0Data.Count = length;
+                USBD_API->core->DataInStage(ctrl);
+            }
+        }
+    }
 }
 
-/* Page buffer holding data SPI control transfers (the built-in EP0 buffer is only 64 bytes, so we need a separate buffer for this) */
-static uint8_t spi_buffer[256];
+/* Called from the main loop to complete an EP0 OUT control transfer successfully */
+void lpcsdr_usb_ep0_out_ack(void)
+{
+    USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) usb_handle;
+
+    WITH_DISABLED_INTERRUPTS {
+        if (ep0_clobber) {
+            ep0_busy = ep0_clobber = false;
+        } else if (ep0_busy) {
+            ep0_busy = false;
+            USBD_API->core->StatusInStage(ctrl);
+        }
+    }
+}
 
 /* Handler for SETUP stage on EP0, for vendor requests only.
- * Return USBD_ERR_UNHANDLED to get default behavior (probably a stall)
  */
 static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
 {
@@ -610,217 +547,84 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
 
     if (ctrl->SetupPacket.bmRequestType.BM.Dir == REQUEST_DEVICE_TO_HOST) {
         /* device->host, respond with IN data */
-
-        switch (ctrl->SetupPacket.bRequest) {
-        case 0x01:
-            /* comms check */
-            ctrl->EP0Buf[0] = 0xDE;
-            ctrl->EP0Buf[1] = 0xAD;
-            ctrl->EP0Buf[2] = 0xBE;
-            ctrl->EP0Buf[3] = 0xEF;
-            return ep0_data_in(handle, ctrl->EP0Buf, 4);
-
-        case 0x02:
-            /* SPI: read manufacturer/device ID */
-            lpcsdr_spifi_read_manufacturer_device_id(ctrl->EP0Buf);
-            return ep0_data_in(handle, ctrl->EP0Buf, 2);
-
-        case 0x03:
-            /* SPI: read unique ID */
-            lpcsdr_spifi_read_unique_id(ctrl->EP0Buf);
-            return ep0_data_in(handle, ctrl->EP0Buf, 8);
-
-        case 0x04: {
-            /* SPI: read data */
-            if (ctrl->SetupPacket.wLength > sizeof(spi_buffer))
-                return ep0_stall(handle);
-
-            uint32_t address = (ctrl->SetupPacket.wIndex.W << 16) | ctrl->SetupPacket.wValue.W;
-            if (address > 0x00FFFFFF || address + ctrl->SetupPacket.wLength > 0x01000000)
-                return ep0_stall(handle);
-
-            lpcsdr_spifi_read_data(address, spi_buffer, ctrl->SetupPacket.wLength);
-            return ep0_data_in(handle, spi_buffer, ctrl->SetupPacket.wLength);
+        if (ep0_busy) {
+            ep0_clobber = true;
+            USBD_API->core->StallEp0(handle);
+            return LPC_OK;
         }
 
-        case 0x05: {
-            /* SPI: read data, quad */
-            if (ctrl->SetupPacket.wLength > sizeof(spi_buffer))
-                return ep0_stall(handle);
-
-            uint32_t address = (ctrl->SetupPacket.wIndex.W << 16) | ctrl->SetupPacket.wValue.W;
-            if (address > 0x00FFFFFF || address + ctrl->SetupPacket.wLength > 0x01000000)
-                return ep0_stall(handle);
-
-            lpcsdr_spifi_fast_read_quad(address, spi_buffer, ctrl->SetupPacket.wLength);
-            return ep0_data_in(handle, spi_buffer, ctrl->SetupPacket.wLength);
+        if (!lpcsdr_ipc_send_m4(M4_USB_EP0_IN,
+                ctrl->SetupPacket.bRequest,
+                (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
+                ctrl->SetupPacket.wLength)) {
+            /* Couldn't queue it */
+            USBD_API->core->StallEp0(handle);
+            return LPC_OK;
         }
 
-        case 0x06:
-            /* Read switch states */
-            ctrl->EP0Buf[0] = (lpcsdr_read_sw1() ? 1 : 0) | (lpcsdr_read_sw2() ? 2 : 0);
-            return ep0_data_in(handle, ctrl->EP0Buf, 1);
-
-        case 0x07: {
-            /* Measure clock input frequency */
-            CHIP_CGU_CLKIN_T clkin = ctrl->SetupPacket.wIndex.W;
-            uint32_t measured = measure_frequency(clkin, 120000);
-            *(uint32_t*)ctrl->EP0Buf = measured;
-            return ep0_data_in(handle, ctrl->EP0Buf, 4);
-        }
-
-        case 0x08: {
-            /* Measure base clock frequency */
-            CHIP_CGU_BASE_CLK_T base = ctrl->SetupPacket.wIndex.W;
-            CHIP_CGU_CLKIN_T clkin = Chip_Clock_GetBaseClock(base);
-            uint32_t measured = measure_frequency(clkin, 120000);
-            *(uint32_t*)ctrl->EP0Buf = measured;
-            return ep0_data_in(handle, ctrl->EP0Buf, 4);
-        }
-
-        case 0x09: {
-            /* read PLL0AUDIO regs */
-            uint32_t *out = (uint32_t*) ctrl->EP0Buf;
-            out[0] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
-            out[1] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
-            out[2] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
-            out[3] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV;
-            out[4] = LPC_CGU->PLL0AUDIO_FRAC;
-            out[5] = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
-            return ep0_data_in(handle, ctrl->EP0Buf, 6*4);
-        }
-
-        case 0x0A: {
-            /* read random status stuff */
-            uint32_t *out = (uint32_t*) spi_buffer;
-
-            /* ADCHS */
-            out[0] = LPC_ADCHS->CONFIG;
-            out[1] = LPC_ADCHS->INTS[0].STATUS;
-            out[2] = LPC_ADCHS->FIFO_STS;
-            out[3] = LPC_ADCHS->DSCR_STS;
-
-            /* DMA */
-            out[4] = LPC_GPDMA->CONFIG;
-            out[5] = LPC_GPDMA->ENBLDCHNS;
-            out[6] = LPC_GPDMA->RAWINTTCSTAT;
-            out[7] = LPC_GPDMA->RAWINTERRSTAT;
-            out[8] = LPC_GPDMA->CH[0].CONFIG;
-            out[9] = LPC_GPDMA->CH[0].CONTROL;
-            out[10] = LPC_GPDMA->CH[0].SRCADDR;
-            out[11] = LPC_GPDMA->CH[0].DESTADDR;
-            out[12] = LPC_GPDMA->CH[0].LLI;
-            out[13] = (uint32_t) hsadc_current_lli;
-            out[14] = hsadc_next_sequence;
-            out[15] = 0xDEADBEEF;
-
-            return ep0_data_in(handle, spi_buffer, 16*4);
-        }
-
-        default:
-            return ERR_USBD_UNHANDLED;
-        }
+        ep0_busy = true;
+        return LPC_OK;
     } else {
         /* host->device, prepare to read OUT data */
-        switch (ctrl->SetupPacket.bRequest) {
-        case 0x01:
-            /* comms check */
-            return ep0_prepare_data_out(handle, ctrl->EP0Buf, sizeof(ctrl->EP0Buf));
-
-        case 0x10: {
-            /* SPI: write data */
-            return ep0_prepare_data_out(handle, spi_buffer, sizeof(spi_buffer));
-        }
-
-        case 0x11: {
-            /* SPI: erase sector. We can do this immediately as there's no additional data to receive */
-            uint32_t address = (ctrl->SetupPacket.wIndex.W << 16) | ctrl->SetupPacket.wValue.W;
-            if (address > 0x00FFFFFF || (address & 0x0FFF) != 0)
-                return ep0_stall(handle);
-
-            ErrorCode_t spi_error = lpcsdr_spifi_sector_erase(address); /* up to 300ms */
-            if (spi_error != LPC_OK)
-                return ep0_stall(handle);
-
-            USBD_API->core->StatusInStage(handle);
+        if (ctrl->SetupPacket.wLength > sizeof(lpcsdr_usb_control_buffer)) {
+            USBD_API->core->StallEp0(handle);
             return LPC_OK;
         }
 
-        case 0x12: {
-            /* Start ADC clock */
-            return ep0_prepare_data_out(handle, ctrl->EP0Buf, sizeof(hsadc_clock_config_t));
+        if (ep0_busy) {
+            ep0_clobber = true;
+            USBD_API->core->StallEp0(handle);
+            return LPC_OK;
         }
 
-        case 0x13:
-            /* Start ADC conversion & bulk transfer */
-            lpcsdr_dma_hsadc_start();
-            lpcsdr_hsadc_conversion_start();
-            lpcsdr_led_set(true);
-            USBD_API->core->StatusInStage(handle);
-            return LPC_OK;
+        if (!ctrl->SetupPacket.wLength) {
+            // No data phase, submit for processing immediately
+            if (!lpcsdr_ipc_send_m4(M4_USB_EP0_OUT,
+                    ctrl->SetupPacket.bRequest,
+                    (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
+                    ctrl->SetupPacket.wLength)) {
+                /* Couldn't queue it */
+                USBD_API->core->StallEp0(handle);
+                return LPC_OK;
+            }
 
-        case 0x14:
-            /* Stop ADC conversion & bulk transfer */
-            lpcsdr_dma_hsadc_stop();
-            lpcsdr_hsadc_conversion_stop();
-            USBD_API->core->StatusInStage(handle);
+            ep0_busy = true;
             return LPC_OK;
-
-        default:
-            return ERR_USBD_UNHANDLED;
         }
+
+        // Set up data phase, wait for data
+        ep0_busy = true;
+        ctrl->EP0Data.pData = lpcsdr_usb_control_buffer;
+        ctrl->EP0Data.Count = ctrl->SetupPacket.wLength;
+        USBD_API->core->DataOutStage(ctrl); /* We will get a USB_EVT_OUT event later, when the data is ready */
+        return LPC_OK;
     }
 }
 
-/* Handler called when we get USB_EVT_OUT on EP0.
- * This happens after the data stage is completed (data is received from the host) following a call to ep0_prepare_data_out()
+/* Handler called when we get USB_EVT_OUT on EP0, for vendor requests only.
+ * This happens after the data stage is completed (data is received from the host) following a call to DataOutStage()
  */
 static ErrorCode_t ep0_out_handler(USBD_HANDLE_T handle)
 {
     USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) handle;
 
-    /* nb ctrl->EP0Data isn't preserved from the setup phase, but EP0Buf and SetupPacket apparently are .. */
-
-    switch (ctrl->SetupPacket.bRequest) {
-    case 0x01:
-        /* comms check */
-        if (ctrl->SetupPacket.wLength != 4 ||
-            ctrl->EP0Buf[0] != 0xDE ||
-            ctrl->EP0Buf[1] != 0xAD ||
-            ctrl->EP0Buf[2] != 0xBE ||
-            ctrl->EP0Buf[3] != 0xEF)
-            return ep0_stall(handle);
-
-        USBD_API->core->StatusInStage(handle);
+    if (ep0_clobber) {
+        ep0_busy = ep0_clobber = false;
+        USBD_API->core->StallEp0(handle);
         return LPC_OK;
-
-    case 0x10:
-        /* SPI: write data */
-        uint32_t address = (ctrl->SetupPacket.wIndex.W << 16) | ctrl->SetupPacket.wValue.W;
-        if (address > 0x00FFFFFF || address + ctrl->SetupPacket.wLength > 0x01000000)
-            return ep0_stall(handle);
-
-        ErrorCode_t spi_error = lpcsdr_spifi_page_program(address, spi_buffer, ctrl->SetupPacket.wLength); /* up to 3ms */
-        if (spi_error != LPC_OK)
-            return ep0_stall(handle);
-
-        USBD_API->core->StatusInStage(handle);
-        return LPC_OK;
-
-    case 0x12:
-        /* set ADC clock */
-        if (ctrl->SetupPacket.wLength < sizeof(hsadc_clock_config_t))
-            return ep0_stall(handle);
-
-        if (!lpcsdr_hsadc_clock_start((hsadc_clock_config_t *) ctrl->EP0Buf))
-            return ep0_stall(handle);
-
-        USBD_API->core->StatusInStage(handle);
-        return LPC_OK;
-
-    default:
-        return ERR_USBD_UNHANDLED;
     }
+
+    if (!lpcsdr_ipc_send_m4(M4_USB_EP0_OUT,
+            ctrl->SetupPacket.bRequest,
+            (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
+            ctrl->SetupPacket.wLength)) {
+        /* Couldn't queue it */
+        ep0_busy = ep0_clobber = false;
+        USBD_API->core->StallEp0(handle);
+        return LPC_OK;
+    }
+
+    return LPC_OK;
 }
 
 /* EP0 event handler, just delegates events to a per-event-type handler */

@@ -90,8 +90,11 @@ static void pack_samples(const uint32_t *src, uint32_t *dst, uint32_t count)
 
 static uint32_t pending_usb_status; /* Status bits waiting to be sent in the next successfully-queued block */
 
-static void m4_copy_hsadc_buffer(dma_lli_t *buffer, uint32_t dma_status)
+static void m4_copy_hsadc_buffer(const ipc_message_t *message)
 {
+    dma_lli_t *buffer = (dma_lli_t*) message->values[0];
+    uint32_t dma_status = message->values[1];
+
     pending_usb_status |= dma_status; /* accumulate status bits */
 
     uint32_t start_seq = buffer->sequence;
@@ -113,18 +116,21 @@ static void m4_copy_hsadc_buffer(dma_lli_t *buffer, uint32_t dma_status)
         return;
     }
 
+    /* Fill in USB block header */
     usb_header_t *header = (usb_header_t*) dTD->buffer;
     header->magic = 0xDEADBEEF;
     header->samples = HSADC_BUFFER_SIZE / 2;
     header->sequence = start_seq;
     header->status = pending_usb_status;
 
+    /* Pack samples following the header */
     uint32_t *out_samples = (uint32_t*) (header + 1);
 
     const uint32_t in_words = HSADC_BUFFER_SIZE/4;
     static_assert(in_words % 4 == 0);
     pack_samples((uint32_t *)buffer->destaddr, (uint32_t *)out_samples, in_words);
 
+    /* Zero out trailing data up to the 512-byte boundary */
     const uint32_t out_words = in_words * 3 / 4;
     const uint32_t used = sizeof(*header) + out_words * 4;
     const uint32_t pad = ((used + 511) & ~511) - used;
@@ -201,6 +207,303 @@ static void m4_update_power_state()
     }
 }
 
+/* Measure the frequency of a clock input using the CGU's FREQ_MON registry.
+ * This produces a frequency estimate relative to the internal IRC 12MHz clock.
+ *
+ * clkin: the CLKIN_* constant for the clock input to measure (should be a real clock input, not CLKINPUT_PD)
+ * cycles: approximate number of IRC clock cycles to measure over
+ * *rcnt_sum: on return, total number of clock cycles of the IRC clock seen over the measurement period
+ * *fcnt_sum: on return, total number of clock cycles of the measured input seen over the measurement period
+ *
+ * The measured clock frequency is approximately (12e6 * (*fcnt_sum) / (*rcnt_sum))
+ */
+static void measure_frequency_raw(CHIP_CGU_CLKIN_T clkin, uint32_t cycles, uint32_t *rcnt_sum, uint32_t *fcnt_sum)
+{
+    uint32_t r_sum = 0, f_sum = 0;
+
+    uint32_t rcnt_initial = 0x1FF;
+    while (r_sum < cycles) {
+        LPC_CGU->FREQ_MON =
+                rcnt_initial | /* RCNT */
+                ((clkin & 0x1F) << 24); /* CLK_SEL */
+        for (int delay = 100; delay; --delay)
+            ;
+        LPC_CGU->FREQ_MON |= _BIT(23); /* set MEAS */
+
+        unsigned timeout = 200000;
+        uint32_t stat;
+        while ( ((stat = LPC_CGU->FREQ_MON) & _BIT(23)) && --timeout )
+            __NOP();
+        if (!timeout)
+            break;
+
+        uint32_t rcnt = rcnt_initial - (stat & 0x1FF);
+        uint32_t fcnt = (stat >> 9) & 0x3FFF;
+
+        r_sum += rcnt;
+        f_sum += fcnt;
+
+        if (fcnt == 0x3FFF) {
+            /* measurement stopped because fcnt saturated;
+             * for subsequent loops, use a smaller rcnt.
+             *
+             * This is because we only measure an exact
+             * count for whichever counter saturates first;
+             * the other counter might be mid-clock-cycle
+             * when saturation happens, producing a measurement
+             * error. So we prefer the counter for the slower
+             * clock (longer clock cycle) to saturate first, to
+             * reduce the measurement error.
+             */
+            rcnt_initial = rcnt - rcnt/16;
+            r_sum = f_sum = 0;
+        }
+    }
+
+    *rcnt_sum = r_sum;
+    *fcnt_sum = f_sum;
+}
+
+/* Measure the frequency of a given clock input, using the 12MHz crystal oscillator
+ * as a reference.
+ *
+ * This measures both the crystal oscillator and the requested clock input against
+ * the internal IRC clock using measure_frequency_raw, then returns an adjusted
+ * measurement assuming that the crystal is at exactly 12MHz.
+ *
+ * Returns a frequency in Hz, or 0 if something went wrong
+ */
+static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
+{
+    if (clkin >= CLKINPUT_PD)
+        return 0;
+    if (clkin == CLKIN_CRYSTAL)
+        return 12000000; /* by definition */
+
+    uint32_t rcnt_xtal, fcnt_xtal;
+    measure_frequency_raw(CLKIN_CRYSTAL, loops, &rcnt_xtal, &fcnt_xtal);
+    if (!fcnt_xtal)
+        return 0;
+
+    uint32_t rcnt, fcnt;
+    measure_frequency_raw(clkin, loops, &rcnt, &fcnt);
+    if (!rcnt)
+        return 0;
+
+    return (uint64_t)12000000 * fcnt / rcnt * rcnt_xtal / fcnt_xtal;
+}
+
+static void m4_usb_ep0_in(const ipc_message_t *message)
+{
+    uint32_t request = message->values[0];
+    uint32_t valueAndIndex = message->values[1];
+    uint32_t length = message->values[2];
+
+    uint8_t *buf = lpcsdr_usb_control_buffer;
+    uint32_t *buf32 = (uint32_t *) buf;
+
+    switch (request) {
+    case 0x01:
+        /* comms check */
+        buf[0] = 0xDE;
+        buf[1] = 0xAD;
+        buf[2] = 0xBE;
+        buf[3] = 0xEF;
+        lpcsdr_usb_ep0_data_in(buf, 4);
+        return;
+
+    case 0x02:
+        /* SPI: read manufacturer/device ID */
+        lpcsdr_spifi_read_manufacturer_device_id(buf);
+        lpcsdr_usb_ep0_data_in(buf, 2);
+        return;
+
+    case 0x03:
+        /* SPI: read unique ID */
+        lpcsdr_spifi_read_unique_id(buf);
+        lpcsdr_usb_ep0_data_in(buf, 8);
+        return;
+
+    case 0x04:
+        /* SPI: read data */
+        if (length > sizeof(lpcsdr_usb_control_buffer) || valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        lpcsdr_spifi_read_data(valueAndIndex, buf, length);
+        lpcsdr_usb_ep0_data_in(buf, length);
+        return;
+
+    case 0x05:
+        /* SPI: read data, quad */
+        if (length > sizeof(lpcsdr_usb_control_buffer) || valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        lpcsdr_spifi_fast_read_quad(valueAndIndex, buf, length);
+        lpcsdr_usb_ep0_data_in(buf, length);
+        return;
+
+    case 0x06:
+        /* Read switch states */
+        buf32[0] = (lpcsdr_read_sw1() ? 1 : 0) | (lpcsdr_read_sw2() ? 2 : 0);
+        lpcsdr_usb_ep0_data_in(buf, 4);
+        return;
+
+    case 0x07:
+        /* Measure clock input frequency */
+        buf32[0] = measure_frequency((CHIP_CGU_CLKIN_T) valueAndIndex, 120000);
+        lpcsdr_usb_ep0_data_in(buf, 4);
+        return;
+
+    case 0x08:
+        /* Measure base clock frequency */
+        buf32[0] = measure_frequency(Chip_Clock_GetBaseClock((CHIP_CGU_CLKIN_T) valueAndIndex), 120000);
+        lpcsdr_usb_ep0_data_in(buf, 4);
+        return;
+
+    case 0x09:
+        /* read PLL0AUDIO regs */
+        buf32[0] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
+        buf32[1] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
+        buf32[2] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
+        buf32[3] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV;
+        buf32[4] = LPC_CGU->PLL0AUDIO_FRAC;
+        buf32[5] = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
+        lpcsdr_usb_ep0_data_in(buf, 6*4);
+        return;
+
+    case 0x0A:
+        /* read random status stuff */
+
+        /* ADCHS */
+        buf32[0] = LPC_ADCHS->CONFIG;
+        buf32[1] = LPC_ADCHS->INTS[0].STATUS;
+        buf32[2] = LPC_ADCHS->FIFO_STS;
+        buf32[3] = LPC_ADCHS->DSCR_STS;
+
+        /* DMA */
+        buf32[4] = LPC_GPDMA->CONFIG;
+        buf32[5] = LPC_GPDMA->ENBLDCHNS;
+        buf32[6] = LPC_GPDMA->RAWINTTCSTAT;
+        buf32[7] = LPC_GPDMA->RAWINTERRSTAT;
+        buf32[8] = LPC_GPDMA->CH[0].CONFIG;
+        buf32[9] = LPC_GPDMA->CH[0].CONTROL;
+        buf32[10] = LPC_GPDMA->CH[0].SRCADDR;
+        buf32[11] = LPC_GPDMA->CH[0].DESTADDR;
+        buf32[12] = LPC_GPDMA->CH[0].LLI;
+        buf32[13] = (uint32_t) hsadc_current_lli;
+        buf32[14] = hsadc_next_sequence;
+        buf32[15] = 0xDEADBEEF;
+
+        lpcsdr_usb_ep0_data_in(buf, 16*4);
+        return;
+
+    case 0x0B:
+        /* memory read */
+        if (length > sizeof(lpcsdr_usb_control_buffer)) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        memcpy(buf, (uint8_t*) valueAndIndex, length);
+        lpcsdr_usb_ep0_data_in(buf, length);
+        return;
+
+    default:
+        lpcsdr_usb_ep0_stall();
+        return;
+    }
+
+}
+
+static void m4_usb_ep0_out(const ipc_message_t *message)
+{
+    uint32_t request = message->values[0];
+    uint32_t valueAndIndex = message->values[1];
+    uint32_t length = message->values[2];
+
+    const uint8_t *buf = lpcsdr_usb_control_buffer;
+    const uint32_t *buf32 = (const uint32_t *)buf;
+
+    switch (request) {
+    case 0x01:
+        /* comms check */
+        if (length != 4 || buf32[0] != 0xDEADBEEF) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
+    case 0x10:
+        /* SPI: write data */
+        if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        if (lpcsdr_spifi_page_program(valueAndIndex, buf, length) != LPC_OK) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
+    case 0x11:
+        /* SPI: erase sector */
+        if (valueAndIndex > 0x00FFFFFF || (valueAndIndex & 0x0FFF) != 0) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        if (lpcsdr_spifi_sector_erase(valueAndIndex) != LPC_OK) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
+    case 0x12:
+        /* Start ADC clock */
+        if (length != sizeof(hsadc_clock_config_t)) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        if (!lpcsdr_hsadc_clock_start((hsadc_clock_config_t *) buf)) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
+    case 0x13:
+        /* Start ADC conversion & bulk transfer */
+        lpcsdr_dma_hsadc_start();
+        lpcsdr_hsadc_conversion_start();
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
+    case 0x14:
+        /* Stop ADC conversion & bulk transfer */
+        lpcsdr_dma_hsadc_stop();
+        lpcsdr_hsadc_conversion_stop();
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
+    default:
+        lpcsdr_usb_ep0_stall();
+        return;
+    }
+}
+
 static void m4_handle_message(const ipc_message_t *message)
 {
     switch (message->message) {
@@ -213,7 +516,15 @@ static void m4_handle_message(const ipc_message_t *message)
         break;
 
     case M4_COPY_HSADC_BUFFER:
-        m4_copy_hsadc_buffer((dma_lli_t*) message->values[0], message->values[1]);
+        m4_copy_hsadc_buffer(message);
+        break;
+
+    case M4_USB_EP0_IN:
+        m4_usb_ep0_in(message);
+        break;
+
+    case M4_USB_EP0_OUT:
+        m4_usb_ep0_out(message);
         break;
     }
 }
