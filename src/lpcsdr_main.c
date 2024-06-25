@@ -202,9 +202,7 @@ static void set_high_power_mode(void)
 
 static void m4_update_power_state()
 {
-    if (!high_power_mode && lpcsdr_usb_is_ready()) {
-        set_high_power_mode();
-    } else if (high_power_mode && !lpcsdr_usb_is_ready()) {
+    if (high_power_mode && !lpcsdr_usb_is_ready()) {
         set_low_power_mode();
     }
 }
@@ -494,6 +492,7 @@ static void m4_usb_ep0_out(const ipc_message_t *message)
             lpcsdr_usb_ep0_stall();
             return;
         }
+        set_high_power_mode();
         lpcsdr_usb_ep1_enable();
         lpcsdr_usb_ep0_out_ack();
         return;
@@ -503,6 +502,7 @@ static void m4_usb_ep0_out(const ipc_message_t *message)
         lpcsdr_hsadc_conversion_stop();
         lpcsdr_dma_hsadc_stop();
         lpcsdr_usb_ep1_disable();
+        set_low_power_mode();
         lpcsdr_usb_ep0_out_ack();
         return;
 
