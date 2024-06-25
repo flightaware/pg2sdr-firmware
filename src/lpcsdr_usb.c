@@ -545,14 +545,14 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
 {
     USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) handle;
 
+    if (ep0_busy) {
+        ep0_clobber = true;
+        USBD_API->core->StallEp0(handle);
+        return LPC_OK;
+    }
+
     if (ctrl->SetupPacket.bmRequestType.BM.Dir == REQUEST_DEVICE_TO_HOST) {
         /* device->host, respond with IN data */
-        if (ep0_busy) {
-            ep0_clobber = true;
-            USBD_API->core->StallEp0(handle);
-            return LPC_OK;
-        }
-
         if (!lpcsdr_ipc_send_m4(M4_USB_EP0_IN,
                 ctrl->SetupPacket.bRequest,
                 (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
@@ -567,12 +567,6 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
     } else {
         /* host->device, prepare to read OUT data */
         if (ctrl->SetupPacket.wLength > sizeof(lpcsdr_usb_control_buffer)) {
-            USBD_API->core->StallEp0(handle);
-            return LPC_OK;
-        }
-
-        if (ep0_busy) {
-            ep0_clobber = true;
             USBD_API->core->StallEp0(handle);
             return LPC_OK;
         }
@@ -593,10 +587,9 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
         }
 
         // Set up data phase, wait for data
-        ep0_busy = true;
         ctrl->EP0Data.pData = lpcsdr_usb_control_buffer;
         ctrl->EP0Data.Count = ctrl->SetupPacket.wLength;
-        USBD_API->core->DataOutStage(ctrl); /* We will get a USB_EVT_OUT event later, when the data is ready */
+        /* We will get a USB_EVT_OUT event later, when the data is ready */
         return LPC_OK;
     }
 }
@@ -624,6 +617,7 @@ static ErrorCode_t ep0_out_handler(USBD_HANDLE_T handle)
         return LPC_OK;
     }
 
+    ep0_busy = true;
     return LPC_OK;
 }
 
