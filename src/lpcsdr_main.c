@@ -185,6 +185,7 @@ static void m4_queue_test_data()
 static void set_low_power_mode(void)
 {
     high_power_mode = false;
+    lpcsdr_set_rfen(false); // TODO: this needs to be coupled with configuring the tuner
     Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
     SystemCoreClockUpdate();
     StopWatch_Init();
@@ -193,6 +194,7 @@ static void set_low_power_mode(void)
 static void set_high_power_mode(void)
 {
     high_power_mode = true;
+    lpcsdr_set_rfen(true); // TODO: this needs to be coupled with configuring the tuner
     Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, false);
     SystemCoreClockUpdate();
     StopWatch_Init();
@@ -536,9 +538,9 @@ static void m4_handle_message(const ipc_message_t *message)
 }
 
 int main(void) {
+    lpcsdr_gpio_init();
     set_low_power_mode();
 
-    lpcsdr_gpio_init();
     lpcsdr_spifi_init();
     lpcsdr_dma_init();
     lpcsdr_hsadc_init();

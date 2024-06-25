@@ -41,6 +41,9 @@ ErrorCode_t lpcsdr_gpio_init(void)
     Chip_SCU_PinMuxSet(2, 13, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0);
     Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, 1, 13);
 
+    /* prototype board, RF_EN output on P2_12 / GPIO1[12], external pulldown */
+    Chip_SCU_PinMuxSet(2, 12, SCU_MODE_INACT | SCU_MODE_FUNC0);
+    Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 1, 12);
     return LPC_OK;
 }
 
@@ -65,4 +68,9 @@ bool lpcsdr_read_sw1(void)
 bool lpcsdr_read_sw2(void)
 {
     return Chip_GPIO_GetPinState(LPC_GPIO_PORT, 1, 13);
+}
+
+void lpcsdr_set_rfen(bool onoff)
+{
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT, 1, 12, onoff);
 }
