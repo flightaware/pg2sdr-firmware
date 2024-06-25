@@ -422,12 +422,21 @@ bool lpcsdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t bytes)
     return result;
 }
 
-/* Reset EP1 and associate dTDs */
-void lpcsdr_usb_ep1_reset(void)
+/* Flush pending data on EP1, set stall */
+void lpcsdr_usb_ep1_disable(void)
 {
     WITH_DISABLED_INTERRUPTS {
-        USBD_API->hw->ResetEP(usb_handle, /* EP 1 IN */0x81);
+        USBD_API->hw->ResetEP(usb_handle, /* EP 1 IN */ 0x81);
+        USBD_API->hw->SetStallEP(usb_handle, /* EP 1 IN */ 0x81);
         reset_dtd_lists_interrupts_disabled();
+    }
+}
+
+/* (re-)enable EP1, clear stall  */
+void lpcsdr_usb_ep1_enable(void)
+{
+    WITH_DISABLED_INTERRUPTS {
+        USBD_API->hw->ClrStallEP(usb_handle, /* EP 1 IN */ 0x81);
     }
 }
 
@@ -448,8 +457,8 @@ static void retire_completed_dtds()
 /* Callback on USB reset */
 static ErrorCode_t reset_handler(USBD_HANDLE_T handle)
 {
-    reset_dtd_lists_interrupts_disabled();
     lpcsdr_usb_state_changed();
+    lpcsdr_usb_ep1_disable();
     return LPC_OK;
 }
 
@@ -458,8 +467,8 @@ static ErrorCode_t reset_handler(USBD_HANDLE_T handle)
  */
 static ErrorCode_t configure_handler(USBD_HANDLE_T handle)
 {
-    reset_dtd_lists_interrupts_disabled();
     lpcsdr_usb_state_changed();
+    lpcsdr_usb_ep1_disable();
     return LPC_OK;
 }
 
