@@ -117,7 +117,6 @@ void lpcsdr_dma_hsadc_stop(void)
 static void hsadc_dma_err(void)
 {
     /* handle a DMA error interrupt on DMA channel 0.. somehow */
-    lpcsdr_led_set(false);
     pending_dma_status |= BLOCK_STATUS_DMA_ERROR;
 }
 

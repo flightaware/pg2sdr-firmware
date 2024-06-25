@@ -466,13 +466,6 @@ static ErrorCode_t configure_handler(USBD_HANDLE_T handle)
 /* EP1 event callback. We'll get a USB_EVT_IN whenever a dTD is completely sent */
 static ErrorCode_t ep1_in_handler(USBD_HANDLE_T handle, void *data, uint32_t event)
 {
-    /* toggle LED every 1k interrupts */
-    static unsigned counter;
-    if (++counter == 1000) {
-        counter = 0;
-        lpcsdr_led_toggle();
-    }
-
     switch (event) {
     case USB_EVT_IN:
         retire_completed_dtds();
