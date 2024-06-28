@@ -309,8 +309,9 @@ ADC FIFO frequently enough to avoid the FIFO overflowing. e.g. with a
 the FIFO every 320 CPU cycles without fail, which is going to be very
 hard to do while also servicing interrupts.
 
-Instead, we use the LPC4370 DMA controller to transfer data from the
-ADC FIFO to RAM in the background, while the CPU can be doing other work.
+Instead, we use the LPC4370 DMA (Direct Memory Access) controller to transfer
+data from the ADC FIFO to RAM in the background, while the CPU can be doing
+other work.
 
 The DMA controller has 8 channels. Each can be processing a separate
 transfer in parallel. Each channel transfers _from_ either a peripheral or
@@ -339,15 +340,17 @@ The DMA controller does, esssentially, this:
  * Write one burst-size worth of data to the destination address.
    In our case that writes the FIFO data to a memory buffer.
  * Repeat until the length-of-transfer has been reached.
- * Load the next linked-list item.
- * Raise an interrupt to indicate that this transfer is complete. 
+ * Raise an interrupt to indicate that this transfer is complete.
+ * Load the next linked-list item and continue with the next transfer
 
 We set up the linked-"list" to write to a series of memory buffers
 in order, with the last entry pointing back to the first entry to
 form a loop. This means that the DMA controller will continuously
 read data from the ADC as it becomes available, and write it to
 a loop of memory buffers, generating an interrupt after each
-buffer is filled.
+buffer is filled. The CPU only needs to get involved to handle
+the interrupts; most of the transfer work happens without
+intervention.
 
 ## CPU packing of data into USB buffers
 
@@ -358,7 +361,7 @@ data rate that needs to be transferred approaches the maximum
 that USB 2.0 can do (around 30MB/s)
 
 To mitigate this, we pack the sample data before sending it
-over USB, so that there are 8 12-bit samples stored in 4
+over USB, so that there are 8 12-bit samples stored in 3
 32-bit words.
 
 This packing is done by the CPU each time it is notified
