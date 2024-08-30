@@ -44,7 +44,7 @@ bool lpcsdr_dma_hsadc_buffer_ready(dma_lli_t *buffer, uint32_t status)
 }
 
 /* Given `count` words of HSADC samples in `src`, with 8 12-bit samples per 4 words,
- * copy and pack the samples into `dst` with 6 12-bit samples per 3 words.
+ * copy and pack the samples into `dst` with 8 12-bit samples per 3 words.
  */
 static void pack_samples(const uint32_t *src, uint32_t *dst, uint32_t count)
 {
