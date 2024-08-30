@@ -522,6 +522,20 @@ static void m4_usb_ep0_out(const ipc_message_t *message)
         lpcsdr_usb_ep0_out_ack();
         return;
 
+    case 0x15:
+        /* manually set power mode */
+        if (length != 1) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        if (buf[0])
+            set_high_power_mode();
+        else
+            set_low_power_mode();
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
     default:
         lpcsdr_usb_ep0_stall();
         return;
