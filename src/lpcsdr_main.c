@@ -18,6 +18,7 @@
 #include "lpcsdr_spifi.h"
 #include "lpcsdr_gpio.h"
 #include "lpcsdr_ipc.h"
+#include "lpcsdr_tuner.h"
 #include "lpcsdr_protocol.h"
 #include <string.h>
 
@@ -186,6 +187,7 @@ static void handle_clock_change(void)
 {
     SystemCoreClockUpdate();
     StopWatch_Init();
+    lpcsdr_i2c_clock_update();
 }
 
 static void setup_clocks(void)
@@ -428,6 +430,18 @@ static void m4_usb_ep0_in(const ipc_message_t *message)
         lpcsdr_usb_ep0_data_in(buf, length);
         return;
 
+    case 0x0C:
+        /* Read tuner regs */
+        if (length < 4 || length > 36) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        memset(buf, 0, length);
+        lpcsdr_tuner_read_regs(buf + 4, length - 4, (int*) buf);
+        lpcsdr_usb_ep0_data_in(buf, length);
+        return;
+
     default:
         lpcsdr_usb_ep0_stall();
         return;
@@ -574,6 +588,7 @@ int main(void) {
     lpcsdr_spifi_init();
     lpcsdr_dma_init();
     lpcsdr_hsadc_init();
+    lpcsdr_tuner_init();
     lpcsdr_ipc_init();
     lpcsdr_usb_init();
 
