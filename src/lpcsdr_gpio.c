@@ -46,9 +46,9 @@ void lpcsdr_gpio_init(void)
     /* v1/v2 prototype board, RF_EN output on P2_12 / GPIO1[12], external pulldown */
     Chip_SCU_PinMuxSet(2, 12, SCU_MODE_INACT | SCU_MODE_FUNC0);
     Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 1, 12);
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT, 1, 12, false);
 
     /* test pattern, cycle all the LEDS */
-    StopWatch_Init();
     for (unsigned repeat = 0; repeat < 4; ++repeat) {
         for (unsigned i = 0; i < NUM_LEDS; ++i) {
             Chip_GPIO_SetPinState(LPC_GPIO_PORT, led_pins[i].gpioport, led_pins[i].gpiopin, true);

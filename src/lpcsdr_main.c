@@ -182,13 +182,30 @@ static void m4_queue_test_data()
     }
 }
 
+static void handle_clock_change(void)
+{
+    SystemCoreClockUpdate();
+    StopWatch_Init();
+}
+
+static void setup_clocks(void)
+{
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
+    Chip_Clock_SetBaseClock(CLK_BASE_APB1, CLKIN_MAINPLL, true, false);
+    Chip_Clock_SetBaseClock(CLK_BASE_APB3, CLKIN_MAINPLL, true, false);
+    handle_clock_change();
+
+    /* enable CLK0/CLK2 for ADC clock measurement */
+    Chip_SCU_ClockPinMuxSet(0, SCU_MODE_FUNC1 | SCU_MODE_INACT);
+    Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
+}
+
 static void set_low_power_mode(void)
 {
     high_power_mode = false;
     lpcsdr_set_rfen(false); // TODO: this needs to be coupled with configuring the tuner
     Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
-    SystemCoreClockUpdate();
-    StopWatch_Init();
+    handle_clock_change();
 }
 
 static void set_high_power_mode(void)
@@ -196,8 +213,7 @@ static void set_high_power_mode(void)
     high_power_mode = true;
     lpcsdr_set_rfen(true); // TODO: this needs to be coupled with configuring the tuner
     Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, false);
-    SystemCoreClockUpdate();
-    StopWatch_Init();
+    handle_clock_change();
 }
 
 static void m4_update_power_state()
@@ -538,18 +554,14 @@ static void m4_handle_message(const ipc_message_t *message)
 }
 
 int main(void) {
-    lpcsdr_gpio_init();
-    set_low_power_mode();
+    setup_clocks();
 
+    lpcsdr_gpio_init();
     lpcsdr_spifi_init();
     lpcsdr_dma_init();
     lpcsdr_hsadc_init();
     lpcsdr_ipc_init();
     lpcsdr_usb_init();
-
-    /* enable CLK0/CLK2 for ADC clock measurement */
-    Chip_SCU_ClockPinMuxSet(0, SCU_MODE_FUNC1 | SCU_MODE_INACT);
-    Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
 
     lpcsdr_ipc_handle_messages_forever(m4_handle_message);
 
