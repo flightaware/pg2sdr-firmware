@@ -40,8 +40,9 @@ bool lpcsdr_tuner_read_regs(uint8_t *regs, unsigned count, int *status)
     xfer.rxBuff = regs;
     xfer.rxSz = count;
 
-    while ( (*status = Chip_I2C_MasterTransfer(I2C0, &xfer)) == I2C_STATUS_ARBLOST)
-        ;
+    *status = Chip_I2C_MasterTransfer(I2C0, &xfer);
+    if (*status != I2C_STATUS_DONE)
+        return false;
 
     if (xfer.rxSz) {
         *status = I2C_STATUS_NAK;
