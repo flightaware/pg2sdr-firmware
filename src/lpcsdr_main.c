@@ -558,6 +558,24 @@ static void m4_usb_ep0_out(const ipc_message_t *message)
         lpcsdr_usb_ep0_out_ack();
         return;
 
+    case 0x16:
+        /* write tuner regs:
+         *    [0] = index of first reg to write
+         *    remaining bytes are register values
+         */
+        if (length < 1) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+
+        int status;
+        if (!lpcsdr_tuner_write_regs(buf[0], &buf[1], length - 1, &status)) {
+            lpcsdr_usb_ep0_stall();
+            return;
+        }
+        lpcsdr_usb_ep0_out_ack();
+        return;
+
     default:
         lpcsdr_usb_ep0_stall();
         return;
