@@ -438,7 +438,7 @@ static void m4_usb_ep0_in(const ipc_message_t *message)
         }
 
         memset(buf, 0, length);
-        lpcsdr_tuner_read_regs(buf + 4, length - 4, (int*) buf);
+        lpcsdr_tuner_read_regs_direct(buf + 4, length - 4, (int*) buf);
         lpcsdr_usb_ep0_data_in(buf, length);
         return;
 
