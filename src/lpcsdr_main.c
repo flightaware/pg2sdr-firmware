@@ -204,18 +204,26 @@ static void setup_clocks(void)
 
 static void set_low_power_mode(void)
 {
+    if (!high_power_mode)
+        return;
+
     high_power_mode = false;
-    lpcsdr_set_rfen(false); // TODO: this needs to be coupled with configuring the tuner
+    lpcsdr_set_rfen(false);
     Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
     handle_clock_change();
+    lpcsdr_tuner_handle_poweroff();
 }
 
 static void set_high_power_mode(void)
 {
+    if (high_power_mode)
+        return;
+
     high_power_mode = true;
-    lpcsdr_set_rfen(true); // TODO: this needs to be coupled with configuring the tuner
+    lpcsdr_set_rfen(true);
     Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, false);
     handle_clock_change();
+    lpcsdr_tuner_handle_poweron();
 }
 
 static void m4_update_power_state()
