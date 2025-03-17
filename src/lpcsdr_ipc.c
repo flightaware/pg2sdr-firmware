@@ -3,6 +3,8 @@
 #include <string.h>
 #include "chip.h"
 
+#include "lpcsdr_common.h"
+
 void lpcsdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
 {
     // nb: no mutual exclusion on the reader side, it's assumed there
@@ -11,7 +13,6 @@ void lpcsdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
     while (head != mailbox->tail) {
         ipc_message_t message = mailbox->queue[head];
         mailbox->head = head = (head + 1) % IPC_MAILBOX_SIZE;
-        __DMB();
         handler(&message);
     }
 }
@@ -19,6 +20,27 @@ void lpcsdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
 bool lpcsdr_ipc_pending(ipc_mailbox_t *mailbox)
 {
     return (mailbox->head != mailbox->tail);
+}
+
+// It would be nice to have the M4 use LDREX/STREX and avoid disabling
+// interrupts here, but doing that correctly is surprisingly tricky (without heap
+// allocations), so for now we just entirely disable interrupts on both M4 and M0 for
+// the duration of this code. Caller must disable interrupts!
+static bool ipc_send(ipc_mailbox_t *mailbox, uint32_t message, uint32_t value0, uint32_t value1, uint32_t value2)
+{
+    uint32_t tail = mailbox->tail;
+    uint32_t next = (tail + 1) % IPC_MAILBOX_SIZE;
+    if (next == mailbox->head) {
+        return false; // Queue is full
+    }
+
+    mailbox->queue[tail].message = message;
+    mailbox->queue[tail].values[0] = value0;
+    mailbox->queue[tail].values[1] = value1;
+    mailbox->queue[tail].values[2] = value2;
+    memory_barrier();
+    mailbox->tail = next;
+    return true;
 }
 
 #if defined(CORE_M4)
@@ -40,34 +62,16 @@ void M0APP_IRQHandler(void)
     Chip_CREG_ClearM0AppEvent();
 }
 
-static bool ipc_send(ipc_mailbox_t *mailbox, uint32_t message, uint32_t value0, uint32_t value1, uint32_t value2)
-{
-    // M4 has LDREX/STREX for isolation on a single core
-    uint32_t tail, next;
-    do {
-        tail = __LDREXW(&mailbox->tail);
-        next = (tail + 1) % IPC_MAILBOX_SIZE;
-        if (next == mailbox->head) {
-            return false;
-        }
-
-        mailbox->queue[tail].message = message;
-        mailbox->queue[tail].values[0] = value0;
-        mailbox->queue[tail].values[1] = value1;
-        mailbox->queue[tail].values[2] = value2;
-        __DMB();
-    } while (__STREXW(next, &mailbox->tail));
-
-    return true;
-}
-
 bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
 {
     if (!IS_M4_MESSAGE(message))
         return false;
-    bool result = ipc_send(m4_to_m4_mailbox, message, value0, value1, value2);
-    if (result)
-        m4_wakeup_requested = true;
+    bool result;
+    WITH_DISABLED_INTERRUPTS {
+        result = ipc_send(m4_to_m4_mailbox, message, value0, value1, value2);
+        if (result)
+            m4_wakeup_requested = true;
+    }
     return result;
 }
 
@@ -75,9 +79,14 @@ bool lpcsdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t
 {
     if (!IS_M0_MESSAGE(message))
         return false;
-    bool result = ipc_send(m4_to_m0_mailbox, message, value0, value1, value2);
-    if (result)
-        __SEV();
+    bool result;
+    WITH_DISABLED_INTERRUPTS {
+        result = ipc_send(m4_to_m0_mailbox, message, value0, value1, value2);
+        if (result) {
+            shared_memory_barrier(); // Ensure that the queue changes have really hit memory before signaling the other core
+            __SEV();
+        }
+    }
     return result;
 }
 
@@ -109,36 +118,18 @@ void M4_IRQHandler(void)
     Chip_CREG_ClearM4Event();
 }
 
-static bool ipc_send(ipc_mailbox_t *mailbox, uint32_t message, uint32_t value0, uint32_t value1, uint32_t value2)
-{
-    // M0 lacks LDREX/STRX, fully disable interrupts for isolation
-    bool success;
-    WITH_DISABLED_INTERRUPTS {
-        uint32_t tail = mailbox->tail;
-        uint32_t next = (tail + 1) % IPC_MAILBOX_SIZE;
-        if (next == mailbox->head) {
-            success = false;
-        } else {
-            mailbox->queue[tail].message = message;
-            mailbox->queue[tail].values[0] = value0;
-            mailbox->queue[tail].values[1] = value1;
-            mailbox->queue[tail].values[2] = value2;
-            __DMB();
-            mailbox->tail = next;
-            success = true;
-        }
-    }
-
-    return success;
-}
-
 bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
 {
     if (!IS_M4_MESSAGE(message))
         return false;
-    bool result = ipc_send(m0_to_m4_mailbox, message, value0, value1, value2);
-    if (result)
-        __SEV();
+    bool result;
+    WITH_DISABLED_INTERRUPTS {
+        result = ipc_send(m0_to_m4_mailbox, message, value0, value1, value2);
+        if (result) {
+            shared_memory_barrier(); // Ensure that the queue changes have really hit memory before signaling the other core
+            __SEV();
+        }
+    }
     return result;
 }
 
@@ -146,9 +137,12 @@ bool lpcsdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t
 {
     if (!IS_M0_MESSAGE(message))
         return false;
-    bool result = ipc_send(m0_to_m0_mailbox, message, value0, value1, value2);
-    if (result)
-        m0_wakeup_requested = true;
+    bool result;
+    WITH_DISABLED_INTERRUPTS {
+        result = ipc_send(m0_to_m0_mailbox, message, value0, value1, value2);
+        if (result)
+            m0_wakeup_requested = true;
+    }
     return result;
 }
 
