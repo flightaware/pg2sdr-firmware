@@ -6,8 +6,8 @@
 
 ErrorCode_t lpcsdr_spifi_init(void);
 
-void lpcsdr_spifi_read_manufacturer_device_id(uint8_t *buffer);
-void lpcsdr_spifi_read_unique_id(uint8_t *buffer);
+uint16_t lpcsdr_spifi_read_manufacturer_device_id();
+uint64_t lpcsdr_spifi_read_unique_id();
 void lpcsdr_spifi_read_data(uint32_t address, uint8_t *buffer, uint32_t length);
 void lpcsdr_spifi_fast_read_quad(uint32_t address, uint8_t *buffer, uint32_t length);
 

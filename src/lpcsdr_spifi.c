@@ -46,26 +46,30 @@ static void spifi_generic_write(uint32_t command, uint32_t address, const uint8_
     spifi_HW_WaitCMD(LPC_SPIFI);
 }
 
-/* Read manufacturer and device ID (2 bytes) into `buffer` */
-void lpcsdr_spifi_read_manufacturer_device_id(uint8_t *buffer)
+/* Read manufacturer and device ID (2 bytes) */
+uint16_t lpcsdr_spifi_read_manufacturer_device_id()
 {
+    uint16_t id;
     spifi_generic_read(SPIFI_CMD_OPCODE(0x90) |                           // Read Manufacturer / Device ID (90h)
                        SPIFI_CMD_FRAMEFORM(SPIFI_FRAMEFORM_OP_3ADDRESS) | // opcode and 3 (zeroed) address bytes
                        SPIFI_CMD_FIELDFORM(SPIFI_FIELDFORM_ALL_SERIAL) |  // serial opcode, address, data
                        SPIFI_CMD_INTER(0),                                // no intermediate bytes
                        0,                                                 // zero address
-                       buffer, 2);
+                       (uint8_t*) &id, 2);
+    return id;
 }
 
 /* Read unique chip ID (8 bytes) into `buffer` */
-void lpcsdr_spifi_read_unique_id(uint8_t *buffer)
+uint64_t lpcsdr_spifi_read_unique_id()
 {
+    uint64_t id;
     spifi_generic_read(SPIFI_CMD_OPCODE(0x4B) |                           // Read Unique ID Number (4Bh)
                        SPIFI_CMD_FRAMEFORM(SPIFI_FRAMEFORM_OP_4ADDRESS) | // opcode and 4 (zeroed) address bytes
                        SPIFI_CMD_FIELDFORM(SPIFI_FIELDFORM_ALL_SERIAL) |  // serial opcode, address, data
                        SPIFI_CMD_INTER(0),                                // No intermediate bytes
                        0,                                                 // zero address
-                       buffer, 8);
+                       (uint8_t *)&id, 8);
+    return id;
 }
 
 /* Read `length` bytes at `address` into `buffer` */
