@@ -15,6 +15,8 @@ bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count, int *status);
 bool lpcsdr_tuner_write_regs_direct(unsigned offset, const uint8_t *regs, unsigned count, int *status);
 
 bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value, int *status);
+/* read many registers, starting at register `offset`, using the cache where possible, placing results in `regs[0..count-1]` */
+bool lpcsdr_tuner_read_regs(unsigned offset, uint8_t *regs, unsigned count, int *status);
 bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned count, int *status);
 bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count, int *status);
 

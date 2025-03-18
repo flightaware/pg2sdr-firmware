@@ -126,6 +126,37 @@ bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value, int *status)
     return true;
 }
 
+// Read many registers, minimizing actual chip access
+bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count, int *status)
+{
+    if (count > 32 || first + count >= 32) {
+        // out of range
+        *status = I2C_STATUS_NAK;
+        return false;
+    }
+
+    if (!count) {
+        // no work to do
+        *status = I2C_STATUS_DONE;
+        return true;
+    }
+
+    if (first + count > 5 && !shadow_is_valid) {
+        // We want data from non-volatile regs, but the shadow cache isn't valid,
+        // reload the entire shadow cache from the tuner
+        if (!lpcsdr_tuner_shadow_from_chip(status))
+            return false;
+    } else if (first < 5) {
+        // We want data from volatile regs, load only those from the tuner
+        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, (first + count < 5) ? (first + count) : 5, status))
+            return false;
+    }
+
+    // at this point, reg_shadow is up to date, so just copy from there
+    memcpy(regs, reg_shadow + first, count);
+    return true;
+}
+
 // Force a refresh of our shadow registers, reading actual values from the chip.
 bool lpcsdr_tuner_shadow_from_chip(int *status)
 {
