@@ -75,42 +75,45 @@ static uint32_t compute_ndec(uint32_t nsel)
 
 static uint32_t hsadc_frequency;
 
-bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
+bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (0 = bypass divider */
+                              uint32_t m_divisor,     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part */
+                              uint32_t p_divisor,     /* PLL0AUDIO post-divisor (0 = bypass divider */
+                              uint32_t idiv_divisor)
 {
     /* divisor sanity checks */
-    if (config->n_divisor > 256)
+    if (n_divisor > 256)
         return false;
 
-    if (config->p_divisor > 32)
+    if (p_divisor > 32)
         return false;
 
-    if (config->idiv_divisor > 256)
+    if (idiv_divisor > 256)
         return false;
 
-    uint32_t integer_m = config->m_divisor >> 15;
-    bool fractional = (config->m_divisor & 0x7FFF) != 0;
+    uint32_t integer_m = m_divisor >> 15;
+    bool fractional = (m_divisor & 0x7FFF) != 0;
 
-    if (config->m_divisor == 0 || (!fractional && integer_m > 32768) || (fractional && integer_m > 128))
+    if (m_divisor == 0 || (!fractional && integer_m > 32768) || (fractional && integer_m > 128))
         return false;
 
     /* derive fCCO, fADC */
     uint32_t fCCO;
     uint32_t fIn = CRYSTAL_FREQ;
     uint32_t fRef = fIn;
-    if (config->n_divisor)
-        fRef /= config->n_divisor;
+    if (n_divisor)
+        fRef /= n_divisor;
 
-    fCCO = (uint64_t)2 * config->m_divisor * fRef / 32768;
+    fCCO = (uint64_t)2 * m_divisor * fRef / 32768;
     if (fCCO < PLL_MIN_FCCO || fCCO > PLL_MAX_FCCO)
         return false;
 
     uint32_t fPLL = fCCO;
-    if (config->p_divisor)
-        fPLL = fPLL / config->p_divisor / 2;
+    if (p_divisor)
+        fPLL = fPLL / p_divisor / 2;
 
     uint32_t fADC = fPLL;
-    if (config->idiv_divisor)
-        fADC /= config->idiv_divisor;
+    if (idiv_divisor)
+        fADC /= idiv_divisor;
 
     if (fADC > HSADC_MAX_FREQ)
         return false;
@@ -122,7 +125,7 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
     uint32_t fract;
     if (fractional) {
         mdiv = 0;
-        fract = (config->m_divisor & 0x3FFFFF) << 0;
+        fract = (m_divisor & 0x3FFFFF) << 0;
         ctrl |= PLL_CTRL_PLLFRACT_REQ;
     } else {
         /* integer mode */
@@ -131,11 +134,11 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
         ctrl |= PLL_CTRL_SEL_EXT | PLL_CTRL_MOD_PD;
     }
 
-    if (!config->n_divisor)
+    if (!n_divisor)
         ctrl |= PLL_CTRL_DIRECTI; /* bypass N-divider */
-    if (!config->p_divisor)
+    if (!p_divisor)
         ctrl |= PLL_CTRL_DIRECTO; /* bypass P-divider */
-    uint32_t npdiv = ((compute_pdec(config->p_divisor) & 0x7f)<<0) | ((compute_ndec(config->n_divisor) & 0x3FF)<<12);
+    uint32_t npdiv = ((compute_pdec(p_divisor) & 0x7f)<<0) | ((compute_ndec(n_divisor) & 0x3FF)<<12);
 
     /* power down existing PLL */
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_PD | PLL_CTRL_MOD_PD;
@@ -161,9 +164,9 @@ bool lpcsdr_hsadc_clock_start(const hsadc_clock_config_t *config)
     /* enable PLL0AUDIO output */
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_CLKEN;
 
-    if (config->idiv_divisor) {
+    if (idiv_divisor) {
         /* PLL0AUDIO -> IDIV_E -> HSADC */
-        Chip_Clock_SetDivider(CLK_IDIV_E, CLKIN_AUDIOPLL, config->idiv_divisor);
+        Chip_Clock_SetDivider(CLK_IDIV_E, CLKIN_AUDIOPLL, idiv_divisor);
         Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKIN_IDIVE, true, false);
         Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKIN_IDIVE, true, false);
     } else {
