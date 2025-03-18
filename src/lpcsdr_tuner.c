@@ -78,7 +78,7 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
     // In theory we could do scatter-gather if we re-implemented the tx state machine,
     // but it doesn't seem worth doing that, so just use a temporary buffer
     // sized for the largest possible write (regs 5 .. 31 inclusive)
-    if (count > 27) {
+    if (first < 5 || count > 27) {
         *status = I2C_STATUS_NAK;
         return false;
     }
