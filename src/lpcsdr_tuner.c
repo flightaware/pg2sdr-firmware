@@ -203,36 +203,48 @@ bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned coun
 // other bits are left unchanged.
 bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count, int *status)
 {
-    if (offset < 5 || offset >= 32 || count > 27 || offset + count > 32) {
+    if (offset >= 32 || offset + count > 32) {
         // out of range
         *status = I2C_STATUS_NAK;
         return false;
     }
 
-    // Apply changes directly to reg_shadow
-    unsigned first_update = 0; // first updated reg, 0 = no updates
-    unsigned last_update = 0;  // last updated reg, 0 = no updates
+    if (!shadow_is_valid) {
+        if (!lpcsdr_tuner_shadow_from_chip(status))
+            return false;
+    }
+
+    // Apply changes directly to reg_shadow and write through to the tuner
+    const unsigned NO_UPDATE = 64;
+    unsigned first_update = NO_UPDATE;
+    unsigned last_update = NO_UPDATE;
     for (unsigned i = 0; i < count; ++i) {
-        uint8_t updated = (reg_shadow[offset + i] & ~mask[i]) | (bits[i] & mask[i]);
-        if (reg_shadow[offset + i] != updated) {
-            if (!first_update)
-                first_update = offset + i;
-            last_update = offset + i;
-            reg_shadow[offset + i] = updated;
+        unsigned reg_index = offset + i;
+        uint8_t updated = (reg_shadow[reg_index] & ~mask[i]) | (bits[i] & mask[i]);
+        if (reg_shadow[reg_index] != updated) {
+            if (first_update == NO_UPDATE)
+                first_update = reg_index;
+            last_update = reg_index;
+            reg_shadow[reg_index] = updated;
+        }
+
+        if (last_update != NO_UPDATE && (reg_index - last_update) >= 3) {
+            // Sufficiently large gap with no changed registers,
+            // do an incremental write as two smaller writes will
+            // be faster than a single large write
+            if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1, status))
+                return false;
+            first_update = last_update = NO_UPDATE;
         }
     }
 
-    if (!first_update) {
-        // No changes
-        *status = I2C_STATUS_DONE;
-        return true;
+    if (first_update != NO_UPDATE) {
+        // Do a final write
+        if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1, status))
+            return false;
     }
 
-    // Write new values to the chip
-    if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1, status)) {
-        return false;
-    }
-
+    *status = I2C_STATUS_DONE;
     shadow_is_valid = true;
     return true;
 }
