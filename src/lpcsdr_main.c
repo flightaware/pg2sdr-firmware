@@ -118,7 +118,7 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
     }
 
     /* Fill in USB block header */
-    usb_header_t *header = (usb_header_t*) dTD->buffer;
+    ep1_header_t *header = (ep1_header_t*) dTD->buffer;
     header->magic = 0xDEADBEEF;
     header->samples = HSADC_BUFFER_SIZE / 2;
     header->sequence = start_seq;
@@ -319,266 +319,273 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
     return (uint64_t)12000000 * fcnt / rcnt * rcnt_xtal / fcnt_xtal;
 }
 
-static void m4_usb_ep0_in(const ipc_message_t *message)
+/* Process an EP0 IN control transfer described in `messsage`;
+ * fill lpcsdr_usb_control_buffer with results.
+ *
+ * For fixed-size responses, it's okay to just fill the buffer with the full
+ * response regardless of `length`; the caller will sort out the details.
+ *
+ * The caller guarantees that length <= sizeof lpc_usb_control_buffer
+ *
+ * Return true to return data to the host, false to return an endpoint stall
+ */
+static bool process_ep0_in(const ipc_message_t *message)
 {
     uint32_t request = message->values[0];
     uint32_t valueAndIndex = message->values[1];
     uint32_t length = message->values[2];
 
     uint8_t *buf = lpcsdr_usb_control_buffer;
-    uint32_t *buf32 = (uint32_t *) buf;
 
     switch (request) {
-    case 0x01:
-        /* comms check */
-        buf[0] = 0xDE;
-        buf[1] = 0xAD;
-        buf[2] = 0xBE;
-        buf[3] = 0xEF;
-        lpcsdr_usb_ep0_data_in(buf, 4);
-        return;
+    case EP0_IN_COMMS_CHECK: {
+        ep0_in_comms_check_t *result = (ep0_in_comms_check_t *)buf;
+        result->magic = 0xDEADBEEF;
+        return true;
+    }
 
-    case 0x02:
+    case EP0_IN_FLASH_DEVICE_ID: {
         /* SPI: read manufacturer/device ID */
-        lpcsdr_spifi_read_manufacturer_device_id(buf);
-        lpcsdr_usb_ep0_data_in(buf, 2);
-        return;
+        ep0_in_flash_device_id_t *result = (ep0_in_flash_device_id_t *)buf;
+        lpcsdr_spifi_read_manufacturer_device_id(&result->device_id);
+        return true;
+    }
 
-    case 0x03:
+    case EP0_IN_FLASH_UNIQUE_ID: {
         /* SPI: read unique ID */
-        lpcsdr_spifi_read_unique_id(buf);
-        lpcsdr_usb_ep0_data_in(buf, 8);
-        return;
+        ep0_in_flash_unique_id_t *result = (ep0_in_flash_unique_id_t *)buf;
+        lpcsdr_spifi_read_unique_id(&result->unique_id);
+        return true;
+    }
 
-    case 0x04:
+    case EP0_IN_FLASH_READ:
         /* SPI: read data */
-        if (length > sizeof(lpcsdr_usb_control_buffer) || valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
+            return false;
 
         lpcsdr_spifi_read_data(valueAndIndex, buf, length);
-        lpcsdr_usb_ep0_data_in(buf, length);
-        return;
+        return true;
 
-    case 0x05:
+    case EP0_IN_FLASH_READ_QUAD:
         /* SPI: read data, quad */
-        if (length > sizeof(lpcsdr_usb_control_buffer) || valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
+            return false;
 
         lpcsdr_spifi_fast_read_quad(valueAndIndex, buf, length);
-        lpcsdr_usb_ep0_data_in(buf, length);
-        return;
+        return true;
 
-    case 0x06:
-        /* Read switch states */
-        buf32[0] = (lpcsdr_read_sw1() ? 1 : 0) | (lpcsdr_read_sw2() ? 2 : 0);
-        lpcsdr_usb_ep0_data_in(buf, 4);
-        return;
+    case EP0_IN_SWITCH_STATE: {
+        ep0_in_switch_state_t *result = (ep0_in_switch_state_t *) buf;
+        result->switch_state = (lpcsdr_read_sw1() ? SWITCH_SW1 : 0) | (lpcsdr_read_sw2() ? SWITCH_SW2 : 0);
+        return true;
+    }
 
-    case 0x07:
+    case EP0_IN_INPUT_FREQ: {
         /* Measure clock input frequency */
-        buf32[0] = measure_frequency((CHIP_CGU_CLKIN_T) valueAndIndex, 120000);
-        lpcsdr_usb_ep0_data_in(buf, 4);
-        return;
+        ep0_in_input_freq_t *result = (ep0_in_input_freq_t *) buf;
+        result->frequency = measure_frequency((CHIP_CGU_CLKIN_T) valueAndIndex, 120000);
+        return true;
+    }
 
-    case 0x08:
+    case EP0_IN_BASE_FREQ: {
         /* Measure base clock frequency */
-        buf32[0] = measure_frequency(Chip_Clock_GetBaseClock((CHIP_CGU_CLKIN_T) valueAndIndex), 120000);
-        lpcsdr_usb_ep0_data_in(buf, 4);
-        return;
+        ep0_in_base_freq_t *result = (ep0_in_base_freq_t *) buf;
+        result->frequency = measure_frequency(Chip_Clock_GetBaseClock((CHIP_CGU_CLKIN_T) valueAndIndex), 120000);
+        return true;
+    }
 
-    case 0x09:
+    case EP0_IN_PLL0AUDIO_REGS: {
         /* read PLL0AUDIO regs */
-        buf32[0] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
-        buf32[1] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
-        buf32[2] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
-        buf32[3] = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV;
-        buf32[4] = LPC_CGU->PLL0AUDIO_FRAC;
-        buf32[5] = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
-        lpcsdr_usb_ep0_data_in(buf, 6*4);
-        return;
+        ep0_in_pll0audio_regs_t *result = (ep0_in_pll0audio_regs_t *) buf;
+        result->pll_stat = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
+        result->pll_ctrl = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
+        result->pll_mdiv = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
+        result->pll_np_div = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV;
+        result->pll_frac = LPC_CGU->PLL0AUDIO_FRAC;
+        result->idiv_e_ctrl = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
+        return true;
+    }
 
-    case 0x0A:
+    case EP0_IN_ADC_DMA_STATUS: {
         /* read random status stuff */
+        static_assert(sizeof(ep0_in_adc_dma_status_t) <= sizeof(lpcsdr_usb_control_buffer));
+        ep0_in_adc_dma_status_t *result = (ep0_in_adc_dma_status_t *) buf;
 
         /* ADCHS */
-        buf32[0] = LPC_ADCHS->CONFIG;
-        buf32[1] = LPC_ADCHS->INTS[0].STATUS;
-        buf32[2] = LPC_ADCHS->FIFO_STS;
-        buf32[3] = LPC_ADCHS->DSCR_STS;
+        result->adchs_config = LPC_ADCHS->CONFIG;
+        result->adchs_int0_status = LPC_ADCHS->INTS[0].STATUS;
+        result->adchs_fifo_sts = LPC_ADCHS->FIFO_STS;
+        result->adchs_dscr_sts = LPC_ADCHS->DSCR_STS;
 
         /* DMA */
-        buf32[4] = LPC_GPDMA->CONFIG;
-        buf32[5] = LPC_GPDMA->ENBLDCHNS;
-        buf32[6] = LPC_GPDMA->RAWINTTCSTAT;
-        buf32[7] = LPC_GPDMA->RAWINTERRSTAT;
-        buf32[8] = LPC_GPDMA->CH[0].CONFIG;
-        buf32[9] = LPC_GPDMA->CH[0].CONTROL;
-        buf32[10] = LPC_GPDMA->CH[0].SRCADDR;
-        buf32[11] = LPC_GPDMA->CH[0].DESTADDR;
-        buf32[12] = LPC_GPDMA->CH[0].LLI;
-        buf32[13] = (uint32_t) hsadc_current_lli;
-        buf32[14] = hsadc_next_sequence;
-        buf32[15] = 0xDEADBEEF;
+        result->gpdma_config = LPC_GPDMA->CONFIG;
+        result->gpdma_enbldchns = LPC_GPDMA->ENBLDCHNS;
+        result->gpdma_rawinttcstat = LPC_GPDMA->RAWINTTCSTAT;
+        result->gpdma_rawinterrstat = LPC_GPDMA->RAWINTERRSTAT;
+        result->gpdma0_config = LPC_GPDMA->CH[0].CONFIG;
+        result->gpdma0_control = LPC_GPDMA->CH[0].CONTROL;
+        result->gpdma0_srcaddr = LPC_GPDMA->CH[0].SRCADDR;
+        result->gpdma0_destaddr = LPC_GPDMA->CH[0].DESTADDR;
+        result->gpdma0_lli = LPC_GPDMA->CH[0].LLI;
+        result->current_lli = (uint32_t) hsadc_current_lli;
+        result->next_sequence = hsadc_next_sequence;
 
-        lpcsdr_usb_ep0_data_in(buf, 16*4);
-        return;
+        return true;
+    }
 
-    case 0x0B:
-        /* memory read */
-        if (length > sizeof(lpcsdr_usb_control_buffer)) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
-
+    case EP0_IN_MEMORY_READ:
+        /* read arbitrary area of memory */
         memcpy(buf, (uint8_t*) valueAndIndex, length);
-        lpcsdr_usb_ep0_data_in(buf, length);
-        return;
+        return true;
 
-    case 0x0C:
-        /* Read tuner regs */
-        if (length < 4 || length > 36) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
-
-        memset(buf, 0, length);
-        lpcsdr_tuner_read_regs_direct(buf + 4, length - 4, (int*) buf);
-        lpcsdr_usb_ep0_data_in(buf, length);
-        return;
+    case EP0_IN_TUNER_READ: {
+        /* Read tuner regs (no shadow cache) */
+        int status;
+        return lpcsdr_tuner_read_regs_direct(buf, length, &status);
+    }
 
     default:
+        return false;
+    }
+
+    /* not reached */
+}
+
+/* Handle a EP0_IN IPC message and send a suitable USB control transfer response.
+ * General rules are:
+ *  - If the requested length exceeds our internal buffer size, stall
+ *  - If the requested length is smaller than the available data, return a truncated response
+ *  - If the requested length is larger than the available data, return a response of the requested length with trailing zero padding
+ */
+static void m4_usb_ep0_in(const ipc_message_t *message)
+{
+    uint32_t requested_length = message->values[2];
+    if (requested_length > sizeof lpcsdr_usb_control_buffer) {
         lpcsdr_usb_ep0_stall();
         return;
     }
 
+    memset(lpcsdr_usb_control_buffer, 0, sizeof lpcsdr_usb_control_buffer);
+    if (!process_ep0_in(message)) {
+        lpcsdr_usb_ep0_stall();
+        return;
+    }
+
+    lpcsdr_usb_ep0_data_in(lpcsdr_usb_control_buffer, requested_length);
 }
 
-static void m4_usb_ep0_out(const ipc_message_t *message)
+static bool process_ep0_out(const ipc_message_t *message)
 {
     uint32_t request = message->values[0];
     uint32_t valueAndIndex = message->values[1];
     uint32_t length = message->values[2];
-
     const uint8_t *buf = lpcsdr_usb_control_buffer;
-    const uint32_t *buf32 = (const uint32_t *)buf;
 
     switch (request) {
-    case 0x01:
-        /* comms check */
-        if (length != 4 || buf32[0] != 0xDEADBEEF) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+    case EP0_OUT_COMMS_CHECK: {
+        if (length != sizeof(ep0_out_comms_check_t))
+            return false;
 
-        lpcsdr_usb_ep0_out_ack();
-        return;
+        const ep0_out_comms_check_t *param = (const ep0_out_comms_check_t *) buf;
+        if (param->magic != 0xDEADBEEF)
+            return false;
 
-    case 0x10:
+        return true;
+    }
+
+    case EP0_OUT_FLASH_WRITE:
         /* SPI: write data */
-        if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
+            return false;
 
-        if (lpcsdr_spifi_page_program(valueAndIndex, buf, length) != LPC_OK) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        /* must be contained within a single page */
+        if ((valueAndIndex >> 8) != ((valueAndIndex + length - 1) >> 8))
+            return false;
 
-        lpcsdr_usb_ep0_out_ack();
-        return;
+        return (lpcsdr_spifi_page_program(valueAndIndex, buf, length) == LPC_OK);
 
-    case 0x11:
+    case EP0_OUT_FLASH_ERASE:
         /* SPI: erase sector */
-        if (valueAndIndex > 0x00FFFFFF || (valueAndIndex & 0x0FFF) != 0) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        if (valueAndIndex > 0x00FFFFFF || (valueAndIndex & 0x0FFF) != 0)
+            return false;
 
-        if (lpcsdr_spifi_sector_erase(valueAndIndex) != LPC_OK) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        return (lpcsdr_spifi_sector_erase(valueAndIndex) == LPC_OK);
 
-        lpcsdr_usb_ep0_out_ack();
-        return;
-
-    case 0x12:
+    case EP0_OUT_START_HSADC: {
         /* Start ADC clock */
-        if (length != sizeof(hsadc_clock_config_t)) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        if (length != sizeof(ep0_out_start_hsadc_t))
+            return false;
 
-        if (!lpcsdr_hsadc_clock_start((hsadc_clock_config_t *) buf)) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        ep0_out_start_hsadc_t *param = (ep0_out_start_hsadc_t *) buf;
+        return lpcsdr_hsadc_clock_start(param->n_divisor,
+                                        param->m_divisor,
+                                        param->p_divisor,
+                                        param->idiv_divisor);
+    }
 
-        lpcsdr_usb_ep0_out_ack();
-        return;
-
-    case 0x13:
+    case EP0_OUT_START_CONVERSION:
         /* Start ADC conversion & bulk transfer */
         lpcsdr_dma_hsadc_start();
         if (!lpcsdr_hsadc_conversion_start()) {
             lpcsdr_dma_hsadc_stop();
-            lpcsdr_usb_ep0_stall();
-            return;
+            return false;
         }
         set_high_power_mode();
         lpcsdr_usb_ep1_enable();
-        lpcsdr_usb_ep0_out_ack();
-        return;
+        return true;
 
-    case 0x14:
+    case EP0_OUT_STOP_CONVERSION:
         /* Stop ADC conversion & bulk transfer */
         lpcsdr_hsadc_conversion_stop();
         lpcsdr_dma_hsadc_stop();
         lpcsdr_usb_ep1_disable();
         set_low_power_mode();
-        lpcsdr_usb_ep0_out_ack();
-        return;
+        return true;
 
-    case 0x15:
+    case EP0_OUT_SET_POWER:
         /* manually set power mode */
-        if (length != 1) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
+        if (length != 1)
+            return false;
 
         if (buf[0])
             set_high_power_mode();
         else
             set_low_power_mode();
-        lpcsdr_usb_ep0_out_ack();
-        return;
+        return true;
 
-    case 0x16:
-        /* write tuner regs:
-         *    [0] = index of first reg to write
-         *    remaining bytes are register values
+    case 0x16: {
+        /* write tuner regs starting at valueAndIndex */
+        int status;
+        return lpcsdr_tuner_write_regs(valueAndIndex, buf, length, &status);
+    }
+
+    case 0x17: {
+        /* selective tuner reg update
+         * first half of data contains new bit values to set
+         * second half of data indicates which bits to apply changes to
          */
-        if (length < 1) {
-            lpcsdr_usb_ep0_stall();
-            return;
+        if ((length & 1) != 0) {
+            /* must have an even number of bytes = whole number of regs to affect */
+            return false;
         }
 
         int status;
-        if (!lpcsdr_tuner_write_regs(buf[0], &buf[1], length - 1, &status)) {
-            lpcsdr_usb_ep0_stall();
-            return;
-        }
-        lpcsdr_usb_ep0_out_ack();
-        return;
+        return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2, &status);
+    }
 
     default:
+        return false;
+    }
+
+    /* not reached */
+}
+
+static void m4_usb_ep0_out(const ipc_message_t *message)
+{
+    if (process_ep0_out(message)) {
+        lpcsdr_usb_ep0_out_ack();
+    } else {
         lpcsdr_usb_ep0_stall();
-        return;
     }
 }
 
