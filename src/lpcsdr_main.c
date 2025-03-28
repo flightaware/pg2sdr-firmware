@@ -20,6 +20,7 @@
 #include "lpcsdr_ipc.h"
 #include "lpcsdr_tuner.h"
 #include "lpcsdr_protocol.h"
+#include "lpcsdr_uart.h"
 #include <string.h>
 
 static bool bulk_test_mode = false;
@@ -624,6 +625,7 @@ int main(void) {
     lpcsdr_tuner_init();
     lpcsdr_ipc_init();
     lpcsdr_usb_init();
+    lpcsdr_uart_init();
 
     lpcsdr_ipc_handle_messages_forever(m4_handle_message);
 
