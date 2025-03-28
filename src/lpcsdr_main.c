@@ -600,7 +600,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         lpcsdr_uart_write("GHIJKLM<", 8);
         lpcsdr_uart_flush();
 
-        lpcsdr_uart_write(">123456789ABCDEFGH", 16); /* 18 + 6 bytes */
+        lpcsdr_uart_write(">123456789ABCDEFGH", 18); /* 18 + 6 bytes */
         lpcsdr_uart_write("IJKLM<", 6);
         lpcsdr_uart_flush();
 
