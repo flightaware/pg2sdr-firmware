@@ -1,6 +1,18 @@
 #include "lpcsdr_uart.h"
 #include "lpcsdr_common.h"
 #include "chip.h"
+#include <stdarg.h>
+
+#define NANOPRINTF_IMPLEMENTATION
+#define NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS 1
+#define NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS 0
+#define NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS 0
+#define NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS 0
+#define NANOPRINTF_VISIBILITY_STATIC
+
+#include "nanoprintf.h"
 
 static RINGBUFF_T ring;
 #define RING_SIZE 1024   /* Send */
@@ -96,4 +108,23 @@ void UART0_IRQHandler(void)
     default:
         unexpected_interrupt();
     }
+}
+
+int debug_printf(const char *format, ...)
+{
+    if (!format) return -1;
+
+    char buf[128];
+
+    va_list va;
+    va_start(va, format);
+    int n = npf_vsnprintf(buf, sizeof(buf), format, va);;
+    va_end(va);
+
+    if (n > sizeof(buf)) {
+        n = sizeof(buf);
+        buf[n-1] = '!'; /* truncation indicator */
+    }
+    lpcsdr_uart_write(buf, n);
+    return n;
 }
