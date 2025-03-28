@@ -55,6 +55,12 @@ __attribute__ ((always_inline)) static inline void enable_interrupts(uint32_t ol
             : /* clobber */ "memory");
 }
 
+/* return true if interrupts are currently disabled */
+__attribute__ ((always_inline)) static inline bool interrupts_disabled(void)
+{
+    return (__get_PRIMASK() & 1) != 0;
+}
+
 /* control-structure-like macro for running a block of code with interrupts disabled, and restoring the old state afterwards:
  *
  * WITH_DISABLED_INTERRUPTS {
@@ -98,5 +104,7 @@ __attribute__ ((always_inline)) static inline uint32_t test_and_clear_bits(uint3
 
 /* We don't have C11 headers but we do have a C11 compiler, so do this definition ourselves */
 #define static_assert _Static_assert
+
+void unexpected_interrupt(void);
 
 #endif
