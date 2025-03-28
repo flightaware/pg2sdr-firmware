@@ -460,6 +460,9 @@ static bool process_ep0_in(const ipc_message_t *message)
  */
 static void m4_usb_ep0_in(const ipc_message_t *message)
 {
+    debug_printf("ep0 in (type=%02x, index=%02x, value=%02x, length=%u): ",
+                 message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
+
     uint32_t requested_length = message->values[2];
     if (requested_length > sizeof lpcsdr_usb_control_buffer) {
         lpcsdr_usb_ep0_stall();
@@ -468,10 +471,12 @@ static void m4_usb_ep0_in(const ipc_message_t *message)
 
     memset(lpcsdr_usb_control_buffer, 0, sizeof lpcsdr_usb_control_buffer);
     if (!process_ep0_in(message)) {
+        debug_printf("STALL\r\n");
         lpcsdr_usb_ep0_stall();
         return;
     }
 
+    debug_printf("returning %u bytes\r\n", requested_length);
     lpcsdr_usb_ep0_data_in(lpcsdr_usb_control_buffer, requested_length);
 }
 
@@ -574,6 +579,43 @@ static bool process_ep0_out(const ipc_message_t *message)
         return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2, &status);
     }
 
+    case 0x2F: {
+        /* run UART tests */
+        debug_printf("basic UART tests:\r\n");
+
+        lpcsdr_uart_write(">123456<", 8);            /* write < FIFO size */
+        lpcsdr_uart_flush();
+        lpcsdr_uart_write(">123456789ABCDE<", 16);   /* write exactly FIFO size */
+        lpcsdr_uart_flush();
+        lpcsdr_uart_write(">123456789ABCDEFG<", 18);   /* write > FIFO size */
+        lpcsdr_uart_flush();
+        lpcsdr_uart_write(">123456789ABCDEF0123456789ABCDE<", 32);   /* write exactly 2x FIFO */
+        lpcsdr_uart_flush();
+
+        lpcsdr_uart_write(">1234567", 8); /* 8 + 8 bytes */
+        lpcsdr_uart_write("89ABCDE<", 8);
+        lpcsdr_uart_flush();
+
+        lpcsdr_uart_write(">123456789ABCDEF", 16); /* 16 + 8 bytes */
+        lpcsdr_uart_write("GHIJKLM<", 8);
+        lpcsdr_uart_flush();
+
+        lpcsdr_uart_write(">123456789ABCDEFGH", 16); /* 18 + 6 bytes */
+        lpcsdr_uart_write("IJKLM<", 6);
+        lpcsdr_uart_flush();
+
+        debug_printf("\r\ndebug_printf tests:\r\n");
+        debug_printf("int: %d hex: %02x string: >%s<\r\n", 42, 0xAB, "this is a string");
+
+        const char *longstring = "this is a long string. a reasonably long string. actually quite a long string indeed.";
+        debug_printf("this should get truncated: %s %s %s %s\r\n", longstring, longstring, longstring, longstring);
+        debug_printf("and here's another message.\r\n");
+
+        debug_printf("all done.\r\n");
+
+        return true;
+    }
+
     default:
         return false;
     }
@@ -583,9 +625,14 @@ static bool process_ep0_out(const ipc_message_t *message)
 
 static void m4_usb_ep0_out(const ipc_message_t *message)
 {
+    debug_printf("ep0 out (type=%02x, index=%02x, value=%02x, length=%u): ",
+                 message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
+
     if (process_ep0_out(message)) {
+        debug_printf("ACK\r\n");
         lpcsdr_usb_ep0_out_ack();
     } else {
+        debug_printf("STALL\r\n");
         lpcsdr_usb_ep0_stall();
     }
 }
@@ -627,6 +674,7 @@ int main(void) {
     lpcsdr_usb_init();
     lpcsdr_uart_init();
 
+    debug_printf("M4 entering main loop\r\n");
     lpcsdr_ipc_handle_messages_forever(m4_handle_message);
 
     // not reached
