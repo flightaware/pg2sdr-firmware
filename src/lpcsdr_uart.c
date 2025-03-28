@@ -110,9 +110,10 @@ void UART0_IRQHandler(void)
     }
 }
 
-int debug_printf(const char *format, ...)
+void debug_printf(const char *format, ...)
 {
-    if (!format) return -1;
+    if (!format)
+        return;
 
     char buf[128];
 
@@ -126,5 +127,4 @@ int debug_printf(const char *format, ...)
         buf[n-1] = '!'; /* truncation indicator */
     }
     lpcsdr_uart_write(buf, n);
-    return n;
 }
