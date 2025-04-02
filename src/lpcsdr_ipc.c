@@ -152,8 +152,8 @@ void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
         ipc_receive(m4_to_m0_mailbox, handler);
         ipc_receive(m0_to_m0_mailbox, handler);
         __disable_irq();
-        if (!m4_wakeup_requested)
-            __WFE();
+        if (!m0_wakeup_requested)
+            __WFI();
         m0_wakeup_requested = false;
         __enable_irq();
     }
