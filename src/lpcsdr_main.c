@@ -24,7 +24,8 @@
 #include <string.h>
 
 static bool bulk_test_mode = false;
-static bool high_power_mode = false;
+static bool fast_cpu = false;
+static bool rf_power = false;
 
 /* callback from USB code to indicate it's got a free buffer available */
 void lpcsdr_usb_space_available(void)
@@ -36,7 +37,7 @@ void lpcsdr_usb_space_available(void)
 /* callback from USB code to indicate the USB connection state changed (USB reset or reconfiguration) */
 void lpcsdr_usb_state_changed(void)
 {
-    lpcsdr_ipc_send_m4(M4_UPDATE_POWER_STATE, 0, 0, 0);
+    /* no-op for now */
 }
 
 /* callback from DMA code to indicate there's a new HSADC buffer waiting to be copied */
@@ -203,35 +204,44 @@ static void setup_clocks(void)
     Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
 }
 
-static void set_low_power_mode(void)
+static void set_slow_cpu(void)
 {
-    if (!high_power_mode)
+    if (!fast_cpu)
         return;
 
-    high_power_mode = false;
-    lpcsdr_set_rfen(false);
+    fast_cpu = false;
     Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
     handle_clock_change();
-    lpcsdr_tuner_handle_poweroff();
 }
 
-static void set_high_power_mode(void)
+static void set_fast_cpu(void)
 {
-    if (high_power_mode)
+    if (fast_cpu)
         return;
 
-    high_power_mode = true;
-    lpcsdr_set_rfen(true);
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, false);
+    fast_cpu = true;
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
     handle_clock_change();
-    lpcsdr_tuner_handle_poweron();
 }
 
-static void m4_update_power_state()
+static void set_rf_power_off(void)
 {
-    if (high_power_mode && !lpcsdr_usb_is_ready()) {
-        set_low_power_mode();
-    }
+    if (!rf_power)
+        return;
+
+    rf_power = false;
+    lpcsdr_tuner_handle_poweroff();
+    lpcsdr_set_rfen(false);
+}
+
+static void set_rf_power_on(void)
+{
+    if (rf_power)
+        return;
+
+    rf_power = true;
+    lpcsdr_set_rfen(true);
+    lpcsdr_tuner_handle_poweron();
 }
 
 /* Measure the frequency of a clock input using the CGU's FREQ_MON registry.
@@ -517,47 +527,54 @@ static bool process_ep0_out(const ipc_message_t *message)
 
         return (lpcsdr_spifi_sector_erase(valueAndIndex) == LPC_OK);
 
-    case EP0_OUT_START_HSADC: {
-        /* Start ADC clock */
-        if (length != sizeof(ep0_out_start_hsadc_t))
+    case EP0_OUT_START_TRANSFER: {
+        /* Set up ADC clock, start transferring data */
+        if (length != sizeof(ep0_out_start_transfer_t))
             return false;
 
-        ep0_out_start_hsadc_t *param = (ep0_out_start_hsadc_t *) buf;
-        return lpcsdr_hsadc_clock_start(param->n_divisor,
-                                        param->m_divisor,
-                                        param->p_divisor,
-                                        param->idiv_divisor);
-    }
+        ep0_out_start_transfer_t *param = (ep0_out_start_transfer_t *) buf;
+        if (!lpcsdr_hsadc_clock_start(param->n_divisor,
+                                      param->m_divisor,
+                                      param->p_divisor,
+                                      param->idiv_divisor))
+            return false;
 
-    case EP0_OUT_START_TRANSFER:
-        /* Start ADC conversion & bulk transfer */
+        if (!lpcsdr_hsadc_conversion_start())
+            return false;
+
+        set_fast_cpu();
         lpcsdr_dma_hsadc_start();
-        if (!lpcsdr_hsadc_conversion_start()) {
-            lpcsdr_dma_hsadc_stop();
-            return false;
-        }
-        set_high_power_mode();
         lpcsdr_usb_ep1_enable();
         return true;
+    }
 
     case EP0_OUT_STOP_TRANSFER:
         /* Stop ADC conversion & bulk transfer */
-        lpcsdr_hsadc_conversion_stop();
         lpcsdr_dma_hsadc_stop();
         lpcsdr_usb_ep1_disable();
-        set_low_power_mode();
+        lpcsdr_hsadc_conversion_stop();
+        lpcsdr_hsadc_clock_stop();
+        set_slow_cpu();
         return true;
 
     case EP0_OUT_SET_RF_POWER:
-        /* manually set power mode */
-        if (length != 1)
-            return false;
+        switch (valueAndIndex) {
+        case 0: /* RF power off */
+            set_rf_power_off();
+            return true;
 
-        if (buf[0])
-            set_high_power_mode();
-        else
-            set_low_power_mode();
-        return true;
+        case 1: /* RF power on */
+            set_rf_power_on();
+            return true;
+
+        case 2: /* RF power toggle (tuner reset) */
+            set_rf_power_off();
+            set_rf_power_on();
+            return true;
+
+        default: /* bad request */
+            return false;
+        }
 
     case EP0_OUT_TUNER_WRITE: {
         /* write tuner regs starting at valueAndIndex */
@@ -642,10 +659,6 @@ static void m4_handle_message(const ipc_message_t *message)
     switch (message->message) {
     case M4_QUEUE_TEST_DATA:
         m4_queue_test_data();
-        break;
-
-    case M4_UPDATE_POWER_STATE:
-        m4_update_power_state();
         break;
 
     case M4_COPY_HSADC_BUFFER:
