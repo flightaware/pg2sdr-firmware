@@ -125,6 +125,8 @@ void lpcsdr_dma_hsadc_stop(void)
     /* reset any outstanding channel 0 interrupts */
     LPC_GPDMA->INTTCCLEAR = 0x01;
     LPC_GPDMA->INTERRCLR = 0x01;
+    /* we're no longer transferring data, LED should be off */
+    lpcsdr_led_set(1, C_OFF);
 }
 
 static void hsadc_dma_err(void)
@@ -147,6 +149,8 @@ static void hsadc_dma_tc(void)
      * For some extra paranoia, we advance forward until our
      * idea of what the "current" LLI is, matches what the hardware thinks.
      */
+
+    static uint32_t recent_drops; /* used to track recently dropped data, so we can update LED state */
 
     /* retrieve and clear latest ADC status, we will attribute this to each completed LLI */
     uint32_t adc_status = LPC_ADCHS->INTS[0].STATUS;
@@ -182,12 +186,14 @@ static void hsadc_dma_tc(void)
                  */
                 completed->status = 0;
                 pending_dma_status |= BLOCK_STATUS_PACKING_OVERRUN;
+                ++recent_drops;
             }
         } else {
             /* If the just-completed LLI was already marked as COPYING, then that means
              * the main loop is still busy with the old copy. Don't resubmit a new copy,
              * let the main loop eventually finish with the old copy.
              */
+            ++recent_drops;
         }
 
         /* At this point, the DMA controller has started to fill hsadc_current_lli; mark that
@@ -198,13 +204,23 @@ static void hsadc_dma_tc(void)
          * be interrupting the main loop's own test_and_set_bits and need to ensure that the
          * interrupted test_and_set correctly retries.
          */
-        if (hsadc_current_lli->status & LLI_STATUS_COPYING) {
-            /* Main loop did not handle this fast enough, we are going to clobber data.
-             * Need to use `test_and_set_bits` here even though we can't get interrupted,
-             * because perhaps we are ourselves interrupting the main loop's LDREX/STREX
-             * pair and we need to make sure that the current attempt fails/retries.
-             */
-            test_and_set_bits(LLI_STATUS_CLOBBERED, &hsadc_current_lli->status);
+        uint32_t old_bits = test_and_set_bits(LLI_STATUS_CLOBBERED, &hsadc_current_lli->status);
+        if ((old_bits & LLI_STATUS_COPYING) && !(old_bits & LLI_STATUS_CLOBBERED))
+            ++recent_drops; /* we clobbered a buffer that was previous accepted but which hadn't completed yet */
+
+        /* periodically update LED 1, every 256 buffers (~10Hz update rate at 20MHz sampling rate) */
+        if (!(hsadc_next_sequence & 255)) {
+            if (!recent_drops) {
+                /* no recent data dropped */
+                lpcsdr_led_set(1, C_GREEN);
+            } else if (recent_drops > 25) {
+                /* >10% recent data dropped */
+                lpcsdr_led_set(1, C_RED);
+            } else {
+                /* >0 but <10% dropped */
+                lpcsdr_led_set(1, C_YELLOW);
+            }
+            recent_drops = 0;
         }
     }
 }
