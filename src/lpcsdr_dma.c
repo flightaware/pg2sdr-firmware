@@ -11,29 +11,31 @@
  * so we do everything ourselves instead.
  */
 
-/* Raw ADCHS buffer space that will be filled via DMA */
+/* Pointers to DMA buffers that will be filled by the DMA controller with ADC data */
 static uint32_t *hsadc_dma_buffer[HSADC_NUM_BUFFERS];
 
+/* A DMA LLI transfer descriptor for each buffer */
 static dma_lli_t hsadc_dma_lli[HSADC_NUM_BUFFERS];
 
-dma_lli_t *hsadc_current_lli;
-uint32_t hsadc_next_sequence;
+dma_lli_t *hsadc_current_lli; /* Next LLI awaiting completion */
+uint32_t hsadc_next_sequence; /* Buffer sequence number included in transferred buffers (so the host can maintain a correct sample timestamp) */
 
 static uint32_t pending_dma_status; /* flags awaiting notification to the packing layer */
 
 void lpcsdr_dma_init(void)
 {
-    static_assert( HSADC_BUFFER_SIZE % 4 == 0 );
-    static_assert( HSADC_NUM_BUFFERS % 2 == 0 );
-    static_assert( HSADC_NUM_BUFFERS * HSADC_BUFFER_SIZE <= 0x10000 );
-    static_assert( HSADC_BUFFER_SIZE / 4 * 3 + 20 <= DTD_BUFFER_SIZE );
+    static_assert( HSADC_BUFFER_SIZE % 4 == 0 ); /* DMA buffer size must be a whole number of 32-bit words */
+    static_assert( HSADC_NUM_BUFFERS % 2 == 0 ); /* Need an even number of DMA buffers so we can alternate allocation between SRAM banks */
+    static_assert( HSADC_NUM_BUFFERS * HSADC_BUFFER_SIZE <= 0x10000 );  /* All buffers must fit into available SRAM */
+    static_assert( HSADC_BUFFER_SIZE / 4 * 3 + 20 <= DTD_BUFFER_SIZE ); /* Each DMA buffer, after packing, must fit into the available USB buffer space */
 
+    /* enable DMA controller register clock */
     Chip_Clock_EnableOpts(CLK_MX_DMA, true, true, 1);
 
-    /* set DMAMUXPER8 = 0x3, peripheral 8 = ADCHS read; rest of DMAMUX is don't-care */
+    /* set DMAMUXPER8 = 0x3: peripheral 8 = ADCHS read; rest of DMAMUX is don't-care */
     LPC_CREG->DMAMUX = (3 << 16);
 
-    /* enable controller */
+    /* enable DMA controller */
     LPC_GPDMA->CONFIG = GPDMA_DMACConfig_E;  // controller enabled, both AHB masters in little-endian mode
     while (!(LPC_GPDMA->CONFIG & GPDMA_DMACConfig_E))
         __NOP(); // wait until controller is ready
@@ -53,7 +55,18 @@ void lpcsdr_dma_init(void)
 void lpcsdr_dma_hsadc_start(void) {
     lpcsdr_dma_hsadc_stop();
 
-    /* set up transfer descriptor loop */
+    /* Create a loop of transfer descriptor LLIs, pointing to buffers
+     * that alternate between AHB_SRAM_BANK_0 and AHB_SRAM_BANK_1.
+     * The DMA controller will follow the loop and continuously fill
+     * buffers, producing an interrupt as each individual buffer is
+     * completed, but never terminating (at least until hsadc_stop
+     * is called).
+     *
+     * Ideally, the main loop will be processing some buffer X while
+     * the DMA controller is filling the next buffer X+1. Because X and
+     * X+1 are in different SRAM banks, the CPU and the DMA controller
+     * are not competing for access to the same bank of memory.
+     */
     for (unsigned i = 0; i < HSADC_NUM_BUFFERS; ++i) {
         uint32_t buffer;
         if (i % 2 == 0)
@@ -127,20 +140,18 @@ static void hsadc_dma_tc(void)
      * the end of one LLI (with the I flag set) and moves on to the next.
      *
      * We need to handle this before the next LLI completes,
-     * but we have a lot of time (maybe 1ms) before that happens
-     * so even though there's no reliable way to check for
+     * but we have a "lot" of time (0.3ms at 20MHz sampling rate) before
+     * that happens so even though there's no reliable way to check for
      * multiple LLI completion, we're _probably_ okay here?
      *
      * For some extra paranoia, we advance forward until our
      * idea of what the "current" LLI is, matches what the hardware thinks.
      */
 
-    // retrieve and clear ADC status, we will attribute this to each
-    // completed LLI
+    /* retrieve and clear latest ADC status, we will attribute this to each completed LLI */
     uint32_t adc_status = LPC_ADCHS->INTS[0].STATUS;
     LPC_ADCHS->INTS[0].CLR_STAT = adc_status;
 
-    // process ADC status
     if (adc_status & _BIT(2))
         pending_dma_status |= BLOCK_STATUS_ADC_OVERRUN;
     if (adc_status & _BIT(5))
@@ -148,37 +159,44 @@ static void hsadc_dma_tc(void)
     if (adc_status & _BIT(6))
         pending_dma_status |= BLOCK_STATUS_ADC_UNF;
 
+    /* Walk forward through the LLI loop, handling items, until our idea of
+     * the currently-in-use LLI matches what the DMA hardware reports
+     */
     while (hsadc_current_lli->lli != LPC_GPDMA->CH[0].LLI) {
         dma_lli_t *completed = hsadc_current_lli;
         hsadc_current_lli = (dma_lli_t*) completed->lli;
 
         completed->sequence = hsadc_next_sequence++;
         if (!(completed->status & LLI_STATUS_COPYING)) {
-            /* hand it off to the main loop for processing */
+            /* Happy path, this is a freshly completed LLI ready to hand off to the main loop */
             completed->status = LLI_STATUS_COPYING; /* not clobbered */
             if (lpcsdr_dma_hsadc_buffer_ready(completed, pending_dma_status)) {
                 /* main loop will copy data out, and then clear the COPYING bit.
                  * we have successfully notified the main loop of all pending
-                 * status bits.
+                 * dma status bits.
                  */
                 pending_dma_status = 0;
             } else {
                 /* main loop couldn't accept the buffer, drop it, maintain
-                 * status bits for next attempt
+                 * dma status bits for next attempt
                  */
                 completed->status = 0;
                 pending_dma_status |= BLOCK_STATUS_PACKING_OVERRUN;
             }
         } else {
-            /* if completed is still COPYING, don't re-submit it a second time, just drop
-             * it. The main loop needs to sort out the first copy first! The only way we
-             * get here is if we clobber the buffer, and the main loop is so slow that
-             * it's still working on that buffer when we come around a _second_ time.
+            /* If the just-completed LLI was already marked as COPYING, then that means
+             * the main loop is still busy with the old copy. Don't resubmit a new copy,
+             * let the main loop eventually finish with the old copy.
              */
         }
 
-        /* at this point, the ADC has started to use hsadc_current_lli; if the main loop
-         * is still working on that buffer, we may have clobbered data.
+        /* At this point, the DMA controller has started to fill hsadc_current_lli; mark that
+         * buffer as clobbered, so the main loop can notice if it's still working on that
+         * buffer from a previous fill.
+         *
+         * Always use test_and_set_bits here, even though we won't be interrupted, as we might
+         * be interrupting the main loop's own test_and_set_bits and need to ensure that the
+         * interrupted test_and_set correctly retries.
          */
         if (hsadc_current_lli->status & LLI_STATUS_COPYING) {
             /* Main loop did not handle this fast enough, we are going to clobber data.
