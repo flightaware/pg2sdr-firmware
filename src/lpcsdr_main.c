@@ -344,7 +344,7 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
  */
 static bool process_ep0_in(const ipc_message_t *message)
 {
-    uint32_t request = message->values[0];
+    ep0_in_request_t request = (ep0_in_request_t) message->values[0];
     uint32_t valueAndIndex = message->values[1];
     uint32_t length = message->values[2];
 
@@ -494,7 +494,7 @@ static void m4_usb_ep0_in(const ipc_message_t *message)
 
 static bool process_ep0_out(const ipc_message_t *message)
 {
-    uint32_t request = message->values[0];
+    ep0_out_request_t request = (ep0_out_request_t) message->values[0];
     uint32_t valueAndIndex = message->values[1];
     uint32_t length = message->values[2];
     const uint8_t *buf = lpcsdr_usb_control_buffer;
