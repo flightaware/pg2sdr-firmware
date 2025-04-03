@@ -101,12 +101,7 @@ typedef struct {
     uint32_t m_divisor;     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part */
     uint32_t p_divisor;     /* PLL0AUDIO post-divisor (0 = bypass divider */
     uint32_t idiv_divisor;  /* IDIV_E divisor (0 = don't use IDIV_E) */
-} ep0_out_start_hsadc_t;
-
-typedef struct {
-    uint8_t high_power_mode;
-} ep0_out_set_power_t;
-
+} ep0_out_start_transfer_t;
 
 /* ---  Bulk endpoint EP1   --- */
 

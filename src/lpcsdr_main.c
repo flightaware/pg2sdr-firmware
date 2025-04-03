@@ -232,6 +232,7 @@ static void set_rf_power_off(void)
     rf_power = false;
     lpcsdr_tuner_handle_poweroff();
     lpcsdr_set_rfen(false);
+    lpcsdr_led_set(0, C_OFF);
 }
 
 static void set_rf_power_on(void)
@@ -242,6 +243,7 @@ static void set_rf_power_on(void)
     rf_power = true;
     lpcsdr_set_rfen(true);
     lpcsdr_tuner_handle_poweron();
+    lpcsdr_led_set(0, C_ON);
 }
 
 /* Measure the frequency of a clock input using the CGU's FREQ_MON registry.
