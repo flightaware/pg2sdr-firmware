@@ -622,7 +622,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2, &status);
     }
 
-    case 0x2F: {
+    case EP0_OUT_UART_TEST: {
         /* run UART tests */
         debug_printf("basic UART tests:\r\n");
 
