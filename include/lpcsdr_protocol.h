@@ -7,62 +7,49 @@
 
 /* vendor requests, IN (lpc -> host) */
 
-/* Basic comms check, always returns magic = DEADBEEF */
-#define EP0_IN_COMMS_CHECK 0x01
+typedef enum {
+    EP0_IN_COMMS_CHECK = 0x01,        /* basic comms check */
+    EP0_IN_FLASH_DEVICE_ID = 0x02,    /* read device/manufacturer ID from SPI flash */
+    EP0_IN_FLASH_UNIQUE_ID = 0x03,    /* read unique ID from SPI flash */
+    EP0_IN_FLASH_READ = 0x04,         /* read data from SPI flash; valueAndIndex = start address */
+    EP0_IN_FLASH_READ_QUAD = 0x05,    /* read data from SPI flash, quad mode; valueAndIndex = start address */
+    EP0_IN_SWITCH_STATE = 0x06,       /* read current switch states */
+    EP0_IN_INPUT_FREQ = 0x07,         /* measure clock input frequency; valueAndIndex = CHIP_CGU_CLKIN_T enum value */
+    EP0_IN_BASE_FREQ = 0x08,          /* measure clock base frequency; valueAndIndex = CHIP_CGU_CLKIN_T enum value */
+    EP0_IN_PLL0AUDIO_REGS = 0x09,     /* read registers related to PLL0AUDIO */
+    EP0_IN_ADC_DMA_STATUS = 0x0A,     /* read ADC/DMA related registers and state */
+    EP0_IN_MEMORY_READ = 0x0B,        /* read arbitrary memory; valueAndIndex = start address */
+    EP0_IN_TUNER_READ = 0x0C,         /* read tuner regs; value = first reg to read; index = cache mode (0=use cache if possible, 1=bypass cache, 2=refresh cache) */
+} ep0_in_request_t;
+
+/* structures returned from IN transfers */
+
 typedef struct {
     uint32_t magic;       /* always 0xDEADBEEF */
 } ep0_in_comms_check_t;
 
-/* Read device/manufacturer ID from SPI EEPROM */
-#define EP0_IN_FLASH_DEVICE_ID 0x02
 typedef struct {
     uint16_t device_id;
 } ep0_in_flash_device_id_t;
 
-/* Read unique ID from SPI EEPROM */
-#define EP0_IN_FLASH_UNIQUE_ID 0x03
 typedef struct {
     uint64_t unique_id;
 } ep0_in_flash_unique_id_t;
 
-/* Read data from SPI EEPROM
- * valueAndIndex: start address
- * length: 1..256
- */
-#define EP0_IN_FLASH_READ 0x04
-
-/* Read data from SPI EEPROM (using quad mode)
- * valueAndIndex: start address
- * length: 1..256
- */
-#define EP0_IN_FLASH_READ_QUAD 0x05
-
-/* Read current switch settings as a bitvector */
-#define EP0_IN_SWITCH_STATE 0x06
 typedef struct {
     uint32_t switch_state; /* bitwise OR of SWITCH_SW* values */
 #define SWITCH_SW1 0x01
 #define SWITCH_SW2 0x02
 } ep0_in_switch_state_t;
 
-/* Measure the frequency, in Hz, of a given clock input
- * valueAndIndex: CHIP_CGU_CLKIN_T enum value to measure
- */
-#define EP0_IN_INPUT_FREQ 0x07
 typedef struct {
     uint32_t frequency;
 } ep0_in_input_freq_t;
 
-/* Measure the frequency, in Hz, of the base clock for a given clock input
- * valueAndIndex: CHIP_CGU_CLKIN_T enum value to measure
- */
-#define EP0_IN_BASE_FREQ 0x08
 typedef struct {
     uint32_t frequency;
 } ep0_in_base_freq_t;
 
-/* Read PLL0AUDIO-related registers */
-#define EP0_IN_PLL0AUDIO_REGS 0x09
 typedef struct {
     uint32_t pll_stat;
     uint32_t pll_ctrl;
@@ -73,7 +60,6 @@ typedef struct {
 } ep0_in_pll0audio_regs_t;
 
 /* Read ADC- and DMA- related registers and internal state */
-#define EP0_IN_ADC_DMA_STATUS 0x0A
 typedef struct {
     uint32_t adchs_config;
     uint32_t adchs_int0_status;
@@ -92,41 +78,24 @@ typedef struct {
     uint32_t next_sequence;
 } ep0_in_adc_dma_status_t;
 
-/* Read arbitary memory.
- * valueAndIndex: start address
- * length: 1..256
- */
-#define EP0_IN_MEMORY_READ 0x0B
-
-/* Read R860T registers, starting from register 0
- * length: 4..36
- */
-#define EP0_IN_TUNER_READ 0x0C
-
 /* vendor requests, OUT (host -> lpc) */
+typedef enum {
+    EP0_OUT_COMMS_CHECK = 0x01,       /* basic comms check */
+    EP0_OUT_FLASH_WRITE = 0x10,       /* SPI flash page write; valueAndIndex = starting address; write must be contained within a single 256-byte page */
+    EP0_OUT_FLASH_ERASE = 0x11,       /* SPI flash sector erase; valueAndIndex = sector address; address must be 4096-byte aligned */
+    EP0_OUT_START_HSADC = 0x12,       /* Configure and start ADC */
+    EP0_OUT_STOP_HSADC = 0x1F,        /* Stop ADC */
+    EP0_OUT_START_TRANSFER = 0x13,    /* Start transferring data to USB EP1 */
+    EP0_OUT_STOP_TRANSFER = 0x14,     /* Stop transferring data to USB EP1, stall EP1 */
+    EP0_OUT_SET_RF_POWER = 0x15,      /* Set RF power state; valueAndIndex = 0 (RF power off) / 1 (RF power on) / 2 (power off, then power on -- resets tuner) */
+    EP0_OUT_TUNER_WRITE = 0x16,       /* Write tuner registers; value = index of first register to write; index = cache policy (0=write through, 1=bypass) */
+    EP0_OUT_TUNER_UPDATE = 0x17,      /* Update tuner registers; value = index of first updated register; see code for formatting of the data payload */
+} ep0_out_request_t;
 
-/* communication check, stall if magic != DEADBEEF */
-#define EP0_OUT_COMMS_CHECK 0x01
 typedef struct {
     uint32_t magic;
 } ep0_out_comms_check_t;
 
-/* Write data to SPI EEPROM. Destination page should have been previously erased.
- * The written region should be entirely contained within a single
- * 256-byte page.
- *
- * valueAndIndex: start address
- * length: 1..256
- */
-#define EP0_OUT_FLASH_WRITE 0x10
-
-/* Erase SPI EEPROM sector (4k, 16 pages)
- * valueAndIndex: start address (should be 4096-byte sector aligned)
- */
-#define EP0_OUT_FLASH_ERASE 0x11
-
-/* Program and start HSADC clock. */
-#define EP0_OUT_START_HSADC 0x12
 typedef struct {
     uint32_t n_divisor;     /* PLL0AUDIO pre-divisor (0 = bypass divider */
     uint32_t m_divisor;     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part */
@@ -134,22 +103,10 @@ typedef struct {
     uint32_t idiv_divisor;  /* IDIV_E divisor (0 = don't use IDIV_E) */
 } ep0_out_start_hsadc_t;
 
-/* Start HSADC conversion and USB bulk transfer on EP1 */
-#define EP0_OUT_START_CONVERSION 0x13
-
-/* Stop HSADC conversion, stall EP1 */
-#define EP0_OUT_STOP_CONVERSION 0x14
-
-/* Force power mode */
-#define EP0_OUT_SET_POWER 0x15
 typedef struct {
     uint8_t high_power_mode;
 } ep0_out_set_power_t;
 
-/* Write R860T registers
- * valueAndIndex: index of first register to write (>= 4)
- */
-#define EP0_OUT_TUNER_WRITE 0x16
 
 /* ---  Bulk endpoint EP1   --- */
 

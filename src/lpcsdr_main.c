@@ -529,7 +529,7 @@ static bool process_ep0_out(const ipc_message_t *message)
                                         param->idiv_divisor);
     }
 
-    case EP0_OUT_START_CONVERSION:
+    case EP0_OUT_START_TRANSFER:
         /* Start ADC conversion & bulk transfer */
         lpcsdr_dma_hsadc_start();
         if (!lpcsdr_hsadc_conversion_start()) {
@@ -540,7 +540,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         lpcsdr_usb_ep1_enable();
         return true;
 
-    case EP0_OUT_STOP_CONVERSION:
+    case EP0_OUT_STOP_TRANSFER:
         /* Stop ADC conversion & bulk transfer */
         lpcsdr_hsadc_conversion_stop();
         lpcsdr_dma_hsadc_stop();
@@ -548,7 +548,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         set_low_power_mode();
         return true;
 
-    case EP0_OUT_SET_POWER:
+    case EP0_OUT_SET_RF_POWER:
         /* manually set power mode */
         if (length != 1)
             return false;
@@ -559,13 +559,13 @@ static bool process_ep0_out(const ipc_message_t *message)
             set_low_power_mode();
         return true;
 
-    case 0x16: {
+    case EP0_OUT_TUNER_WRITE: {
         /* write tuner regs starting at valueAndIndex */
         int status;
         return lpcsdr_tuner_write_regs(valueAndIndex, buf, length, &status);
     }
 
-    case 0x17: {
+    case EP0_OUT_TUNER_UPDATE: {
         /* selective tuner reg update
          * first half of data contains new bit values to set
          * second half of data indicates which bits to apply changes to
