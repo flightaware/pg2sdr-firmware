@@ -252,17 +252,15 @@ bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_
 // We just turned off the RF power, do anything we need to do in response
 void lpcsdr_tuner_handle_poweroff()
 {
-    // Nothing for now
+    shadow_is_valid = false;
 }
 
-// We just turned on the RF power, restore chip state from shadow regs
+// We just turned on the RF power, do anything we need to do in response
 void lpcsdr_tuner_handle_poweron()
 {
     StopWatch_DelayMs(5); // Give the tuner a moment to reset
 
-    if (shadow_is_valid) {
-        // We actually have some changes to write
-        int status;
-        (void) lpcsdr_tuner_shadow_to_chip(&status); // Can't do much with errors here
-    }
+    // re-read the tuner state
+    int status;
+    (void) lpcsdr_tuner_shadow_from_chip(&status); // Can't do much with errors here
 }
