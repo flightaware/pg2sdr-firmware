@@ -346,6 +346,8 @@ static bool process_ep0_in(const ipc_message_t *message)
 {
     ep0_in_request_t request = (ep0_in_request_t) message->values[0];
     uint32_t valueAndIndex = message->values[1];
+    uint16_t value = valueAndIndex & 0xFFFF;
+    uint16_t index = valueAndIndex >> 16;
     uint32_t length = message->values[2];
 
     uint8_t *buf = lpcsdr_usb_control_buffer;
@@ -452,9 +454,31 @@ static bool process_ep0_in(const ipc_message_t *message)
         return true;
 
     case EP0_IN_TUNER_READ: {
-        /* Read tuner regs (no shadow cache) */
+        /* read tuner regs; value = first reg to read; index = cache mode (0=use cache if possible, 1=bypass cache, 2=refresh cache) */
+        if (value >= 36 || (value + length) >= 36) {
+            /* out of range */
+            return false;
+        }
+
         int status;
-        return lpcsdr_tuner_read_regs_direct(buf, length, &status);
+        switch (index) {
+        case 0: /* use cache */
+            return lpcsdr_tuner_read_regs(value, buf, length, &status);
+
+        case 1: /* bypass cache */
+            if (!lpcsdr_tuner_read_regs_direct(buf, value + length, &status))
+                return false;
+            memmove(buf, buf + value, length);
+            return true;
+
+        case 2: /* refresh cache */
+            if (!lpcsdr_tuner_shadow_from_chip(&status))
+                return false;
+            return lpcsdr_tuner_read_regs(value, buf, length, &status);
+
+        default: /* bad mode */
+            return false;
+        }
     }
 
     default:
