@@ -77,15 +77,22 @@ void lpcsdr_uart_flush()
 
     while (true) {
         __disable_irq();
-        if (RingBuffer_IsEmpty(&ring) && (LPC_USART0->LSR & (UART_LSR_TEMT | UART_LSR_THRE)) == (UART_LSR_TEMT | UART_LSR_THRE)) {
-            /* ring, FIFO, and transmit shift register are all empty, flush is complete */
-            __enable_irq();
-            return;
-        }
 
-        /* wait for an interrupt */
-        __DSB(); /* v7-M architecture requirement, but not strictly necessary on M0/M4 */
-        __WFI();
+        uint32_t lsr = LPC_USART0->LSR;
+        if (RingBuffer_IsEmpty(&ring) && (lsr & UART_LSR_THRE) != 0) {
+            /* Ring and transmit FIFO are empty */
+            if ((lsr & UART_LSR_TEMT) != 0) {
+                /* transmit shift register is also empty, flush is complete */
+                __enable_irq();
+                return;
+            }
+
+            /* Ring/FIFO are empty but shift register is not empty, busy-wait until TEMT is set */
+        } else {
+            /* Ring or FIFO are not empty, sleep until interrupt */
+            __DSB(); /* v7-M architecture requirement, but not strictly necessary on M0/M4 */
+            __WFI();
+        }
 
         /* let pending interrupts execute */
         __enable_irq();
