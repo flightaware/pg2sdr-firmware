@@ -565,8 +565,10 @@ static bool process_ep0_out(const ipc_message_t *message)
                                       param->idiv_divisor))
             return false;
 
-        if (!lpcsdr_hsadc_conversion_start())
+        if (!lpcsdr_hsadc_conversion_start()) {
+            lpcsdr_hsadc_clock_stop();
             return false;
+        }
 
         set_fast_cpu();
         lpcsdr_dma_hsadc_start();
