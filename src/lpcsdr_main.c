@@ -597,6 +597,7 @@ static bool process_ep0_out(const ipc_message_t *message)
 
         case 2: /* RF power toggle (tuner reset) */
             set_rf_power_off();
+            StopWatch_DelayMs(1000); /* wait a while to let VDD3_RF discharge */
             set_rf_power_on();
             return true;
 
