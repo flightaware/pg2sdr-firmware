@@ -90,8 +90,26 @@ bool lpcsdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t
     return result;
 }
 
+/* If there's no IPC traffic for a while and the main loop is asleep in WFI, the
+ * watchdog warning interrupt will fire. Just trigger a wakeup so the main loop
+ * can feed the watchdog.
+ */
+void WDT_IRQHandler(void)
+{
+    m4_wakeup_requested = true;
+    Chip_WWDT_ClearStatusFlag(LPC_WWDT, WWDT_WDMOD_WDINT);
+}
+
 void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
 {
+    /* Initialize watchdog, require feeding every 5 seconds */
+    Chip_Clock_Enable(CLK_MX_WWDT);
+    Chip_WWDT_Init(LPC_WWDT);
+    Chip_WWDT_SetTimeOut(LPC_WWDT, WDT_OSC * 5 / 4); /* 5 seconds; watchdog counts down at WDT_OSC/4 */
+    Chip_WWDT_SetWarning(LPC_WWDT, 1023);            /* generate interrupt ~0.3ms (4096 cycles @ WDT_OSC) before watchdog timeout */
+    Chip_WWDT_SetOption(LPC_WWDT, WWDT_WDMOD_WDEN | WWDT_WDMOD_WDRESET); /* enable watchdog, reset chip on watchdog timeout */
+    NVIC_EnableIRQ(WWDT_IRQn);
+
     while (true) {
         lpcsdr_ipc_receive(m4_to_m4_mailbox, handler);
         lpcsdr_ipc_receive(m0_to_m4_mailbox, handler);
@@ -99,6 +117,7 @@ void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
         if (!m4_wakeup_requested)
             __WFI();
         m4_wakeup_requested = false;
+        Chip_WWDT_Feed(LPC_WWDT);
         __enable_irq();
     }
 }
