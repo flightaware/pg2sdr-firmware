@@ -332,6 +332,15 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
     return (uint64_t)12000000 * fcnt / rcnt * rcnt_xtal / fcnt_xtal;
 }
 
+static __attribute__((noreturn)) void do_reset()
+{
+    Chip_RGU_TriggerReset(RGU_CORE_RST);
+    while (true)
+        __NOP();
+
+    /* not reached */
+}
+
 /* Process an EP0 IN control transfer described in `messsage`;
  * fill lpcsdr_usb_control_buffer with results.
  *
@@ -623,6 +632,13 @@ static bool process_ep0_out(const ipc_message_t *message)
 
         int status;
         return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2, &status);
+    }
+
+    case EP0_OUT_RESET: {
+        debug_printf("Resetting..\r\n");
+        lpcsdr_uart_flush();
+        do_reset();
+        /* not reached */
     }
 
     case EP0_OUT_WATCHDOG_TEST: {
