@@ -625,6 +625,16 @@ static bool process_ep0_out(const ipc_message_t *message)
         return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2, &status);
     }
 
+    case EP0_OUT_WATCHDOG_TEST: {
+        debug_printf("sleeping for a long time to trigger WDT: ");
+        for (unsigned i = 0; i < 100; ++i) {
+            debug_printf("%u ", i);
+            StopWatch_DelayMs(100);
+        }
+        debug_printf(" ... apparently I didn't reset?\r\n");
+        return true;
+    }
+
     case EP0_OUT_UART_TEST: {
         /* run UART tests */
         debug_printf("basic UART tests:\r\n");
