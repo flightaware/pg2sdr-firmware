@@ -3,6 +3,7 @@
 import sys
 import typing
 import struct
+import time
 import usb.core
 import usb.util
 
