@@ -99,6 +99,19 @@ __attribute__ ((always_inline)) static inline uint32_t test_and_clear_bits(uint3
     return result;
 }
 
+/* Combined test_and_set + test_and_clear */
+__attribute__ ((always_inline)) static inline uint32_t test_set_clear_bits(uint32_t set_bits, uint32_t clear_bits, volatile uint32_t *addr)
+{
+    uint32_t result;
+    do {
+        result = __LDREXW(addr);
+    } while (__STREXW((result & ~clear_bits) | set_bits, addr));
+
+    return result;
+}
+
+
+
 /* Align a type to the given alignment */
 #define ALIGN(n) __attribute__(( aligned(n) ))
 
