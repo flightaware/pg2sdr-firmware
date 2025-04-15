@@ -118,6 +118,4 @@ __attribute__ ((always_inline)) static inline uint32_t test_set_clear_bits(uint3
 /* We don't have C11 headers but we do have a C11 compiler, so do this definition ourselves */
 #define static_assert _Static_assert
 
-void unexpected_interrupt(void);
-
 #endif

@@ -485,7 +485,7 @@ void SysTick_Handler(void) {
     }
 }
 
-void unexpected_interrupt(void);
+void lpcsdr_unexpected_interrupt(void);
 
 //*****************************************************************************
 //
@@ -495,5 +495,5 @@ void unexpected_interrupt(void);
 //*****************************************************************************
 __attribute__ ((section(".after_vectors")))
 void IntDefaultHandler(void) {
-    unexpected_interrupt();
+    lpcsdr_unexpected_interrupt();
 }

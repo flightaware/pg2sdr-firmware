@@ -21,6 +21,7 @@
 #include "lpcsdr_tuner.h"
 #include "lpcsdr_protocol.h"
 #include "lpcsdr_uart.h"
+#include "lpcsdr_panic.h"
 #include <string.h>
 
 static bool bulk_test_mode = false;
@@ -332,16 +333,7 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
     return (uint64_t)12000000 * fcnt / rcnt * rcnt_xtal / fcnt_xtal;
 }
 
-static __attribute__((noreturn)) void do_reset()
-{
-    Chip_RGU_TriggerReset(RGU_CORE_RST);
-    while (true)
-        __NOP();
-
-    /* not reached */
-}
-
-/* Process an EP0 IN control transfer described in `messsage`;
+/* Process an EP0 IN control transfer described in `message`;
  * fill lpcsdr_usb_control_buffer with results.
  *
  * For fixed-size responses, it's okay to just fill the buffer with the full
@@ -639,7 +631,7 @@ static bool process_ep0_out(const ipc_message_t *message)
     case EP0_OUT_RESET: {
         debug_printf("Resetting..\r\n");
         lpcsdr_uart_flush();
-        do_reset();
+        lpcsdr_reset();
         /* not reached */
     }
 
@@ -735,6 +727,8 @@ static void m4_handle_message(const ipc_message_t *message)
 int main(void) {
     setup_clocks();
 
+    lpcsdr_uart_init();
+    lpcsdr_diagnose_reset();
     lpcsdr_gpio_init();
     lpcsdr_spifi_init();
     lpcsdr_dma_init();
@@ -742,7 +736,6 @@ int main(void) {
     lpcsdr_tuner_init();
     lpcsdr_ipc_init();
     lpcsdr_usb_init();
-    lpcsdr_uart_init();
 
     debug_printf("M4 entering main loop\r\n");
     lpcsdr_ipc_handle_messages_forever(m4_handle_message);

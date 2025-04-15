@@ -1,5 +1,6 @@
 #include "lpcsdr_uart.h"
 #include "lpcsdr_common.h"
+#include "lpcsdr_panic.h"
 #include "chip.h"
 #include <stdarg.h>
 
@@ -113,7 +114,7 @@ void UART0_IRQHandler(void)
         break;
 
     default:
-        unexpected_interrupt();
+        lpcsdr_unexpected_interrupt();
     }
 }
 
