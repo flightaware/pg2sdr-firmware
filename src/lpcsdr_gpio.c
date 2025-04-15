@@ -71,12 +71,10 @@ void lpcsdr_gpio_init(void)
     Chip_GPIO_SetPinState(LPC_GPIO_PORT, 1, 12, false);
 
     /* test pattern, cycle all the LEDS */
-    for (unsigned repeat = 0; repeat < 4; ++repeat) {
-        for (unsigned i = 0; i < NUM_LEDS; ++i) {
-            lpcsdr_led_set(i, C_ON);
-            StopWatch_DelayMs(250);
-            lpcsdr_led_set(i, C_OFF);
-        }
+    for (unsigned i = 0; i < NUM_LEDS; ++i) {
+        lpcsdr_led_set(i, C_ON);
+        StopWatch_DelayMs(250);
+        lpcsdr_led_set(i, C_OFF);
     }
 }
 
