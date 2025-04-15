@@ -187,9 +187,12 @@ void lpcsdr_hsadc_clock_stop(void)
 {
     /* Disable ADC branch clock */
     Chip_Clock_Disable(CLK_ADCHS);
-    /* Power down base clock PLL/divider */
+    /* Power down PLL/divider */
     Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_PD | PLL_CTRL_MOD_PD;
+    /* Power down base clocks */
+    Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKINPUT_PD, true, true);
+    Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKINPUT_PD, true, true);
     hsadc_frequency = 0;
 }
 
