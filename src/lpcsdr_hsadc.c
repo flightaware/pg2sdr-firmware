@@ -185,6 +185,11 @@ bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (
 
 void lpcsdr_hsadc_clock_stop(void)
 {
+    if (!hsadc_frequency) {
+        /* ADC clock not configured yet, bail out  */
+        return;
+    }
+
     /* Disable ADC branch clock */
     Chip_Clock_Disable(CLK_ADCHS);
     /* Power down PLL/divider */
@@ -207,12 +212,12 @@ void lpcsdr_hsadc_init()
 
 bool lpcsdr_hsadc_conversion_start()
 {
-    lpcsdr_hsadc_conversion_stop();
-
     if (!hsadc_frequency) {
         /* ADC clock not configured yet, bail out  */
         return false;
     }
+
+    lpcsdr_hsadc_conversion_stop();
 
     /* basic config */
     LPC_ADCHS->INTS[0].CLR_EN = 0xFFFFFFFF; // interrupt 0, disable all interrupts
