@@ -1,31 +1,15 @@
 #!/usr/bin/env python3
 
 import sys
-import usb.core
-import usb.util
-import time
-import math
-import struct
+import lpcsdr_device
 
 import clock_calc
 import clock_status
 
-def start_clock(dev, n, m, p, idiv):
-    fixedpoint_m = int(round(m * 32768))
-    clock_config = struct.pack('<IIII', n, fixedpoint_m, p, idiv)
-    dev.ctrl_transfer(bmRequestType=usb.util.build_request_type(direction=usb.util.CTRL_OUT,
-                                                                type=usb.util.CTRL_TYPE_VENDOR,
-                                                                recipient=usb.util.CTRL_RECIPIENT_DEVICE),
-                      bRequest=0x12,
-                      wValue=0,
-                      wIndex=0,
-                      data_or_wLength=clock_config,
-                      timeout=2000)
-
-if __name__ == '__main__':
+def main():    
     if len(sys.argv) < 2:
         print(f'syntax: {sys.argv[0]} [-f|-i] <frequency in MHz>')
-        sys.exit(1)
+        return 1
 
     force_fractional = force_integer = False
     if sys.argv[1] == '-f':
@@ -51,13 +35,20 @@ if __name__ == '__main__':
     print(f'Calculated settings:')
     clock_calc.show(freq, settings)
     print()
-
-    dev = usb.core.find(idVendor=0xdead, idProduct=0xbeef)
-    dev.set_configuration()
-
     error, n, m, p, i, actual_fcco, actual_frequency = settings
-    print('Programming ADC clock..')
-    start_clock(dev, n, m, p, i)
+
+    dev = lpcsdr_device.find()
+    if dev is None:
+        print('no lpcsdr device found')
+        return 1
+
+    print('Starting ADC/DMA ..')
+    fixedpoint_m = int(round(m * 32768))
+    dev.start_transfer(n_div = n,
+                       m_div = fixedpoint_m,
+                       p_div = p,
+                       idiv_div = i)
+
     print('.. done.')
     print()
     print('Clock registers:')
@@ -66,3 +57,8 @@ if __name__ == '__main__':
 
     print(f'Measured fPLL: {clock_status.measure_pll0audio(dev)/1e6:.3f} MHz')
     print(f'Measured fADC: {clock_status.measure_hsadc(dev)/1e6:.3f} MHz')
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())

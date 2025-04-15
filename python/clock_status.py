@@ -94,40 +94,32 @@ def idiv_reg(ctrl):
     
 
 def query_regs(dev):
-    data = dev.ctrl_transfer(bmRequestType=usb.util.build_request_type(direction=usb.util.CTRL_IN,
-                                                                       type=usb.util.CTRL_TYPE_VENDOR,
-                                                                       recipient=usb.util.CTRL_RECIPIENT_DEVICE),
-                             bRequest=0x09,
-                             wValue=0,
-                             wIndex=0,
-                             data_or_wLength=24,
-                             timeout=2000)
-    stat, ctrl, mdiv, npdiv, frac, idiv = struct.unpack('<IIIIII', data)
-    print(f'STAT:  {stat:08x}  {stat_reg(stat)}')
-    print(f'CTRL:  {ctrl:08x}  {ctrl_reg(ctrl)}')
+    status = dev.pll0audio_regs()
+    print(f'STAT:  {status.pll_stat:08x}  {stat_reg(status.pll_stat)}')
+    print(f'CTRL:  {status.pll_ctrl:08x}  {ctrl_reg(status.pll_ctrl)}')
 
-    mdec = mdiv & 0x1FFFF
-    selp = (mdiv >> 17) & 0x1F
-    seli = (mdiv >> 22) & 0x3F
-    selr = (mdiv >> 28) & 0x0F
+    mdec = status.pll_mdiv & 0x1FFFF
+    selp = (status.pll_mdiv >> 17) & 0x1F
+    seli = (status.pll_mdiv >> 22) & 0x3F
+    selr = (status.pll_mdiv >> 28) & 0x0F
     
-    pdec = npdiv & 0x7F
-    ndec = (npdiv >> 12) & 0x3FF
+    pdec = status.pll_np_div & 0x7F
+    ndec = (status.pll_np_div >> 12) & 0x3FF
     
     msel = mdec_lut.get(mdec, None)
     psel = pdec_lut.get(pdec, None)
     nsel = ndec_lut.get(ndec, None)
 
-    pllfract_ctrl = frac & 0x1FFFFF
+    pllfract_ctrl = status.pll_frac & 0x1FFFFF
     fractional_m = pllfract_ctrl / (1<<15)
     
-    print(f'MDIV:  {mdiv:08x}  MDEC={mdec:5d} MSEL={msel:5d}  SELP={selp} SELI={seli} SELR={selr}')
-    print(f'NPDIV: {npdiv:08x}  PDEC={pdec:3d} PSEL={psel:2d}  NDEC={ndec:3d} NSEL={nsel:3d}')
-    print(f'FRAC:  {frac:08x}  FRACTIONAL_M={fractional_m:.5f}')
+    print(f'MDIV:  {status.pll_mdiv:08x}  MDEC={mdec:5d} MSEL={msel:5d}  SELP={selp} SELI={seli} SELR={selr}')
+    print(f'NPDIV: {status.pll_np_div:08x}  PDEC={pdec:3d} PSEL={psel:2d}  NDEC={ndec:3d} NSEL={nsel:3d}')
+    print(f'FRAC:  {status.pll_frac:08x}  FRACTIONAL_M={fractional_m:.5f}')
 
-    print(f'IDIV:  {idiv:08x}  {idiv_reg(idiv)}')
+    print(f'IDIV:  {status.idiv_e_ctrl:08x}  {idiv_reg(status.idiv_e_ctrl)}')
 
-    if ctrl & (1<<2):
+    if status.pll_ctrl & (1<<2):
         fRef = 12e6
         n = '0 (disabled)'
     elif nsel is None:
@@ -137,7 +129,7 @@ def query_regs(dev):
         fRef = 12e6 / nsel
         n = nsel
 
-    if not (ctrl & (1<<13)):
+    if not (status.pll_ctrl & (1<<13)):
         m = fractional_m
     elif msel is None:
         m = 'invalid'
@@ -145,7 +137,7 @@ def query_regs(dev):
         m = msel
     fCCO = 2 * m * fRef
 
-    if ctrl & (1<<3):
+    if status.pll_ctrl & (1<<3):
         fPLL = fCCO
         p = '0 (disabled)'
     elif psel is None:
@@ -155,11 +147,11 @@ def query_regs(dev):
         fPLL = fCCO / 2 / psel
         p = psel
 
-    if (idiv & 1):
+    if (status.idiv_e_ctrl & 1):
         fADC = fPLL
         i = '0 (disabled)'
     else:
-        idiv_divisor = 1 + (idiv>>2)&0xFF
+        idiv_divisor = 1 + (status.idiv_e_ctrl>>2)&0xFF
         fADC = fPLL / idiv_divisor
         i = idiv_divisor
 
@@ -170,35 +162,11 @@ def query_regs(dev):
     print(f'computed fPLL: {fPLL/1e6:.3f} MHz')
     print(f'computed fADC: {fADC/1e6:.3f} MHz')
 
-def measure_clock_input(dev, clkin):
-    data = dev.ctrl_transfer(bmRequestType=usb.util.build_request_type(direction=usb.util.CTRL_IN,
-                                                                       type=usb.util.CTRL_TYPE_VENDOR,
-                                                                       recipient=usb.util.CTRL_RECIPIENT_DEVICE),
-                             bRequest=0x07,
-                             wValue=clkin,
-                             wIndex=0,
-                             data_or_wLength=4,
-                             timeout=2000)
-    freq, = struct.unpack('<I', data)
-    return freq
-    
-def measure_base_clock(dev, baseclk):
-    data = dev.ctrl_transfer(bmRequestType=usb.util.build_request_type(direction=usb.util.CTRL_IN,
-                                                                       type=usb.util.CTRL_TYPE_VENDOR,
-                                                                       recipient=usb.util.CTRL_RECIPIENT_DEVICE),
-                             bRequest=0x08,
-                             wValue=baseclk,
-                             wIndex=0,
-                             data_or_wLength=4,
-                             timeout=2000)
-    freq, = struct.unpack('<I', data)
-    return freq
-    
 def measure_hsadc(dev):
-    return measure_base_clock(dev, 12)
+    return dev.base_freq(12)
 
 def measure_pll0audio(dev):
-    return measure_clock_input(dev, 8)
+    return dev.input_freq(8)
 
 def format_frequency(f):
     if f > 1e5:
@@ -228,12 +196,14 @@ def show_clocks(dev):
         'IDIVE']
         
     for i, name in enumerate(clocks):
-        print(f'{name.ljust(10)}  {format_frequency(measure_clock_input(dev, i))}')
+        print(f'{name.ljust(10)}  {format_frequency(dev.base_freq(i))}')
 
 if __name__ == '__main__':
-    dev = usb.core.find(idVendor=0xdead, idProduct=0xbeef)
-    dev.set_configuration()
-
+    dev = lpcsdr_device.find()
+    if dev is None:
+        print('no lpcsdr device found')
+        sys.exit(1)
+        
     query_regs(dev)
     print(f'Measured fPLL: {measure_pll0audio(dev)/1e6:.3f}MHz')
     print(f'Measured fADC: {measure_hsadc(dev)/1e6:.3f}MHz')
