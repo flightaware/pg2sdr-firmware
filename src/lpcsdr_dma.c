@@ -218,11 +218,11 @@ static void hsadc_dma_tc(void)
             if (!recent_drops) {
                 /* no recent data dropped */
                 lpcsdr_led_set(1, C_GREEN);
-            } else if (recent_drops > 25) {
-                /* >10% recent data dropped */
+            } else if (recent_drops > 128) {
+                /* >50% recent data dropped */
                 lpcsdr_led_set(1, C_RED);
             } else {
-                /* >0 but <10% dropped */
+                /* >0 but <50% dropped */
                 lpcsdr_led_set(1, C_YELLOW);
             }
             recent_drops = 0;
