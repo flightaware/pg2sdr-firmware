@@ -107,7 +107,7 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
          * check also happens again after copying/packing is complete.
          */
         pending_usb_status |= BLOCK_STATUS_PACKING_OVERRUN;
-        lpcsdr_dma_hsadc_copy_complete(buffer);
+        lpcsdr_dma_hsadc_copy_complete(buffer, false);
         return;
     }
 
@@ -115,7 +115,7 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
     if (!dTD) {
         /* No available USB buffer, host is not keeping up, drop data */
         pending_usb_status |= BLOCK_STATUS_USB_OVERRUN;
-        lpcsdr_dma_hsadc_copy_complete(buffer);
+        lpcsdr_dma_hsadc_copy_complete(buffer, false);
         return;
     }
 
@@ -151,7 +151,7 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
      * so discard the buffer.
      */
     memory_barrier();
-    uint32_t status = lpcsdr_dma_hsadc_copy_complete(buffer);
+    uint32_t status = lpcsdr_dma_hsadc_copy_complete(buffer, true);
     if (buffer->sequence == start_seq && !(status & LLI_STATUS_CLOBBERED)) {
         /* we copied everything out successfully with no clobber, send the data */
         lpcsdr_usb_queue_dtd(dTD, used + pad);

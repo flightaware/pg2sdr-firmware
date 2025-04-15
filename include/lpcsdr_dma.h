@@ -31,7 +31,8 @@ typedef struct ALIGN(16) _dma_lli {
     /* additional status information for us; these do get updated by the DMA ISR & main loop */
     volatile uint32_t status;         /* status bits, combination of LLI_STATUS_*, updated by both ISR and main loop (careful of clobbering in main loop!) */
 #define LLI_STATUS_COPYING   _BIT(0)  /* buffer is being processed by the M4 main loop */
-#define LLI_STATUS_CLOBBERED _BIT(1)  /* buffer failed to get processed in time. main loop must clear this when it notices. */
+#define LLI_STATUS_CLOBBERED _BIT(1)  /* buffer has started to be filled by DMA */
+#define LLI_STATUS_DROPPED   _BIT(2)  /* buffer was given to the main loop, but the main loop had to drop it (e.g. no USB space) */
     volatile uint32_t sequence;       /* completion sequence number, updated by ISR */
 } dma_lli_t;
 
@@ -57,9 +58,9 @@ bool lpcsdr_dma_hsadc_buffer_ready(dma_lli_t *completed, uint32_t status_flags);
  *
  * Returns the old buffer status.
  */
-static inline uint32_t lpcsdr_dma_hsadc_copy_complete(dma_lli_t *buffer)
+static inline uint32_t lpcsdr_dma_hsadc_copy_complete(dma_lli_t *buffer, bool completed)
 {
-    return test_and_clear_bits(LLI_STATUS_COPYING, &buffer->status);
+    return test_set_clear_bits(/* set */ (completed ? 0 : LLI_STATUS_DROPPED), /* clear */ LLI_STATUS_COPYING, &buffer->status);
 }
 
 extern dma_lli_t *hsadc_current_lli;

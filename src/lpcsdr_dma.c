@@ -173,7 +173,12 @@ static void hsadc_dma_tc(void)
         completed->sequence = hsadc_next_sequence++;
         if (!(completed->status & LLI_STATUS_COPYING)) {
             /* Happy path, this is a freshly completed LLI ready to hand off to the main loop */
-            completed->status = LLI_STATUS_COPYING; /* not clobbered */
+            if (completed->status & LLI_STATUS_DROPPED) {
+                /* Main loop dropped the previous copy of this buffer, count it in recent-drops */
+                ++recent_drops;
+            }
+
+            completed->status = LLI_STATUS_COPYING; /* not clobbered, not dropped */
             if (lpcsdr_dma_hsadc_buffer_ready(completed, pending_dma_status)) {
                 /* main loop will copy data out, and then clear the COPYING bit.
                  * we have successfully notified the main loop of all pending
