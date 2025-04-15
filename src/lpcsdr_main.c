@@ -435,11 +435,13 @@ static bool process_ep0_in(const ipc_message_t *message)
         static_assert(sizeof(ep0_in_adc_dma_status_t) <= sizeof(lpcsdr_usb_control_buffer));
         ep0_in_adc_dma_status_t *result = (ep0_in_adc_dma_status_t *) buf;
 
-        /* ADCHS */
-        result->adchs_config = LPC_ADCHS->CONFIG;
-        result->adchs_int0_status = LPC_ADCHS->INTS[0].STATUS;
-        result->adchs_fifo_sts = LPC_ADCHS->FIFO_STS;
-        result->adchs_dscr_sts = LPC_ADCHS->DSCR_STS;
+        /* ADCHS. This appears to need the ADC base clock to be set, or access to the ADC registers hangs */
+        if (Chip_Clock_GetBaseClock(CLK_BASE_ADCHS) != CLKINPUT_PD) {
+            result->adchs_config = LPC_ADCHS->CONFIG;
+            result->adchs_int0_status = LPC_ADCHS->INTS[0].STATUS;
+            result->adchs_fifo_sts = LPC_ADCHS->FIFO_STS;
+            result->adchs_dscr_sts = LPC_ADCHS->DSCR_STS;
+        }
 
         /* DMA */
         result->gpdma_config = LPC_GPDMA->CONFIG;
