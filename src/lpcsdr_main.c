@@ -364,7 +364,7 @@ static bool process_ep0_in(const ipc_message_t *message)
     switch (request) {
     case EP0_IN_COMMS_CHECK: {
         ep0_in_comms_check_t *result = (ep0_in_comms_check_t *)buf;
-        result->magic = 0xDEADBEEF;
+        result->magic = COMMS_CHECK_MAGIC;
         return true;
     }
 
@@ -538,7 +538,7 @@ static bool process_ep0_out(const ipc_message_t *message)
             return false;
 
         const ep0_out_comms_check_t *param = (const ep0_out_comms_check_t *) buf;
-        if (param->magic != 0xDEADBEEF)
+        if (param->magic != COMMS_CHECK_MAGIC)
             return false;
 
         return true;

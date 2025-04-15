@@ -24,8 +24,9 @@ typedef enum {
 
 /* structures returned from IN transfers */
 
+#define COMMS_CHECK_MAGIC 0xDEADBEEF
 typedef struct {
-    uint32_t magic;       /* always 0xDEADBEEF */
+    uint32_t magic;
 } ep0_in_comms_check_t;
 
 typedef struct {
