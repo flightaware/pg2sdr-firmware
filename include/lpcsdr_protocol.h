@@ -84,10 +84,8 @@ typedef enum {
     EP0_OUT_COMMS_CHECK = 0x01,       /* basic comms check */
     EP0_OUT_FLASH_WRITE = 0x10,       /* SPI flash page write; valueAndIndex = starting address; write must be contained within a single 256-byte page */
     EP0_OUT_FLASH_ERASE = 0x11,       /* SPI flash sector erase; valueAndIndex = sector address; address must be 4096-byte aligned */
-    EP0_OUT_START_HSADC = 0x12,       /* Configure and start ADC */
-    EP0_OUT_STOP_HSADC = 0x1F,        /* Stop ADC */
-    EP0_OUT_START_TRANSFER = 0x13,    /* Start transferring data to USB EP1 */
-    EP0_OUT_STOP_TRANSFER = 0x14,     /* Stop transferring data to USB EP1, stall EP1 */
+    EP0_OUT_START_TRANSFER = 0x13,    /* Start ADC and DMA, start transferring data to USB EP1 */
+    EP0_OUT_STOP_TRANSFER = 0x14,     /* Stop ADC, DMA, EP1 transfers */
     EP0_OUT_SET_RF_POWER = 0x15,      /* Set RF power state; valueAndIndex = 0 (RF power off) / 1 (RF power on) / 2 (power off, then power on -- resets tuner) */
     EP0_OUT_TUNER_WRITE = 0x16,       /* Write tuner registers; value = index of first register to write; index = cache policy (0=write through, 1=bypass) */
     EP0_OUT_TUNER_UPDATE = 0x17,      /* Update tuner registers; value = index of first updated register; see code for formatting of the data payload */
