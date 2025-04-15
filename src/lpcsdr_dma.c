@@ -204,14 +204,10 @@ static void hsadc_dma_tc(void)
         /* At this point, the DMA controller has started to fill hsadc_current_lli; mark that
          * buffer as clobbered, so the main loop can notice if it's still working on that
          * buffer from a previous fill.
-         *
-         * Always use test_and_set_bits here, even though we won't be interrupted, as we might
-         * be interrupting the main loop's own test_and_set_bits and need to ensure that the
-         * interrupted test_and_set correctly retries.
          */
-        uint32_t old_bits = test_and_set_bits(LLI_STATUS_CLOBBERED, &hsadc_current_lli->status);
-        if ((old_bits & LLI_STATUS_COPYING) && !(old_bits & LLI_STATUS_CLOBBERED))
-            ++recent_drops; /* we clobbered a buffer that was previous accepted but which hadn't completed yet */
+        if ((hsadc_current_lli->status & (LLI_STATUS_COPYING | LLI_STATUS_CLOBBERED)) == LLI_STATUS_COPYING)
+            ++recent_drops; /* we clobbered a buffer that was previously accepted but which hadn't completed yet */
+        hsadc_current_lli->status |= LLI_STATUS_CLOBBERED;
 
         /* periodically update LED 1, every 256 buffers (~10Hz update rate at 20MHz sampling rate) */
         if (!(hsadc_next_sequence & 255)) {
