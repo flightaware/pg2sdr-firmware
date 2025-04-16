@@ -1,0 +1,4 @@
+# Put this in /etc/udev/rules.d/ then run "sudo systemctl reload udev"
+#
+# LPCSDR, temporary IDs
+SUBSYSTEM=="usb", ATTRS{idVendor}=="dead", ATTRS{idProduct}=="beef", GROUP="plugdev", MODE="0660"
