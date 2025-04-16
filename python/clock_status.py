@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-import usb.core
-import usb.util
-import time
-import math
-import struct
+import lpcsdr_device
 
 def prepare_tables():
     global mdec_lut
