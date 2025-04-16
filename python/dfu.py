@@ -3,9 +3,9 @@
 import sys
 import typing
 import struct
-import time
 import usb.core
 import usb.util
+import errno
 
 class DFUStatus(typing.NamedTuple):
     bStatus: int
@@ -14,8 +14,9 @@ class DFUStatus(typing.NamedTuple):
     iString: int
 
 
-def dfu_dnload(dev, block, data):
-    print(f'DFU_DNLOAD({block}, {len(data)} bytes)')
+def dfu_dnload(dev, block, data, verbose):
+    if verbose:
+        print(f'DFU_DNLOAD({block}, {len(data)} bytes)')
     dev.ctrl_transfer(bmRequestType=usb.util.build_request_type(direction=usb.util.CTRL_OUT,
                                                                 type=usb.util.CTRL_TYPE_CLASS,
                                                                 recipient=usb.util.CTRL_RECIPIENT_INTERFACE),
@@ -25,8 +26,9 @@ def dfu_dnload(dev, block, data):
                       data_or_wLength=data)
 
 
-def dfu_getstatus(dev):
-    print('DFU_GETSTATUS')
+def dfu_getstatus(dev, verbose):
+    if verbose:
+        print('DFU_GETSTATUS')
     status = dev.ctrl_transfer(bmRequestType=usb.util.build_request_type(direction=usb.util.CTRL_IN,
                                                                          type=usb.util.CTRL_TYPE_CLASS,
                                                                          recipient=usb.util.CTRL_RECIPIENT_INTERFACE),
@@ -41,6 +43,35 @@ def dfu_getstatus(dev):
                      iString=int(status[5]))
 
 
+def download_firmware(dev, path, verbose=False):
+    dev.set_configuration()
+    with open(path, 'rb') as f:
+        block = 0
+        while True:
+            more = f.read(2048)
+            if not more:
+                break
+
+            dfu_dnload(dev, block, more, verbose)
+            block += 1
+
+            status = dfu_getstatus(dev, verbose)
+            if status.bStatus != 0 or status.bState != 5: # 5: dfuDNLOAD-IDLE
+                raise IOError(f'DFU_GETSTATUS: {status}')
+
+    dfu_dnload(dev, block, b'', verbose)
+    try:
+        status = dfu_getstatus(dev, verbose)
+        if status.bStatus != 0:
+            raise IOError(f'DFU_GETSTATUS: {status}')
+    except usb.core.USBError as e:
+        # LPC starts the new firmware immediately on the final GETSTATUS following
+        # a zero-length DFU_DNLOAD, so expect a pipe error on that GETSTATUS
+        if e.errno != errno.EPIPE:
+            raise
+        return
+
+
 def main():
     if len(sys.argv) < 2:
         print(f'syntax: {sys.argv[0]} <path to firmware image>')
@@ -48,35 +79,10 @@ def main():
 
     dev = usb.core.find(idVendor=0x1fc9, idProduct=0x000c)
     if dev is None:
-        print('no device found')
+        print('no LPC DFU device found')
         return
 
-    dev.set_configuration()
-
-    with open(sys.argv[1], 'rb') as f:
-        block = 0
-        while True:
-            more = f.read(2048)
-            if not more:
-                break
-
-            dfu_dnload(dev, block, more)
-            block += 1
-
-            status = dfu_getstatus(dev)
-            while status.bStatus == 0 and status.bState == 4:  # 4: dfuDNBUSY
-                time.sleep(max(status.bwPollTimeout, 50))
-
-            if status.bStatus != 0 or status.bState != 5: # 5: dfuDNLOAD-IDLE
-                raise IOError(f'DFU_GETSTATUS: {status}')
-
-    # LPC starts the new firmware immediately on the final GETSTATUS following
-    # a zero-length DFU_DNLOAD, so expect an error on that GETSTATUS
-    dfu_dnload(dev, block, b'')
-    try:
-        dfu_getstatus(dev)
-    except usb.core.USBError:
-        pass
+    download_firmware(dev, path, True)
 
 
 if __name__ == '__main__':
