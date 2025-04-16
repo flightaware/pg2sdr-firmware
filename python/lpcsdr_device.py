@@ -6,6 +6,11 @@ from enum import IntEnum
 from typing import ClassVar
 import dataclasses
 import struct
+import sys
+import os
+import time
+
+import dfu
 
 # Should match defines in lpcsdr_protocol.h
 class InReq(IntEnum):
@@ -232,11 +237,53 @@ class Device(object):
     def uart_test(self):
         self._out_bytes(req=OutReq.UART_TEST, data=b'')
 
-    
+
+def locate_firmware():
+    candidates = []
+    env = os.environ.get('LPCSDR_FIRMWARE', None)
+    if env is not None:
+        candidates.append(env)
+    basedir = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), '..')
+    candidates.append(os.path.join(basedir, 'Debug', 'lpcsdr.bin'))
+    candidates.append(os.path.join(basedir, 'images', 'lpcsdr.bin'))
+
+    for path in candidates:
+        path = os.path.abspath(path)
+        if os.path.exists(path):
+            return path
+
+    print(f'No suitable firmware found (tried: {" ".join(candidates)})')
+    return None
+
+
 def find():
     usbdev = usb.core.find(idVendor=0xdead, idProduct=0xbeef)
     if usbdev is None:
-        return None
+        # Look for a DFU device we can download firmware to
+        dfudev = usb.core.find(idVendor=0x1fc9, idProduct=0x000c)
+        if dfudev is None:
+            return None
+
+        print(f'Found a LPC DFU device at {dfudev!r}', file=sys.stderr)
+        firmware_path = locate_firmware()
+        if not firmware_path:
+            return None
+
+        print(f'Downloading LPCSDR firmware from {firmware_path}', file=sys.stderr)
+        dfu.download_firmware(dfudev, firmware_path)
+        print(f'Waiting for LPCSDR to re-enumerate', file=sys.stderr)
+
+        # Wait for the LPCSDR firmware to boot and re-enumerate
+        # pyusb doesn't have hotplug support (yet?) so just poll
+        for i in range(5):
+            usbdev = usb.core.find(idVendor=0xdead, idProduct=0xbeef)
+            if usbdev is not None:
+                print(f'New LPCSDR device appeared at {usbdev!r}', file=sys.stderr)
+                break
+            time.sleep(0.5)
+        else:
+            print(f"LPCSDR device didn't re-enumerate after firmware download", file=sys.stderr)
+            return None
 
     dev = Device(usbdev)
     dev.comms_check()
