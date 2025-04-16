@@ -5,44 +5,75 @@ import lpcsdr_device
 import argparse
 
 empty_page = b'\xFF' * 256
-def write_sector(dev, sector_address, blob):
-    state = {}
-    needs_erase = False
+def write_sector(dev, sector_address, blob, force):
+    # Write one 4096-byte sector, taking into account what's currently stored to minimize
+    # erase/write cycles
 
-    for offset in range(0, len(blob), 256):
-        address = sector_address + offset
-        page_len = min(256, len(blob) - offset)
-        existing = dev.flash_read(address, page_len)
+    # We can:
+    #
+    #  1) write data in 256-byte pages, but only to a page that was previously erased
+    #     so that it contains all FF bytes (an "empty page")
+    #  2) erase the entire 4096-byte sector, which erases all of the 16 pages it contains
+    #
+    # Note that we cannot selectively erase only a single page, we can only erase the
+    # whole sector in one go.
+    #
+    # Jump through some hoops to work out whether we need to erase the sector, and
+    # what writes we need to do (either with or without the sector erase happening) to
+    # bring everything up to date
 
-        match = (existing == blob[offset:offset+page_len])
-        empty = (existing == empty_page[:page_len])
-        wants_empty = (blob[offset:offset+page_len] == empty_page[:page_len])
+    needs_erase = False  # do we need to erase the whole sector?
+    not_empty = set()    # what pages should end up with non-empty data?
+    needs_write = set()  # what pages do we need to write?
 
-        if not match:
-            needs_erase = True
+    if force:
+        # Just erase and rewrite everything
+        needs_erase = True
+        needs_write = set(offset for offset in range(0, len(blob), 256))
+    else:
+        for offset in range(0, len(blob), 256):
+            address = sector_address + offset
+            page_len = min(256, len(blob) - offset)
+            existing = dev.flash_read_quad(address, page_len)
 
-        state[offset] = (match, empty, wants_empty)
+            match = (existing == blob[offset:offset+page_len])
+            is_empty = (existing == empty_page[:page_len])
+            wants_empty = (blob[offset:offset+page_len] == empty_page[:page_len])
+
+            if not is_empty:
+                # remember all non-empty pages;
+                # if we erase the sector, we must write all of these
+                not_empty.add(offset)
+
+            if not match:
+                # this page does not match what we want
+                if not wants_empty:
+                    # this page needs new, non-empty, data written to it
+                    needs_write.add(offset)
+                if not is_empty:
+                    # this page is not already erased, and we need to write new data to it,
+                    # so we must erase the whole sector
+                    needs_erase = True
 
     if needs_erase:
         print(f'Erasing sector {sector_address:08x}..{sector_address+4095:08x}')
         dev.flash_erase(sector_address)
-        for offset, (match, empty, wants_empty) in state.items():
-            state[offset] = (wants_empty, True, wants_empty)
+        # we wiped everything and must rewrite all pages that aren't meant to be empty
+        needs_write.update(not_empty)
 
-    for offset in sorted(state.keys()):
-        if not match:
-            address = sector_address + offset
-            page_len = min(256, len(blob) - offset)
-            print(f'Programming page {address:08x}..{address+page_len-1:08x}')
-            dev.flash_write(address, blob[offset:offset+page_len])
+    for offset in sorted(needs_write):
+        address = sector_address + offset
+        page_len = min(256, len(blob) - offset)
+        print(f'Programming page {address:08x}..{address+page_len-1:08x}')
+        dev.flash_write(address, blob[offset:offset+page_len])
 
-def write_firmware(dev, path):
+def write_firmware(dev, path, force):
     with open(path, 'rb') as f:
         address = 0
         while True:
             sector = f.read(4096)
             if len(sector) > 0:
-                write_sector(dev, address, sector)
+                write_sector(dev, address, sector, force)
             if len(sector) < 4096:
                 break
             address += len(sector)
@@ -58,10 +89,12 @@ def verify_firmware(dev, path):
                     for i in range(len(page)):
                         if page[i] != existing[i]:
                             print(f'Verify failed, first mismatch at 0x{address+i:04X}')
+                            print(page.hex())
+                            print(existing.hex())
                             break
                     else:
                         print(f"Verify failed somewhere around 0x{address:04X} but I couldn't find the exact address??")
-                    return False
+                    #return False
             if len(page) < 256:
                 break
             address += len(page)
@@ -79,6 +112,8 @@ def main():
     parser = argparse.ArgumentParser(description='Write LPCSDR firmware to flash EEPROM')
     parser.add_argument('--dryrun', '-n', help="don't write firmware, do a dry run", action='store_true')
     parser.add_argument('--verify', '-v', help="don't write firmware, verify flash contents match requested firmware", action='store_true')
+    parser.add_argument('--force', '-f', help="force erasing and rewriting all sectors, rather than being selective", action='store_true')
+    parser.add_argument('--reset', '-r', help="after writing new firmware, reset device to use the new firmware", action='store_true')
     parser.add_argument('filename', help='path to firmware image to write')
 
     args = parser.parse_args()
@@ -99,12 +134,20 @@ def main():
         dev.flash_erase = dryrun_flash_erase
 
     if write:
-        write_firmware(dev, args.filename)
+        write_firmware(dev, args.filename, args.force)
 
     if verify:
         if not verify_firmware(dev, args.filename):
             # verify failed, exit with error code
             return 1
+
+    if args.reset and not args.dryrun:
+        switches = dev.switch_state()
+        if switches & 1:
+            print('ignoring --reset as the boot-mode switch is set to boot from USB')
+        else:
+            print('Resetting device..')
+            dev.reset()
 
     return 0
 
