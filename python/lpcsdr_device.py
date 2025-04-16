@@ -217,8 +217,8 @@ class Device(object):
     def stop_transfer(self):
         self._out_bytes(req=OutReq.STOP_TRANSFER, value=0, index=0, data=b'')
 
-    def set_power(self, mode:RFPowerMode):
-        self._out_bytes(req=OutReq.SET_POWER, value=mode)
+    def set_rf_power(self, mode:RFPowerMode):
+        self._out_bytes(req=OutReq.SET_RF_POWER, value=int(mode), data=b'')
 
     def tuner_write(self, first_reg:int, data:bytes, mode:TunerCacheMode=TunerCacheMode.USE_CACHE):
         self._out_bytes(req=OutReq.TUNER_WRITE, value=first_reg, index=mode, data=data)
