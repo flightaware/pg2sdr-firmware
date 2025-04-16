@@ -213,6 +213,23 @@ ErrorCode_t lpcsdr_spifi_init(void)
     LPC_SPIFI->CTRL = SPIFI_CTRL_TO(0xFFFF) | SPIFI_CTRL_CSHI(15) | SPIFI_CTRL_RFCLK(1) | SPIFI_CTRL_FBCLK(1);
     spifi_HW_ResetController(LPC_SPIFI);
 
+    // reset flash chip
+    spifi_generic_write(SPIFI_CMD_OPCODE(0x66) |                          // Enable reset (66h)
+                        SPIFI_CMD_FRAMEFORM(SPIFI_FRAMEFORM_OP) |         // Opcode only
+                        SPIFI_CMD_FIELDFORM(SPIFI_FIELDFORM_ALL_SERIAL) | // Serial opcode
+                        SPIFI_CMD_INTER(0),                               // No intermediate bytes
+                        0,                                                // No address
+                        NULL, 0);                                         // No additional data
+    spifi_generic_write(SPIFI_CMD_OPCODE(0x99) |                          // Reset (99h)
+                        SPIFI_CMD_FRAMEFORM(SPIFI_FRAMEFORM_OP) |         // Opcode only
+                        SPIFI_CMD_FIELDFORM(SPIFI_FIELDFORM_ALL_SERIAL) | // Serial opcode
+                        SPIFI_CMD_INTER(0),                               // No intermediate bytes
+                        0,                                                // No address
+                        NULL, 0);                                         // No additional data
+
+    // Wait 50us for reset
+    StopWatch_DelayUs(50);
+
     // read status registers
     uint8_t status[2];
     spifi_generic_read(SPIFI_CMD_OPCODE(0x05) |                           // Read Status Register-1 (05h)
