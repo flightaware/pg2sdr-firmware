@@ -170,10 +170,10 @@ class Device(object):
         return message.unique_id
 
     def flash_read(self, address, length) -> bytes:
-        return self._in_bytes(req=InReq.FLASH_READ, value=(address & 0xFFFF), index=(address >> 16))
+        return self._in_bytes(req=InReq.FLASH_READ, value=(address & 0xFFFF), index=(address >> 16), length=length)
 
     def flash_read_quad(self, address, length) -> bytes:
-        return self._in_bytes(req=InReq.FLASH_READ_QUAD, value=(address & 0xFFFF), index=(address >> 16))
+        return self._in_bytes(req=InReq.FLASH_READ_QUAD, value=(address & 0xFFFF), index=(address >> 16), length=length)
 
     def switch_state(self) -> int:
         message = self._in(req=InReq.SWITCH_STATE, value=0, index=0, klass=SwitchState)
@@ -203,7 +203,7 @@ class Device(object):
         self._out_bytes(req=OutReq.FLASH_WRITE, value=(address & 0xFFFF), index=(address >> 16), data=page_data)
 
     def flash_erase(self, sector_address: int):
-        self._out_bytes(req=OutReq.FLASH_ERASE, value=(sector_address & 0xFFFF), index=(sector_address >> 16))
+        self._out_bytes(req=OutReq.FLASH_ERASE, value=(sector_address & 0xFFFF), index=(sector_address >> 16), data=b'')
 
     def start_transfer(self, n_div, m_div, p_div, idiv_div):
         self._out(req=OutReq.START_TRANSFER, value=0, index=0,
