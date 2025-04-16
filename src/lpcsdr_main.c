@@ -629,7 +629,11 @@ static bool process_ep0_out(const ipc_message_t *message)
     }
 
     case EP0_OUT_RESET: {
-        debug_printf("Resetting..\r\n");
+        /* ack, then delay a bit before the reset to give the host a chance to see the ack */
+        debug_printf("Preparing to reset.. ");
+        lpcsdr_usb_ep0_out_ack();
+        StopWatch_DelayMs(250);
+        debug_printf("resetting now.\r\n");
         lpcsdr_uart_flush();
         lpcsdr_reset();
         /* not reached */
