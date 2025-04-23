@@ -354,7 +354,7 @@ static bool queue_dtd_interrupts_disabled(unsigned ep, USB_DTD_T *dtd, uint32_t 
         return false;
     }
 
-    if (!lpcsdr_usb_is_ready()) {
+    if (!lpcsdr_usb_is_ready() || !ep1_enabled) {
         /* EP1 not configured yet */
         free_dtd_interrupts_disabled(dtd);
         return false;
