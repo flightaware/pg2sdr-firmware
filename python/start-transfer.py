@@ -50,13 +50,6 @@ def main():
                        idiv_div = i)
 
     print('.. done.')
-    print()
-    print('Clock registers:')
-    clock_status.query_regs(dev)
-    print()
-
-    print(f'Measured fPLL: {clock_status.measure_pll0audio(dev)/1e6:.3f} MHz')
-    print(f'Measured fADC: {clock_status.measure_hsadc(dev)/1e6:.3f} MHz')
 
     return 0
 

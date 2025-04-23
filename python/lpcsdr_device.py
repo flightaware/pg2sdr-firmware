@@ -2,7 +2,7 @@
 
 import usb.core
 import usb.util
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 from typing import ClassVar
 import dataclasses
 import struct
@@ -19,13 +19,9 @@ class InReq(IntEnum):
     FLASH_UNIQUE_ID = 0x03
     FLASH_READ = 0x04
     FLASH_READ_QUAD = 0x05
-    SWITCH_STATE = 0x06
-    INPUT_FREQ = 0x07
-    BASE_FREQ = 0x08
-    PLL0AUDIO_REGS = 0x09
-    ADC_DMA_STATUS = 0x0A
     MEMORY_READ = 0x0B
     TUNER_READ = 0x0C
+    BOARD_STATUS = 0x0D
 
 class OutReq(IntEnum):
     COMMS_CHECK = 0x01
@@ -62,16 +58,20 @@ class FlashDeviceID:
 class FlashUniqueID:
     unique_id: int = typed('Q')
 
-@ctrl
-class SwitchState:
-    state: int = typed('I')
+class StatusFlags(IntFlag):
+    FAST_CPU = 1
+    SW1_USBBOOT = 2
+    SW2_PRESSED = 4
+    RF_POWER_ON = 8
+    HSADC_RUN = 16
+    DMA_RUN = 32
+    EP1_ENABLED = 64
 
 @ctrl
-class MeasureFreq:
-    freq: int = typed('I')
-    
-@ctrl
-class PLL0AudioRegs:
+class BoardStatus:
+    flags: StatusFlags = typed('I')
+
+    hsadc_frequency: int = typed('I')
     pll_stat: int = typed('I')
     pll_ctrl: int = typed('I')
     pll_mdiv: int = typed('I')
@@ -79,12 +79,11 @@ class PLL0AudioRegs:
     pll_frac: int = typed('I')
     idiv_e_ctrl: int = typed('I')
 
-@ctrl
-class ADCDMAStatus:
     adchs_config: int = typed('I')
     adchs_int0_status: int = typed('I')
     adchs_fifo_sts: int = typed('I')
     adchs_dscr_sts: int = typed('I')
+
     gpdma_config: int = typed('I')
     gpdma_enbldchns: int = typed('I')
     gpdma_rawinttcstat: int = typed('I')
@@ -96,6 +95,25 @@ class ADCDMAStatus:
     gpdma0_lli: int = typed('I')
     current_lli: int = typed('I')
     next_sequence: int = typed('I')
+
+    tuner_regs: bytes = typed('32s')
+
+    usb_free_buffers: int = typed('I')
+    usb_filled_buffers: int = typed('I')
+
+    clock_32k: int = typed('I')
+    clock_irc: int = typed('I')
+    clock_pll0usb: int = typed('I')
+    clock_pll0audio: int = typed('I')
+    clock_pll1: int = typed('I')
+    clock_idiv_a: int = typed('I')
+    clock_idiv_b: int = typed('I')
+    clock_idiv_c: int = typed('I')
+    clock_idiv_d: int = typed('I')
+    clock_idiv_e: int = typed('I')
+    
+    def __post_init__(self):
+        self.flags = StatusFlags(self.flags)
 
 @ctrl
 class StartTransfer:
@@ -180,29 +198,14 @@ class Device(object):
     def flash_read_quad(self, address, length) -> bytes:
         return self._in_bytes(req=InReq.FLASH_READ_QUAD, value=(address & 0xFFFF), index=(address >> 16), length=length)
 
-    def switch_state(self) -> int:
-        message = self._in(req=InReq.SWITCH_STATE, value=0, index=0, klass=SwitchState)
-        return message.state
-
-    def input_freq(self, clkin: int) -> int:
-        message = self._in(req=InReq.INPUT_FREQ, value=clkin, index=0, klass=MeasureFreq)
-        return message.freq
-
-    def base_freq(self, clkin: int) -> int:
-        message = self._in(req=InReq.BASE_FREQ, value=clkin, index=0, klass=MeasureFreq)
-        return message.freq
-
-    def pll0audio_regs(self) -> PLL0AudioRegs:
-        return self._in(req=InReq.PLL0AUDIO_REGS, value=0, index=0, klass=PLL0AudioRegs)
-
-    def adc_dma_status(self) -> ADCDMAStatus:
-        return self._in(req=InReq.ADC_DMA_STATUS, value=0, index=0, klass=ADCDMAStatus)
-
     def memory_read(self, address: int, length: int) -> bytes:
         return self._in_bytes(req=InReq.MEMORY_READ, value=(address & 0xFFFF), index=(address >> 16), length=length)
 
     def tuner_read(self, first_reg: int, length: int, cache_mode:TunerCacheMode=TunerCacheMode.USE_CACHE) -> bytes:
         return self._in_bytes(req=InReq.TUNER_READ, value=first_reg, index=cache_mode, length=length)
+
+    def board_status(self, measure_clocks=False) -> BoardStatus:
+        return self._in(req=InReq.BOARD_STATUS, value=(1 if measure_clocks else 0), index=0, klass=BoardStatus)
 
     def flash_write(self, address: int, page_data: bytes):
         self._out_bytes(req=OutReq.FLASH_WRITE, value=(address & 0xFFFF), index=(address >> 16), data=page_data)

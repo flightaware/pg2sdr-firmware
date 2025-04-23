@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import sys
+from enum import IntFlag
 import lpcsdr_device
 
-def prepare_tables():
+def _prepare_tables():
     global mdec_lut
     mdec_lut = {
-        0: 0,
         0x18003: 1,
         0x10003: 2,
     }
@@ -19,7 +19,6 @@ def prepare_tables():
 
     global ndec_lut
     ndec_lut = {
-        0: 0,
         0x302: 1,
         0x202: 2,
     }
@@ -31,7 +30,6 @@ def prepare_tables():
 
     global pdec_lut
     pdec_lut = {
-        0: 0,
         0x62: 1,
         0x42: 2,
     }
@@ -41,58 +39,76 @@ def prepare_tables():
         assert (x not in pdec_lut)
         pdec_lut[x] = i
 
-prepare_tables()
-        
-def stat_reg(stat):
-    r = []
-    if stat & 1:
-        r.append('LOCK')
-    if stat & 2:
-        r.append('FR')
-    if not (stat & 1):
-        r.append('(no PLL lock)')
-    return ' '.join(r)
+_prepare_tables()
 
-def ctrl_reg(ctrl):
-    r = []
-    if ctrl & (1<<0):
-        r.append('PD')
-    if ctrl & (1<<1):
-        r.append('BYPASS')
-    if ctrl & (1<<2):
-        r.append('DIRECTI')
-    if ctrl & (1<<3):
-        r.append('DIRECTO')
-    if ctrl & (1<<4):
-        r.append('CLKEN')
-    if ctrl & (1<<6):
-        r.append('FRM')
-    if ctrl & (1<<11):
-        r.append('AUTOBLOCK')
-    if ctrl & (1<<12):
-        r.append('PLLFRACT_REQ')
-    if ctrl & (1<<13):
-        r.append('SEL_EXT')
-    if ctrl & (1<<14):
-        r.append('MOD_PD')
-    r.append(f'CLK_SEL={(ctrl>>24)&0x1F}')
-    return ' '.join(r)
+def flag_members(flags):
+    # we could just use Flag.__iter__ here ..
+    # .. except it's only in Python 3.11 and later
+    # and the Ubuntu VMs have 3.10
+    result = []
+    remainder = flags
+    for flag in type(flags):  # make sure to use the metaclass __iter__
+        if flag in remainder:
+            result.append(flag)
+            remainder = remainder ^ flag
+    if remainder:
+        result.append(remainder)
+    return result
 
-def idiv_reg(ctrl):
-    r = []
-    if ctrl & (1<<0):
-        r.append('PD')
-    if ctrl & (1<<11):
-        r.append('AUTOBLOCK')
-    r.append(f'IDIV={1 + (ctrl>>2)&0xFF}')
-    r.append(f'CLK_SEL={(ctrl>>24)&0x1F}')
-    return ' '.join(r)
+def flag_string_parts(flags):    
+    return list( (f.name if f.name else repr(f.value)) for f in flag_members(flags) )
+
+def flag_string(flags):
+    return ' '.join(flag_string_parts(flags))
+
+class PLLStat(IntFlag):
+    LOCK = 1
+    FR = 2
+
+    def __str__(self):
+        return flag_string(self)
+
+class PLLCtrl(IntFlag):
+    PD = (1<<0)
+    BYPASS = (1<<1)
+    DIRECTI = (1<<2)
+    DIRECTO = (1<<3)
+    CLKEN = (1<<4)
+    FRM = (1<<6)
+    AUTOBLOCK = (1<<11)
+    PLLFRACT_REQ = (1<<12)
+    SEL_EXT = (1<<13)
+    MOD_PD = (1<<14)
+
+    def __str__(self):
+        clksel_mask = 0x1F << 24
+        parts = flag_string_parts(self & ~clksel_mask)
+        parts.append(f'CLK_SEL={(self.value & clksel_mask) >> 24}')
+        return ' '.join(parts)
+
+
+class IDIVCtrl(IntFlag):
+    PD = (1<<0)
+    AUTOBLOCK = (1<<11)
+
+    def __str__(self):
+        idiv_mask = 0xFF << 2
+        clksel_mask = 0x1F << 24
+        parts = flag_string_parts(self & ~(clksel_mask | idiv_mask))
+        parts.append(f'IDIV={(self.value & idiv_mask) >> 2}')
+        parts.append(f'CLK_SEL={(self.value & clksel_mask) >> 24}')
+        return ' '.join(parts)
+
     
+def print_status(status, file):
+    print(f'Target fADC: {status.hsadc_frequency/1e6:.6f} MHz', file=file)
+    print(f'', file=file)
+    if not status.hsadc_frequency:
+        return
 
-def query_regs(dev):
-    status = dev.pll0audio_regs()
-    print(f'STAT:  {status.pll_stat:08x}  {stat_reg(status.pll_stat)}')
-    print(f'CTRL:  {status.pll_ctrl:08x}  {ctrl_reg(status.pll_ctrl)}')
+    print(f'PLL0AUDIO:', file=file)
+    print(f'  STAT:  {status.pll_stat:08X}  {PLLStat(status.pll_stat)}', file=file)
+    print(f'  CTRL:  {status.pll_ctrl:08X}  {PLLCtrl(status.pll_ctrl)}', file=file)
 
     mdec = status.pll_mdiv & 0x1FFFF
     selp = (status.pll_mdiv >> 17) & 0x1F
@@ -109,15 +125,18 @@ def query_regs(dev):
     pllfract_ctrl = status.pll_frac & 0x1FFFFF
     fractional_m = pllfract_ctrl / (1<<15)
     
-    print(f'MDIV:  {status.pll_mdiv:08x}  MDEC={mdec:5d} MSEL={msel:5d}  SELP={selp} SELI={seli} SELR={selr}')
-    print(f'NPDIV: {status.pll_np_div:08x}  PDEC={pdec:3d} PSEL={psel:2d}  NDEC={ndec:3d} NSEL={nsel:3d}')
-    print(f'FRAC:  {status.pll_frac:08x}  FRACTIONAL_M={fractional_m:.5f}')
+    print(f'  MDIV:  {status.pll_mdiv:08x}  MDEC={mdec} MSEL={msel} SELP={selp} SELI={seli} SELR={selr}', file=file)
+    print(f'  NPDIV: {status.pll_np_div:08X}  PDEC={pdec} PSEL={psel} NDEC={ndec:3d} NSEL={nsel}', file=file)
+    print(f'  FRAC:  {status.pll_frac:08X}  FRACTIONAL_M={fractional_m:.5f}', file=file)
+    print(f'', file=file)
 
-    print(f'IDIV:  {status.idiv_e_ctrl:08x}  {idiv_reg(status.idiv_e_ctrl)}')
+    print(f'IDIV_E:', file=file)
+    print(f'  CTRL:  {status.idiv_e_ctrl:08X}  {IDIVCtrl(status.idiv_e_ctrl)}', file=file)
+    print(f'', file=file)
 
     if status.pll_ctrl & (1<<2):
         fRef = 12e6
-        n = '0 (disabled)'
+        n = 'bypassed'
     elif nsel is None:
         fRef = 0
         n = 'invalid'
@@ -135,7 +154,7 @@ def query_regs(dev):
 
     if status.pll_ctrl & (1<<3):
         fPLL = fCCO
-        p = '0 (disabled)'
+        p = 'bypassed'
     elif psel is None:
         fPLL = 0
         p = 'invalid'
@@ -145,18 +164,18 @@ def query_regs(dev):
 
     if (status.idiv_e_ctrl & 1):
         fADC = fPLL
-        i = '0 (disabled)'
+        i = 'bypassed'
     else:
         idiv_divisor = 1 + (status.idiv_e_ctrl>>2)&0xFF
         fADC = fPLL / idiv_divisor
         i = idiv_divisor
 
-    print('-----')
-    print(f'N={n} M={m:.5f} P={p} I={i}')
-    print(f'computed fRef: {fRef/1e6:.3f} MHz')
-    print(f'computed fCCO: {fCCO/1e6:.3f} MHz')
-    print(f'computed fPLL: {fPLL/1e6:.3f} MHz')
-    print(f'computed fADC: {fADC/1e6:.3f} MHz')
+    print(f'Expected clocks with: N={n} M={m:.5f} P={p} I={i}', file=file)
+    print(f'  fRef: {fRef/1e6:10.6f} MHz', file=file)
+    print(f'  fCCO: {fCCO/1e6:10.6f} MHz', file=file)
+    print(f'  fPLL: {fPLL/1e6:10.6f} MHz', file=file)
+    print(f'  fADC: {fADC/1e6:10.6f} MHz', file=file)
+    print(f'', file=file)
 
 def measure_hsadc(dev):
     return dev.base_freq(12)
