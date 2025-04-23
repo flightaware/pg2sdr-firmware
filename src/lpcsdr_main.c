@@ -313,7 +313,7 @@ static void measure_frequency_raw(CHIP_CGU_CLKIN_T clkin, uint32_t cycles, uint3
  *
  * Returns a frequency in Hz, or 0 if something went wrong
  */
-static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
+static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin)
 {
     if (clkin >= CLKINPUT_PD)
         return 0;
@@ -321,16 +321,16 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin, uint32_t loops)
         return 12000000; /* by definition */
 
     uint32_t rcnt_xtal, fcnt_xtal;
-    measure_frequency_raw(CLKIN_CRYSTAL, loops, &rcnt_xtal, &fcnt_xtal);
+    measure_frequency_raw(CLKIN_CRYSTAL, 250, &rcnt_xtal, &fcnt_xtal);
     if (!fcnt_xtal)
         return 0;
 
     uint32_t rcnt, fcnt;
-    measure_frequency_raw(clkin, loops, &rcnt, &fcnt);
+    measure_frequency_raw(clkin, 250, &rcnt, &fcnt);
     if (!rcnt)
         return 0;
 
-    return (uint64_t)12000000 * fcnt / rcnt * rcnt_xtal / fcnt_xtal;
+    return (uint32_t) (12000000.0 * fcnt / rcnt * rcnt_xtal / fcnt_xtal);
 }
 
 /* Process an EP0 IN control transfer described in `message`;
@@ -390,63 +390,37 @@ static bool process_ep0_in(const ipc_message_t *message)
         lpcsdr_spifi_fast_read_quad(valueAndIndex, buf, length);
         return true;
 
-    case EP0_IN_SWITCH_STATE: {
-        ep0_in_switch_state_t *result = (ep0_in_switch_state_t *) buf;
-        result->switch_state = (lpcsdr_read_sw1() ? SWITCH_SW1 : 0) | (lpcsdr_read_sw2() ? SWITCH_SW2 : 0);
-        return true;
-    }
+    case EP0_IN_BOARD_STATUS: {
+        /* Fill in the state we know of directly */
+        ep0_in_board_status_t *result = (ep0_in_board_status_t *)buf;
+        if (fast_cpu)
+            result->flags |= STATUS_FAST_CPU;
+        if (lpcsdr_read_sw1())
+            result->flags |= STATUS_SW1_USBBOOT;
+        if (!lpcsdr_read_sw2())
+            result->flags |= STATUS_SW2_PRESSED;
+        if (rf_power)
+            result->flags |= STATUS_RF_POWER_ON;
 
-    case EP0_IN_INPUT_FREQ: {
-        /* Measure clock input frequency */
-        ep0_in_input_freq_t *result = (ep0_in_input_freq_t *) buf;
-        result->frequency = measure_frequency((CHIP_CGU_CLKIN_T) valueAndIndex, 120000);
-        return true;
-    }
+        /* delegate for the rest */
+        lpcsdr_hsadc_status(result);
+        lpcsdr_dma_status(result);
+        lpcsdr_usb_status(result);
+        lpcsdr_tuner_status(result);
 
-    case EP0_IN_BASE_FREQ: {
-        /* Measure base clock frequency */
-        ep0_in_base_freq_t *result = (ep0_in_base_freq_t *) buf;
-        result->frequency = measure_frequency(Chip_Clock_GetBaseClock((CHIP_CGU_CLKIN_T) valueAndIndex), 120000);
-        return true;
-    }
-
-    case EP0_IN_PLL0AUDIO_REGS: {
-        /* read PLL0AUDIO regs */
-        ep0_in_pll0audio_regs_t *result = (ep0_in_pll0audio_regs_t *) buf;
-        result->pll_stat = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
-        result->pll_ctrl = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
-        result->pll_mdiv = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
-        result->pll_np_div = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV;
-        result->pll_frac = LPC_CGU->PLL0AUDIO_FRAC;
-        result->idiv_e_ctrl = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
-        return true;
-    }
-
-    case EP0_IN_ADC_DMA_STATUS: {
-        /* read random status stuff */
-        static_assert(sizeof(ep0_in_adc_dma_status_t) <= sizeof(lpcsdr_usb_control_buffer));
-        ep0_in_adc_dma_status_t *result = (ep0_in_adc_dma_status_t *) buf;
-
-        /* ADCHS. This appears to need the ADC base clock to be set, or access to the ADC registers hangs */
-        if (Chip_Clock_GetBaseClock(CLK_BASE_ADCHS) != CLKINPUT_PD) {
-            result->adchs_config = LPC_ADCHS->CONFIG;
-            result->adchs_int0_status = LPC_ADCHS->INTS[0].STATUS;
-            result->adchs_fifo_sts = LPC_ADCHS->FIFO_STS;
-            result->adchs_dscr_sts = LPC_ADCHS->DSCR_STS;
+        /* measure base clock frequencies (takes about 20ms per clock, so we only do this if requested) */
+        if (valueAndIndex != 0) {
+            result->clock_32k = measure_frequency(CLKIN_32K);
+            result->clock_irc = measure_frequency(CLKIN_IRC);
+            result->clock_pll0usb = measure_frequency(CLKIN_USBPLL);
+            result->clock_pll0audio = measure_frequency(CLKIN_AUDIOPLL);
+            result->clock_pll1 = measure_frequency(CLKIN_MAINPLL);
+            result->clock_idiv_a = measure_frequency(CLKIN_IDIVA);
+            result->clock_idiv_b = measure_frequency(CLKIN_IDIVB);
+            result->clock_idiv_c = measure_frequency(CLKIN_IDIVC);
+            result->clock_idiv_d = measure_frequency(CLKIN_IDIVD);
+            result->clock_idiv_e = measure_frequency(CLKIN_IDIVE);
         }
-
-        /* DMA */
-        result->gpdma_config = LPC_GPDMA->CONFIG;
-        result->gpdma_enbldchns = LPC_GPDMA->ENBLDCHNS;
-        result->gpdma_rawinttcstat = LPC_GPDMA->RAWINTTCSTAT;
-        result->gpdma_rawinterrstat = LPC_GPDMA->RAWINTERRSTAT;
-        result->gpdma0_config = LPC_GPDMA->CH[0].CONFIG;
-        result->gpdma0_control = LPC_GPDMA->CH[0].CONTROL;
-        result->gpdma0_srcaddr = LPC_GPDMA->CH[0].SRCADDR;
-        result->gpdma0_destaddr = LPC_GPDMA->CH[0].DESTADDR;
-        result->gpdma0_lli = LPC_GPDMA->CH[0].LLI;
-        result->current_lli = (uint32_t) hsadc_current_lli;
-        result->next_sequence = hsadc_next_sequence;
 
         return true;
     }

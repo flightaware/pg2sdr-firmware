@@ -2,6 +2,7 @@
 #define LPCSDR_HSADC_H
 
 #include "lpc_types.h"
+#include "lpcsdr_protocol.h"
 
 void lpcsdr_hsadc_init(void);
 
@@ -13,5 +14,7 @@ void lpcsdr_hsadc_clock_stop(void);
 
 bool lpcsdr_hsadc_conversion_start(void);
 void lpcsdr_hsadc_conversion_stop(void);
+
+void lpcsdr_hsadc_status(ep0_in_board_status_t *status);
 
 #endif

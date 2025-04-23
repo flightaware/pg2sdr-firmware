@@ -13,13 +13,9 @@ typedef enum {
     EP0_IN_FLASH_UNIQUE_ID = 0x03,    /* read unique ID from SPI flash */
     EP0_IN_FLASH_READ = 0x04,         /* read data from SPI flash; valueAndIndex = start address */
     EP0_IN_FLASH_READ_QUAD = 0x05,    /* read data from SPI flash, quad mode; valueAndIndex = start address */
-    EP0_IN_SWITCH_STATE = 0x06,       /* read current switch states */
-    EP0_IN_INPUT_FREQ = 0x07,         /* measure clock input frequency; valueAndIndex = CHIP_CGU_CLKIN_T enum value */
-    EP0_IN_BASE_FREQ = 0x08,          /* measure clock base frequency; valueAndIndex = CHIP_CGU_CLKIN_T enum value */
-    EP0_IN_PLL0AUDIO_REGS = 0x09,     /* read registers related to PLL0AUDIO */
-    EP0_IN_ADC_DMA_STATUS = 0x0A,     /* read ADC/DMA related registers and state */
     EP0_IN_MEMORY_READ = 0x0B,        /* read arbitrary memory; valueAndIndex = start address */
     EP0_IN_TUNER_READ = 0x0C,         /* read tuner regs; value = first reg to read; index = cache mode (0=use cache if possible, 1=bypass cache, 2=refresh cache) */
+    EP0_IN_BOARD_STATUS = 0x0D,       /* read misc board status; valueAndIndex != 0 to also measure clock frequencies (takes longer) */
 } ep0_in_request_t;
 
 /* structures returned from IN transfers */
@@ -37,35 +33,34 @@ typedef struct {
     uint64_t unique_id;
 } ep0_in_flash_unique_id_t;
 
+/* Various status flags */
+#define STATUS_FAST_CPU      1  /* CPU is running at fast speed */
+#define STATUS_SW1_USBBOOT   2  /* SW1 is closed (boot-from-USB mode) */
+#define STATUS_SW2_PRESSED   4  /* SW2 is depressed */
+#define STATUS_RF_POWER_ON   8  /* RF power is on */
+#define STATUS_HSADC_RUN    16  /* HSADC is running */
+#define STATUS_DMA_RUN      32  /* DMA is running */
+#define STATUS_EP1_ENABLED  64  /* USB EP1 is enabled (not stalled) */
 typedef struct {
-    uint32_t switch_state; /* bitwise OR of SWITCH_SW* values */
-#define SWITCH_SW1 0x01
-#define SWITCH_SW2 0x02
-} ep0_in_switch_state_t;
+    /* Flags from STATUS_xxx */
+    uint32_t flags;
 
-typedef struct {
-    uint32_t frequency;
-} ep0_in_input_freq_t;
-
-typedef struct {
-    uint32_t frequency;
-} ep0_in_base_freq_t;
-
-typedef struct {
+    /* HSADC clock (PLL0AUDIO) */
+    uint32_t hsadc_frequency;
     uint32_t pll_stat;
     uint32_t pll_ctrl;
     uint32_t pll_mdiv;
     uint32_t pll_np_div;
     uint32_t pll_frac;
     uint32_t idiv_e_ctrl;
-} ep0_in_pll0audio_regs_t;
 
-/* Read ADC- and DMA- related registers and internal state */
-typedef struct {
+    /* HSADC status */
     uint32_t adchs_config;
     uint32_t adchs_int0_status;
     uint32_t adchs_fifo_sts;
     uint32_t adchs_dscr_sts;
+
+    /* DMA status */
     uint32_t gpdma_config;
     uint32_t gpdma_enbldchns;
     uint32_t gpdma_rawinttcstat;
@@ -77,7 +72,27 @@ typedef struct {
     uint32_t gpdma0_lli;
     uint32_t current_lli;
     uint32_t next_sequence;
-} ep0_in_adc_dma_status_t;
+
+    /* Tuner status */
+    uint8_t tuner_regs[32];
+
+    /* USB status */
+    uint32_t usb_free_buffers;
+    uint32_t usb_filled_buffers;
+
+    /* Measured clock frequencies (only if requested) */
+    uint32_t clock_32k;
+    uint32_t clock_irc;
+    uint32_t clock_pll0usb;
+    uint32_t clock_pll0audio;
+    uint32_t clock_pll1;
+    uint32_t clock_idiv_a;
+    uint32_t clock_idiv_b;
+    uint32_t clock_idiv_c;
+    uint32_t clock_idiv_d;
+    uint32_t clock_idiv_e;
+} ep0_in_board_status_t;
+
 
 /* vendor requests, OUT (host -> lpc) */
 typedef enum {

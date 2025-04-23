@@ -2,6 +2,7 @@
 #define LPCSDR_USB_H
 
 #include "lpcsdr_common.h"
+#include "lpcsdr_protocol.h"
 #include "error.h"
 
 /* Endpoint transfer descriptor and queue head structure; see UM10503 section 24.9 */
@@ -138,5 +139,8 @@ void lpcsdr_usb_ep0_out_ack();
 
 /* Respond to an IN or OUT control transfer, stalling the endpoint to indicate an error */
 void lpcsdr_usb_ep0_stall();
+
+/* Fill the board status message with USB-related things */
+void lpcsdr_usb_status(ep0_in_board_status_t *status);
 
 #endif /* LPCSDR_USB_H */

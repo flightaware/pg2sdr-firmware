@@ -2,6 +2,7 @@
 #define LPCSDR_TUNER_H
 
 #include "lpc_types.h"
+#include "lpcsdr_protocol.h"
 
 void lpcsdr_tuner_init(void);
 void lpcsdr_i2c_clock_update(void);
@@ -30,5 +31,7 @@ bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned coun
  * and bits[0..count-1] provides the new bit values for those bits being modified
  */
 bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count, int *status);
+
+void lpcsdr_tuner_status(ep0_in_board_status_t *status);
 
 #endif /* LPCSDR_TUNER_H */

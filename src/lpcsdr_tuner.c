@@ -264,3 +264,10 @@ void lpcsdr_tuner_handle_poweron()
     int status;
     (void) lpcsdr_tuner_shadow_from_chip(&status); // Can't do much with errors here
 }
+
+/* Fill in the tuner-related bits of *status */
+void lpcsdr_tuner_status(ep0_in_board_status_t *status)
+{
+    if (shadow_is_valid)
+        memcpy(status->tuner_regs, reg_shadow, 32);
+}

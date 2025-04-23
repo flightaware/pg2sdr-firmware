@@ -2,6 +2,7 @@
 #define LPCSDR_DMA_H
 
 #include "lpcsdr_common.h"
+#include "lpcsdr_protocol.h"
 
 /* Bounce buffers for ADCHS, in AHB SRAM */
 
@@ -63,7 +64,6 @@ static inline uint32_t lpcsdr_dma_hsadc_copy_complete(dma_lli_t *buffer, bool co
     return test_set_clear_bits(/* set */ (completed ? 0 : LLI_STATUS_DROPPED), /* clear */ LLI_STATUS_COPYING, &buffer->status);
 }
 
-extern dma_lli_t *hsadc_current_lli;
-extern uint32_t hsadc_next_sequence;
+void lpcsdr_dma_status(ep0_in_board_status_t *status);
 
 #endif

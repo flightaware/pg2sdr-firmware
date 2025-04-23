@@ -308,3 +308,25 @@ void lpcsdr_hsadc_conversion_stop()
     while (Chip_RGU_InReset(RGU_ADCHS_RST))
         __NOP();
 }
+
+void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
+{
+    status->hsadc_frequency = hsadc_frequency;
+    if (hsadc_frequency) {
+        if (!(LPC_ADCHS->POWER_DOWN & 1)) {
+            status->flags |= STATUS_HSADC_RUN;
+        }
+
+        status->pll_stat = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
+        status->pll_ctrl = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
+        status->pll_mdiv = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
+        status->pll_np_div = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_NP_DIV;
+        status->pll_frac = LPC_CGU->PLL0AUDIO_FRAC;
+        status->idiv_e_ctrl = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
+
+        status->adchs_config = LPC_ADCHS->CONFIG;
+        status->adchs_int0_status = LPC_ADCHS->INTS[0].STATUS;
+        status->adchs_fifo_sts = LPC_ADCHS->FIFO_STS;
+        status->adchs_dscr_sts = LPC_ADCHS->DSCR_STS;
+    }
+}

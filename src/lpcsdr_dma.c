@@ -240,3 +240,22 @@ void DMA_IRQHandler(void)
     if (interrstat & 1)
         hsadc_dma_err();
 }
+
+void lpcsdr_dma_status(ep0_in_board_status_t *status)
+{
+    if ((LPC_GPDMA->CONFIG & GPDMA_DMACConfig_E) != 0 &&
+        (LPC_GPDMA->CH[0].CONFIG & GPDMA_DMACCxConfig_E) != 0)
+        status->flags |= STATUS_DMA_RUN;
+
+    status->gpdma_config = LPC_GPDMA->CONFIG;
+    status->gpdma_enbldchns = LPC_GPDMA->ENBLDCHNS;
+    status->gpdma_rawinttcstat = LPC_GPDMA->RAWINTTCSTAT;
+    status->gpdma_rawinterrstat = LPC_GPDMA->RAWINTERRSTAT;
+    status->gpdma0_config = LPC_GPDMA->CH[0].CONFIG;
+    status->gpdma0_control = LPC_GPDMA->CH[0].CONTROL;
+    status->gpdma0_srcaddr = LPC_GPDMA->CH[0].SRCADDR;
+    status->gpdma0_destaddr = LPC_GPDMA->CH[0].DESTADDR;
+    status->gpdma0_lli = LPC_GPDMA->CH[0].LLI;
+    status->current_lli = (uint32_t) hsadc_current_lli;
+    status->next_sequence = hsadc_next_sequence;
+}

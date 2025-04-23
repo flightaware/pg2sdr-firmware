@@ -18,6 +18,8 @@
 const USBD_API_T* g_pUsbApi;
 static USBD_HANDLE_T usb_handle;
 
+static bool ep1_enabled;
+
 /*
  * USB descriptors, used during enumeration.
  */
@@ -426,6 +428,7 @@ bool lpcsdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t bytes)
 void lpcsdr_usb_ep1_disable(void)
 {
     WITH_DISABLED_INTERRUPTS {
+        ep1_enabled = false;
         USBD_API->hw->ResetEP(usb_handle, /* EP 1 IN */ 0x81);
         USBD_API->hw->SetStallEP(usb_handle, /* EP 1 IN */ 0x81);
         reset_dtd_lists_interrupts_disabled();
@@ -437,6 +440,7 @@ void lpcsdr_usb_ep1_enable(void)
 {
     WITH_DISABLED_INTERRUPTS {
         USBD_API->hw->ClrStallEP(usb_handle, /* EP 1 IN */ 0x81);
+        ep1_enabled = true;
     }
 }
 
@@ -657,6 +661,24 @@ bool lpcsdr_usb_is_ready(void)
     USB_CORE_CTRL_T *core = (USB_CORE_CTRL_T*) usb_handle;
     return (core->config_value != 0 && core->device_speed == USB_HIGH_SPEED);
 }
+
+/* Fill in the USB-related bits of *status */
+void lpcsdr_usb_status(ep0_in_board_status_t *status)
+{
+    WITH_DISABLED_INTERRUPTS {
+        if (ep1_enabled)
+            status->flags |= STATUS_EP1_ENABLED;
+
+        status->usb_free_buffers = 0;
+        for (USB_DTD_T *dtd = dtd_free_head; dtd; dtd = dtd_get_next(dtd))
+            ++status->usb_free_buffers;
+
+        status->usb_filled_buffers = 0;
+        for (USB_DTD_T *dtd = dtd_active_head; dtd; dtd = dtd_get_next(dtd))
+            ++status->usb_filled_buffers;
+    }
+}
+
 
 /* Set up the USB PLL and PHY. Can be called multiple times, only does
  * something the first time. This exists so we can get USB0PLL programmed
