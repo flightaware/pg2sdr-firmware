@@ -129,9 +129,9 @@ bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value, int *status)
 // Read many registers, minimizing actual chip access
 bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count, int *status)
 {
-    if (count > 32 || first + count >= 32) {
         // out of range
         *status = I2C_STATUS_NAK;
+    if (count > 32 || first + count > 32) {
         return false;
     }
 
