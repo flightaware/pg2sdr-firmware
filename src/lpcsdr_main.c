@@ -437,21 +437,20 @@ static bool process_ep0_in(const ipc_message_t *message)
             return false;
         }
 
-        int status;
         switch (index) {
         case 0: /* use cache */
-            return lpcsdr_tuner_read_regs(value, buf, length, &status);
+            return lpcsdr_tuner_read_regs(value, buf, length);
 
         case 1: /* bypass cache */
-            if (!lpcsdr_tuner_read_regs_direct(buf, value + length, &status))
+            if (!lpcsdr_tuner_read_regs_direct(buf, value + length))
                 return false;
             memmove(buf, buf + value, length);
             return true;
 
         case 2: /* refresh cache */
-            if (!lpcsdr_tuner_shadow_from_chip(&status))
+            if (!lpcsdr_tuner_shadow_from_chip())
                 return false;
-            return lpcsdr_tuner_read_regs(value, buf, length, &status);
+            return lpcsdr_tuner_read_regs(value, buf, length);
 
         default: /* bad mode */
             return false;
@@ -584,8 +583,7 @@ static bool process_ep0_out(const ipc_message_t *message)
 
     case EP0_OUT_TUNER_WRITE: {
         /* write tuner regs starting at valueAndIndex */
-        int status;
-        return lpcsdr_tuner_write_regs(valueAndIndex, buf, length, &status);
+        return lpcsdr_tuner_write_regs(valueAndIndex, buf, length);
     }
 
     case EP0_OUT_TUNER_UPDATE: {
@@ -598,8 +596,7 @@ static bool process_ep0_out(const ipc_message_t *message)
             return false;
         }
 
-        int status;
-        return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2, &status);
+        return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2);
     }
 
     case EP0_OUT_RESET: {

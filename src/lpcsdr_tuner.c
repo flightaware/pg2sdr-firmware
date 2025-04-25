@@ -9,6 +9,17 @@
 /* nb: I2C support library expects only 7-bit slave addresses, not including the trailing R/W bit */
 #define R860T_I2C_ADDR 0x1A
 
+static int i2c_error = I2C_STATUS_DONE;  /* if not DONE, this was the last I2C error we saw */
+static bool shadow_is_valid = false;     /* Have we actually updated the shadow regs at all yet? */
+static uint8_t reg_shadow[32];           /* Shadow copy of expected tuner reg values */
+
+static bool handle_i2c_error(int status)
+{
+    i2c_error = status;
+    shadow_is_valid = false;
+    return false;
+}
+
 void lpcsdr_tuner_init(void)
 {
     Chip_SCU_I2C0PinConfig(I2C0_STANDARD_FAST_MODE);
@@ -37,10 +48,9 @@ __attribute__ ((always_inline)) static inline uint8_t bitreverse(uint8_t b)
 }
 
 // read registers 0 .. count-1 into regs[0] .. regs[count-1]
-bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count, int *status)
+bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
 {
     if (!count) {
-        *status = I2C_STATUS_DONE;
         return true;
     }
 
@@ -49,13 +59,14 @@ bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count, int *status)
     xfer.rxBuff = regs;
     xfer.rxSz = count;
 
-    *status = Chip_I2C_MasterTransfer(I2C0, &xfer);
-    if (*status != I2C_STATUS_DONE)
-        return false;
+    int status = Chip_I2C_MasterTransfer(I2C0, &xfer);
+    if (status != I2C_STATUS_DONE) {
+        return handle_i2c_error(status);
+    }
 
     if (xfer.rxSz) {
-        *status = I2C_STATUS_NAK;
-        return false; // short read
+        /* short read */
+        return handle_i2c_error(I2C_STATUS_NAK);
     }
 
     // The R860T returns register values bit-reversed (because what's one more weird thing), unreverse the values
@@ -67,10 +78,9 @@ bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count, int *status)
 }
 
 // write registers first .. first+count-1 using values from regs[0] .. regs[count-1]
-bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigned count, int *status)
+bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigned count)
 {
     if (!count) {
-        *status = I2C_STATUS_DONE;
         return true;
     }
 
@@ -79,7 +89,6 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
     // but it doesn't seem worth doing that, so just use a temporary buffer
     // sized for the largest possible write (regs 5 .. 31 inclusive)
     if (first < 5 || count > 27) {
-        *status = I2C_STATUS_NAK;
         return false;
     }
 
@@ -92,33 +101,30 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
     xfer.txBuff = buf;
     xfer.txSz = count + 1;
 
-    *status = Chip_I2C_MasterTransfer(I2C0, &xfer);
-    if (*status != I2C_STATUS_DONE)
-        return false;
+    int status = Chip_I2C_MasterTransfer(I2C0, &xfer);
+    if (status != I2C_STATUS_DONE) {
+        return handle_i2c_error(status);
+    }
 
     if (xfer.txSz) {
-        *status = I2C_STATUS_NAK;
-        return false; // short write
+        /* short write */
+        return handle_i2c_error(I2C_STATUS_NAK);
     }
 
     return true;
 }
 
-static bool shadow_is_valid = false;     // Have we actually updated the shadow regs at all yet?
-static uint8_t reg_shadow[32];           // Shadow copy of expected tuner reg values
-
 // Read one register, directly for R0..R4 or from our shadow copy for others
-bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value, int *status)
+bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value)
 {
     if (index >= 32) {
-        // out of range
-        *status = I2C_STATUS_NAK;
+        /* out of range */
         return false;
     }
 
     if (index < 5) {
         // Reading a volatile / read-only register, refresh from the chip every time
-        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, index + 1, status))
+        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, index + 1))
             return false;
     }
 
@@ -127,28 +133,26 @@ bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value, int *status)
 }
 
 // Read many registers, minimizing actual chip access
-bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count, int *status)
+bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count)
 {
-        // out of range
-        *status = I2C_STATUS_NAK;
     if (count > 32 || first + count > 32) {
+        /* out of range */
         return false;
     }
 
     if (!count) {
-        // no work to do
-        *status = I2C_STATUS_DONE;
+        /* no work to do */
         return true;
     }
 
     if (first + count > 5 && !shadow_is_valid) {
         // We want data from non-volatile regs, but the shadow cache isn't valid,
         // reload the entire shadow cache from the tuner
-        if (!lpcsdr_tuner_shadow_from_chip(status))
+        if (!lpcsdr_tuner_shadow_from_chip())
             return false;
     } else if (first < 5) {
         // We want data from volatile regs, load only those from the tuner
-        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, (first + count < 5) ? (first + count) : 5, status))
+        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, (first + count < 5) ? (first + count) : 5))
             return false;
     }
 
@@ -158,41 +162,30 @@ bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count, int *
 }
 
 // Force a refresh of our shadow registers, reading actual values from the chip.
-bool lpcsdr_tuner_shadow_from_chip(int *status)
+bool lpcsdr_tuner_shadow_from_chip()
 {
-    if (!lpcsdr_tuner_read_regs_direct(reg_shadow, 32, status)) {
+    if (!lpcsdr_tuner_read_regs_direct(reg_shadow, 32)) {
+        shadow_is_valid = false;
         return false;
     }
 
     shadow_is_valid = true;
-    return true;
-}
-
-// Write all our shadow registers to the chip (e.g. after a power cycle)
-bool lpcsdr_tuner_shadow_to_chip(int *status)
-{
-    if (!lpcsdr_tuner_write_regs_direct(5, reg_shadow + 5, 27, status)) {
-        return false;
-    }
-
-    shadow_is_valid = true;
+    i2c_error = I2C_STATUS_DONE; /* clear previous errors when we successfully refresh tuner state */
     return true;
 }
 
 // Write many registers to the chip, writing through the shadow regs
-bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned count, int *status)
+bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned count)
 {
     if (offset < 5 || offset >= 32 || count > 27 || offset + count > 32) {
-        // out of range
-        *status = I2C_STATUS_NAK;
+        /* out of range */
         return false;
     }
 
-    memcpy(&reg_shadow[offset], regs, count);
-    if (!lpcsdr_tuner_write_regs_direct(offset, regs, count, status)) {
+    if (!lpcsdr_tuner_write_regs_direct(offset, regs, count)) {
         return false;
     }
-    shadow_is_valid = true;
+    memcpy(&reg_shadow[offset], regs, count);
     return true;
 }
 
@@ -201,17 +194,16 @@ bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned coun
 // New bit values are taken from `bits[0]` .. `bits[count-1]`
 // Only bits that have a corresponding bit set in `mask[0]` .. `mask[count-1]` are modified,
 // other bits are left unchanged.
-bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count, int *status)
+bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count)
 {
     if (offset >= 32 || offset + count > 32) {
-        // out of range
-        *status = I2C_STATUS_NAK;
+        /* out of range */
         return false;
     }
 
-    if (!shadow_is_valid) {
-        if (!lpcsdr_tuner_shadow_from_chip(status))
-            return false;
+    /* ensure reg_shadow is valid */
+    if (!shadow_is_valid && !lpcsdr_tuner_shadow_from_chip()) {
+        return false;
     }
 
     // Apply changes directly to reg_shadow and write through to the tuner
@@ -232,37 +224,36 @@ bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_
             // Sufficiently large gap with no changed registers,
             // do an incremental write as two smaller writes will
             // be faster than a single large write
-            if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1, status))
+            if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1)) {
                 return false;
+            }
             first_update = last_update = NO_UPDATE;
         }
     }
 
     if (first_update != NO_UPDATE) {
         // Do a final write
-        if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1, status))
+        if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1))
             return false;
     }
 
-    *status = I2C_STATUS_DONE;
-    shadow_is_valid = true;
     return true;
 }
 
 // We just turned off the RF power, do anything we need to do in response
 void lpcsdr_tuner_handle_poweroff()
 {
+    i2c_error = false;
     shadow_is_valid = false;
 }
 
 // We just turned on the RF power, do anything we need to do in response
 void lpcsdr_tuner_handle_poweron()
 {
-    StopWatch_DelayMs(5); // Give the tuner a moment to reset
+    i2c_error = false;
+    shadow_is_valid = false;
 
-    // re-read the tuner state
-    int status;
-    (void) lpcsdr_tuner_shadow_from_chip(&status); // Can't do much with errors here
+    StopWatch_DelayMs(5); // Give the tuner a moment to reset
 }
 
 /* Fill in the tuner-related bits of *status */
