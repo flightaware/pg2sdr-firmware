@@ -270,6 +270,11 @@ void lpcsdr_tuner_handle_poweron()
 /* Fill in the tuner-related bits of *status */
 void lpcsdr_tuner_status(ep0_in_board_status_t *status)
 {
-    if (shadow_is_valid)
+    if (i2c_error)
+        status->flags |= STATUS_TUNER_I2C_ERROR;
+    if (shadow_is_valid) {
         memcpy(status->tuner_regs, reg_shadow, 32);
+        if (reg_shadow[2] & 0x40)
+            status->flags |= STATUS_TUNER_PLL_LOCK;
+    }
 }

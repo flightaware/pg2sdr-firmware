@@ -41,6 +41,8 @@ typedef struct {
 #define STATUS_HSADC_RUN    16  /* HSADC is running */
 #define STATUS_DMA_RUN      32  /* DMA is running */
 #define STATUS_EP1_ENABLED  64  /* USB EP1 is enabled (not stalled) */
+#define STATUS_TUNER_I2C_ERROR 128  /* Saw an I2C error while talking to the tuner */
+#define STATUS_TUNER_PLL_LOCK 256   /* Tuner PLL has lock */
 typedef struct {
     /* Flags from STATUS_xxx */
     uint32_t flags;
