@@ -432,7 +432,7 @@ static bool process_ep0_in(const ipc_message_t *message)
 
     case EP0_IN_TUNER_READ: {
         /* read tuner regs; value = first reg to read; index = cache mode (0=use cache if possible, 1=bypass cache, 2=refresh cache) */
-        if (value >= 36 || (value + length) >= 36) {
+        if (value >= 32 || (value + length) > 32) {
             /* out of range */
             return false;
         }
