@@ -32,6 +32,14 @@ get too hot to touch)
 Configure the ADC clock with different frequencies and observe the output on
 CLK0/CLK2 to see if it's reasonable.
 
+```
+ ./python/start-transfer.py 9.6
+Calculated settings: INTEGER     N=  0 M=       12 P=15 I=  0  fCCO=288.000000MHz fOut= 9.600000MHz error=0.0Hz
+
+Starting ADC/DMA ..
+.. done.
+```
+
 These frequencies would be useful to test:
 
  * 9.6MHz        (2.4MHz * 4, probably what we will start with for dump1090)
@@ -42,8 +50,8 @@ These frequencies would be useful to test:
 
 and look at:
 
- a) is the output frequency correct?
- b) look at phase noise & any spurs in the output?
+ 1) is the output frequency correct?
+ 2) how does the frequency domain look? how bad is the phase noise around the target frequency? any spurs?
 
 
 # Tuner PLL
@@ -62,3 +70,4 @@ need to tune the tuner LO below 1090MHz (i.e. 1090 - 2.4 = 1087.6MHz) to get a u
 
 You will probably also need to play with the tuner gain settings (use `tuner.py --lna-gain` etc) to get a useful result here.
 
+If you can't find an IF signal, maybe try scanning around with the frequency generator and see if you can work out where the tuner LO has actually been set to? It's quite possible that my code is doing the wrong thing and misconfiguring it, it's just hard to tell without being able to look at the IF signal.
