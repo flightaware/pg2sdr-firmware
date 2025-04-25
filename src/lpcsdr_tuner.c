@@ -14,10 +14,42 @@ static int i2c_error = I2C_STATUS_DONE;  /* if not DONE, this was the last I2C e
 static bool shadow_is_valid = false;     /* Have we actually updated the shadow regs at all yet? */
 static uint8_t reg_shadow[32];           /* Shadow copy of expected tuner reg values */
 
+/* update LED to reflect current tuner status */
+static void update_tuner_led()
+{
+    if (!rf_power) {
+        /* RF power is off */
+        lpcsdr_led_set(2, C_OFF);
+        return;
+    }
+
+    if (i2c_error) {
+        /* Saw an I2C error */
+        lpcsdr_led_set(2, C_RED);
+        return;
+    }
+
+    if ((reg_shadow[17] & 0xC0) == 0 || (reg_shadow[23] & 0xC0) == 0) {
+        /* LDO is off, PLL not running / tuner not configured */
+        lpcsdr_led_set(2, C_OFF);
+        return;
+    }
+
+    if ((reg_shadow[2] & 0x40) == 0) {
+        /* PLL configured, but no PLL lock */
+        lpcsdr_led_set(2, C_YELLOW);
+        return;
+    }
+
+    /* PLL is running and has lock */
+    lpcsdr_led_set(2, C_GREEN);
+}
+
 static bool handle_i2c_error(int status)
 {
     i2c_error = status;
     shadow_is_valid = false;
+    update_tuner_led();
     return false;
 }
 
@@ -135,6 +167,7 @@ bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value)
         // Reading a volatile / read-only register, refresh from the chip every time
         if (!lpcsdr_tuner_read_regs_direct(reg_shadow, index + 1))
             return false;
+        update_tuner_led();
     }
 
     *value = reg_shadow[index];
@@ -159,10 +192,12 @@ bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count)
         // reload the entire shadow cache from the tuner
         if (!lpcsdr_tuner_shadow_from_chip())
             return false;
+        update_tuner_led();
     } else if (first < 5) {
         // We want data from volatile regs, load only those from the tuner
         if (!lpcsdr_tuner_read_regs_direct(reg_shadow, (first + count < 5) ? (first + count) : 5))
             return false;
+        update_tuner_led();
     }
 
     // at this point, reg_shadow is up to date, so just copy from there
@@ -180,6 +215,7 @@ bool lpcsdr_tuner_shadow_from_chip()
 
     shadow_is_valid = true;
     i2c_error = I2C_STATUS_DONE; /* clear previous errors when we successfully refresh tuner state */
+    update_tuner_led();
     return true;
 }
 
@@ -195,6 +231,7 @@ bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned coun
         return false;
     }
     memcpy(&reg_shadow[offset], regs, count);
+    update_tuner_led();
     return true;
 }
 
@@ -246,6 +283,7 @@ bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_
             return false;
     }
 
+    update_tuner_led();
     return true;
 }
 
@@ -255,6 +293,7 @@ void lpcsdr_tuner_handle_poweroff()
     i2c_error = false;
     shadow_is_valid = false;
     rf_power = false;
+    update_tuner_led();
 }
 
 // We just turned on the RF power, do anything we need to do in response
@@ -263,6 +302,7 @@ void lpcsdr_tuner_handle_poweron()
     i2c_error = false;
     shadow_is_valid = false;
     rf_power = true;
+    update_tuner_led();
 
     StopWatch_DelayMs(5); // Give the tuner a moment to reset
 }
