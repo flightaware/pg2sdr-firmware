@@ -66,6 +66,8 @@ class StatusFlags(IntFlag):
     HSADC_RUN = 16
     DMA_RUN = 32
     EP1_ENABLED = 64
+    TUNER_I2C_ERROR = 128
+    TUNER_PLL_LOCK = 256
 
 @ctrl
 class BoardStatus:
