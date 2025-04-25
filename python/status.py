@@ -37,7 +37,7 @@ def show_status(status, file):
     if lpcsdr_device.StatusFlags.RF_POWER_ON in status.flags:
         print(f'Tuner:', file=file)
         for i in range(0, 32, 4):
-            print(f'  0x{i:02x}: ' + ' '.join(f'{r:02X}' for r in status.tuner_regs[i:i+4]))
+            print(f'  {i:2d}: ' + ' '.join(f'{r:02X}' for r in status.tuner_regs[i:i+4]))
         print(f'', file=file)
 
     if lpcsdr_device.StatusFlags.EP1_ENABLED in status.flags:
