@@ -13,21 +13,19 @@ Ensure that you've got pyusb installed
 
 Decide if you will either:
 
- a) build the firmware using mcuxpresso, producing Debug/lpcsdr.bin; or
- b) use the prebuilt firmware in images/lpcsdr.bin
+ 1) build the firmware using mcuxpresso, producing Debug/lpcsdr.bin; or
+ 2) use the prebuilt firmware in images/lpcsdr.bin
 
-The python scripts will look for images in that order, so if you choose (b), make sure that
-you do not have an old mcuxpresso-built image in Debug/lpcsdr.bin
+The python scripts will look for images in that order, so if you choose (2), make sure that you do not have an old mcuxpresso-built image in Debug/lpcsdr.bin
 
-Set the boot switch on the LPCSDR to the "boot from USB" position, this is the position
-towards the USB connector.
+Set the boot switch on the LPCSDR to the "boot from USB" position, this is the position towards the USB connector.
 
 # LED meanings
 
 There are three LEDs:
 
-D2, a single-color yellow LED near the boot-mode switch
-DS1 and DS2, two multi-color red/yellow/green LEDs near the tactile switch
+ * D2, a single-color yellow LED near the boot-mode switch
+ * DS1 and DS2, two multi-color red/yellow/green LEDs near the tactile switch
 
 ## After power-on reset
 
@@ -50,6 +48,8 @@ DS1 shows the current ADC/DMA/USB state:
  * DS1 yellow: ADC is running, but some data is being dropped
  * DS1 red: ADC is running, but a lot of data is being dropped (e.g. the host is not reading data at all)
 
+With current scripts (which don't read data) it's normal for DS1 to be red when the ADC is running.
+
 DS2 shows the current R860T tuner state:
  * DS2 off: RF power off, or tuner not yet configured
  * DS2 green: tuner configured and PLL has successfully locked
@@ -58,22 +58,17 @@ DS2 shows the current R860T tuner state:
 
 ## Error states
 
-If the LPC bootloader tries to boot from flash (not USB), but there's a problem with the image, then it will
-blink D2 at 1Hz for 60 seconds, then reset. This usually means you have the boot-mode switch in the wrong
-position.
+If the LPC bootloader tries to boot from flash (not USB), but there's a problem with the image, then it will blink D2 at 1Hz for 60 seconds, then reset. This usually means you have the boot-mode switch in the wrong position.
 
-If the LPCSDR firmware panics, it will blink all of D2, DS1, DS2 in a morse code pattern for a few seconds,
-then reset. The morse code letters/digits give some information about the source of the panic.
+If the LPCSDR firmware panics, it will blink all of D2, DS1, DS2 in a morse code pattern for a few seconds, then reset. The morse code letters/digits give some information about the source of the panic.
 
-If the LPCSDR firmware encounters a watchdog reset, then it will just reset immediately back into the DFU
-bootloader (D2 on, DS1/DS2 weakly red)
+If the LPCSDR firmware hangs for more than 5 seconds, the watchdog will reset the board. This will immediately go back into the DFU bootloader (D2 on, DS1/DS2 weakly red)
 
 # Scripts
 
 ## Loading the firmware
 
-You don't have to do anything special here, if there is no firmware loaded then the python
-scripts will automatically download the firmware to the device via DFU.
+You don't have to do anything special here, if there is no firmware loaded then the python scripts will automatically download the firmware to the device via DFU.
 
 ## comms-check.py
 
@@ -90,8 +85,7 @@ comms check was okay
 
 ## reset.py
 
-This script tells the LPCSDR to reset itself. After reset, the device will be back in
-DFU mode, ready to accept a new firmware upload.
+This script tells the LPCSDR to reset itself. After reset, the device will be back in DFU mode, ready to accept a new firmware upload.
 
 ```
 $ python/reset.py 
@@ -100,9 +94,7 @@ sent device reset request
 
 ## status.py
 
-This script asks the LPCSDR for a variety of board status info. If you manage to get
-the board to do something unexpected, then running status.py and saving the output
-will help with debugging later.
+This script asks the LPCSDR for a variety of board status info. If you manage to get the board to do something unexpected, then running status.py and saving the output will help with debugging later.
 
 ```
 $ python/status.py
@@ -139,9 +131,7 @@ $ python/set-rf-power.py --reset    # turns RF power off, waits a bit, turns it 
 
 ## start-transfer.py
 
-This script programs the ADC clock for a given frequency, sets the CPU to high-speed mode,
-and starts the ADC and DMA transfer process. Give it one argument, the ADC frequency in
-MHz:
+This script programs the ADC clock for a given frequency, sets the CPU to high-speed mode, and starts the ADC and DMA transfer process. Give it one argument, the ADC frequency in MHz:
 
 ```
 $ ./python/start-transfer.py 9.6
@@ -155,8 +145,7 @@ The ADC clock can be monitored on pins CLK0/CLK2 (J2/J4)
 
 ## stop-transfer.py
 
-This script reverses the effect of start-transfer.py, stopping ADC & DMA and setting the CPU
-to a slower speed:
+This script reverses the effect of start-transfer.py, stopping ADC & DMA and setting the CPU to a slower speed:
 
 ```
 $ ./python/stop-transfer.py 
@@ -171,13 +160,9 @@ It will turn on RF power, and initialize the tuner, if this has not already been
 
 Provide one or more options to say what to do:
 
- * `--reset`: First toggle RF power to reset the tuner, then re-initialize the tuner. This
-   will lose any previous changes you've made to the tuner settings.
- * `--powerdown`: Power down most of the tuner. This does not turn off RF power and doesn't
-   _fully_ turn off the tuner
- * `--lna-gain`, `--vga-gain`, `--mix-gain`: Set the gains of the three gain stages. Each
-   option takes a gain setting (an integer, 0-15, with no particular meaning in dB, just
-   larger values = more gain)
+ * `--reset`: First toggle RF power to reset the tuner, then re-initialize the tuner. This will lose any previous changes you've made to the tuner settings.
+ * `--powerdown`: Power down most of the tuner. This does not turn off RF power and doesn't _fully_ turn off the tuner
+ * `--lna-gain`, `--vga-gain`, `--mix-gain`: Set the gains of the three gain stages. Each option takes a gain setting (an integer, 0-15, with no particular meaning in dB, just larger values = more gain)
  * `--pll`: Configure and start the tuner's LO PLL. Specify the LO frequency in MHz.
 
 ```
