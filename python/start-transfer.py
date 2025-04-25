@@ -32,10 +32,8 @@ def main():
         else:
             settings = i_settings
 
-    print(f'Calculated settings:')
-    clock_calc.show(freq, settings)
+    print(f'Calculated settings: {settings!r}')
     print()
-    error, n, m, p, i, actual_fcco, actual_frequency = settings
 
     dev = lpcsdr_device.find()
     if dev is None:
@@ -43,11 +41,11 @@ def main():
         return 1
 
     print('Starting ADC/DMA ..')
-    fixedpoint_m = int(round(m * 32768))
-    dev.start_transfer(n_div = n,
+    fixedpoint_m = int(round(settings.m * 32768))
+    dev.start_transfer(n_div = settings.n,
                        m_div = fixedpoint_m,
-                       p_div = p,
-                       idiv_div = i)
+                       p_div = settings.p,
+                       idiv_div = settings.i)
 
     print('.. done.')
 

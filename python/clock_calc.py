@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import typing
 
 n_dividers = [0] + list(range(2,257))
 p_dividers = [0] + list(range(1,33))
@@ -26,11 +27,37 @@ for i in i_dividers:
         else:
             post_dividers[d] = (p, i)
 
-def settings_for(target_frequency):
+
+class Settings(typing.NamedTuple):
+    error: float
+    n: int
+    m: float
+    p: int
+    i: int
+    actual_fcco: float
+    actual_frequency: float
+    fractional: bool
+
+    def __repr__(self):
+        if self.fractional:
+            return f'FRACTIONAL  N={self.n:3d} M={self.m:9.5f} P={self.p:2d} I={self.i:3d}  fCCO={self.actual_fcco/1e6:10.6f}MHz fOut={self.actual_frequency/1e6:9.6f}MHz error={self.error:.1f}Hz'
+        else:
+            return f'INTEGER     N={self.n:3d} M={self.m:9.0f} P={self.p:2d} I={self.i:3d}  fCCO={self.actual_fcco/1e6:10.6f}MHz fOut={self.actual_frequency/1e6:9.6f}MHz error={self.error:.1f}Hz'
+
+
+def settings_for(target_frequency, epsilon=1e-6):
     min_fcco = 275e6
     max_fcco = 550e6
     mid_fcco = (min_fcco + max_fcco)/2
     ref_frequency = 12e6
+    error_threshold = target_frequency * epsilon
+
+    def improves(current, candidate):
+        if current is None:
+            return True
+        if current.error > error_threshold:
+            return (candidate.error < current.error)
+        return (candidate.m < current.m)
 
     min_divider = int(math.ceil(min_fcco / target_frequency))
     max_divider = int(math.floor(max_fcco / target_frequency)) + 1
@@ -48,10 +75,11 @@ def settings_for(target_frequency):
         fractional_m = scaled_m / (1<<15)
         actual_fcco = 2 * fractional_m * ref_frequency
         actual_frequency = actual_fcco / p_i
-        error = round(abs(actual_frequency - target_frequency))
+        error = abs(actual_frequency - target_frequency)
 
-        if best_frac is None or error < best_frac[0]:
-            best_frac = (error, 0, fractional_m, p, i, actual_fcco, actual_frequency)
+        candidate = Settings(error, 0, fractional_m, p, i, actual_fcco, actual_frequency, True)
+        if improves(best_frac, candidate):
+            best_frac = candidate
 
         for n in n_dividers:
             n_ref = ref_frequency / n_value(n)
@@ -60,18 +88,15 @@ def settings_for(target_frequency):
             actual_frequency = actual_fcco / p_i
             error = round(abs(actual_frequency - target_frequency))
 
-            if best_int is None or (error,n) < best_int[0:2]:
-                best_int = (error, n, integer_m, p, i, actual_fcco, actual_frequency)
+            candidate = Settings(error, n, integer_m, p, i, actual_fcco, actual_frequency, False)
+            if improves(best_int, candidate):
+                best_int = candidate
 
     return best_int, best_frac
 
 def show(f, x):
-    error, n, m, p, i, actual_fcco, actual_frequency = x
+    print(f'{f/1e6:9.6f}MHz => {x!r}')
 
-    if m == int(m):
-        print(f'{f/1e6:6.3f}MHZ => INTEGER     N={n:3d} M={m:9.0f} P={p:2d} I={i:3d}  fCCO={actual_fcco/1e6:7.3f}MHz  fOut={actual_frequency/1e6:6.3f}MHz  error={error:.1f}Hz')
-    else:
-        print(f'{f/1e6:6.3f}MHZ => FRACTIONAL  N={n:3d} M={m:9.5f} P={p:2d} I={i:3d}  fCCO={actual_fcco/1e6:7.3f}MHz  fOut={actual_frequency/1e6:6.3f}MHz  error={error:.1f}Hz')
 
 if __name__ == '__main__':
     for f in (2.4e6, 4.8e6, 6e6, 10e6, 12e6, 18e6, 20e6, 24e6, 1.041667e6*2*2, 1234567, 24.576e6):
