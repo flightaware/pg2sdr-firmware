@@ -9,6 +9,7 @@
 /* nb: I2C support library expects only 7-bit slave addresses, not including the trailing R/W bit */
 #define R860T_I2C_ADDR 0x1A
 
+static bool rf_power = false;            /* is RF power on? */
 static int i2c_error = I2C_STATUS_DONE;  /* if not DONE, this was the last I2C error we saw */
 static bool shadow_is_valid = false;     /* Have we actually updated the shadow regs at all yet? */
 static uint8_t reg_shadow[32];           /* Shadow copy of expected tuner reg values */
@@ -50,6 +51,10 @@ __attribute__ ((always_inline)) static inline uint8_t bitreverse(uint8_t b)
 // read registers 0 .. count-1 into regs[0] .. regs[count-1]
 bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
 {
+    if (!rf_power) {
+        return false;
+    }
+
     if (!count) {
         return true;
     }
@@ -80,6 +85,10 @@ bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
 // write registers first .. first+count-1 using values from regs[0] .. regs[count-1]
 bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigned count)
 {
+    if (!rf_power) {
+        return false;
+    }
+
     if (!count) {
         return true;
     }
@@ -245,6 +254,7 @@ void lpcsdr_tuner_handle_poweroff()
 {
     i2c_error = false;
     shadow_is_valid = false;
+    rf_power = false;
 }
 
 // We just turned on the RF power, do anything we need to do in response
@@ -252,6 +262,7 @@ void lpcsdr_tuner_handle_poweron()
 {
     i2c_error = false;
     shadow_is_valid = false;
+    rf_power = true;
 
     StopWatch_DelayMs(5); // Give the tuner a moment to reset
 }
