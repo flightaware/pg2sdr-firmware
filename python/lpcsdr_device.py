@@ -69,6 +69,15 @@ class StatusFlags(IntFlag):
     TUNER_I2C_ERROR = 128
     TUNER_PLL_LOCK = 256
 
+class BlockStatusFlags(IntFlag):
+    ADC_OVERRUN = 1
+    DMA_ERROR = 2
+    PACKING_OVERRUN = 4
+    USB_OVERRUN = 8
+    ADC_OVF = 256
+    ADC_UNF = 512
+    FREQ_CHANGE = 1024
+
 @ctrl
 class BoardStatus:
     flags: StatusFlags = typed('I')
