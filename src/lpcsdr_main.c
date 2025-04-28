@@ -222,7 +222,7 @@ static void set_fast_cpu(void)
         return;
 
     fast_cpu = true;
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, 204000000, false);
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, 110000000, false);
     handle_clock_change();
 }
 
