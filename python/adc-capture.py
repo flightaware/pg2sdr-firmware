@@ -110,7 +110,9 @@ def main():
             unpacked[6::8] = ((p1 & 0xF0000000) >> 20) | ((p2 & 0xF0000000) >> 24) | ((p3 & 0xF0000000) >> 28)
             unpacked[7::8] = ((p1 & 0x0000F000) >> 4) | ((p2 & 0x0000F000) >> 8) | ((p3 & 0x0000F000) >> 12)
 
-            unpacked.tofile(outf)
+            # sign-extend from 12 bits to 16 bits (so the data can be loaded as signed-16-bit)
+            signed = (unpacked & 0x7FF) - (unpacked & 0x800)
+            signed.tofile(outf)
 
     return 0
 
