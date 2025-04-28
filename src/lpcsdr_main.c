@@ -28,6 +28,8 @@ static bool bulk_test_mode = false;
 static bool fast_cpu = false;
 static bool rf_power = false;
 
+#define USB_BLOCK_SIZE ALIGN_TO(sizeof(ep1_header_t) + (HSADC_BUFFER_SIZE * 3 / 4), 512)
+
 /* callback from USB code to indicate it's got a free buffer available */
 void lpcsdr_usb_space_available(void)
 {
@@ -120,9 +122,12 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
         return;
     }
 
+    static_assert(USB_BLOCK_SIZE <= DTD_BUFFER_SIZE);
+
     /* Fill in USB block header */
     ep1_header_t *header = (ep1_header_t*) dTD->buffer;
     header->magic = 0xDEADBEEF;
+    header->block_len = USB_BLOCK_SIZE;
     header->samples = HSADC_BUFFER_SIZE / 2;
     header->sequence = start_seq;
     header->status = pending_usb_status;
@@ -132,19 +137,15 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
 
     const uint32_t in_words = HSADC_BUFFER_SIZE/4;
     static_assert(in_words % 4 == 0);
-    pack_samples((uint32_t *)buffer->destaddr, (uint32_t *)out_samples, in_words);
+    pack_samples((uint32_t *)buffer->destaddr, out_samples, in_words);
 
     /* Zero out trailing data up to the 512-byte boundary */
     const uint32_t out_words = in_words * 3 / 4;
     const uint32_t used = sizeof(*header) + out_words * 4;
-    const uint32_t pad = ((used + 511) & ~511) - used;
+    const uint32_t pad = USB_BLOCK_SIZE - used;
     if (pad > 0) {
         memset(out_samples + out_words, 0, pad);
     }
-
-    const uint32_t total_block_len = sizeof(*header) + out_words * 4 + pad;
-    static_assert(total_block_len <= DTD_BUFFER_SIZE);
-    header->block_len = total_block_len;
 
     /* We're done copying to the USB buffer. Check that the source buffer is
      * still valid - it may have started to get clobbered while we were halfway
@@ -155,7 +156,7 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
     uint32_t status = lpcsdr_dma_hsadc_copy_complete(buffer, true);
     if (buffer->sequence == start_seq && !(status & LLI_STATUS_CLOBBERED)) {
         /* we copied everything out successfully with no clobber, send the data */
-        lpcsdr_usb_queue_dtd(dTD, used + pad);
+        lpcsdr_usb_queue_dtd(dTD, USB_BLOCK_SIZE);
         pending_usb_status = 0;
     } else {
         /* clobbered during the copy, drop data and return the dTD to the pool */
@@ -401,6 +402,9 @@ static bool process_ep0_in(const ipc_message_t *message)
             result->flags |= STATUS_SW2_PRESSED;
         if (rf_power)
             result->flags |= STATUS_RF_POWER_ON;
+
+        result->usb_samples_per_block = HSADC_BUFFER_SIZE/2;
+        result->usb_bytes_per_block = USB_BLOCK_SIZE;
 
         /* delegate for the rest */
         lpcsdr_hsadc_status(result);
