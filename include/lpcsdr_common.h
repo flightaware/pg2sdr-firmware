@@ -71,11 +71,8 @@ __attribute__ ((always_inline)) static inline bool interrupts_disabled(void)
  */
 #define WITH_DISABLED_INTERRUPTS for (uint32_t __once = 1, __save = disable_interrupts(); __once; enable_interrupts(__save), __once = 0)
 
-/* Return `addr` aligned (rounding up) to a multiple of `alignment` */
-__attribute__ ((always_inline)) static inline uint32_t align_to(uint32_t addr, uint32_t alignment)
-{
-    return (addr + alignment - 1) & ~(alignment - 1);
-}
+/* Return `addr_or_size` aligned (rounding up) to a multiple of (power-of-two) `alignment` */
+#define ALIGN_TO(addr_or_size,alignment) (((addr_or_size) + (alignment) - 1) & ~((alignment) - 1))
 
 /* Atomically test and set one or more bits */
 __attribute__ ((always_inline)) static inline uint32_t test_and_set_bits(uint32_t bits, volatile uint32_t *addr)
