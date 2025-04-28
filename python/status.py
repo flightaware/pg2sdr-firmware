@@ -40,11 +40,12 @@ def show_status(status, file):
             print(f'  {i:2d}: ' + ' '.join(f'{r:02X}' for r in status.tuner_regs[i:i+4]))
         print(f'', file=file)
 
-    if lpcsdr_device.StatusFlags.EP1_ENABLED in status.flags:
-        print(f'USB:', file=file)
-        print(f'  Free buffers:   {status.usb_free_buffers}', file=file)
-        print(f'  Filled buffers: {status.usb_filled_buffers}', file=file)
-        print(f'', file=file)
+    print(f'USB:', file=file)
+    print(f'  Free buffers:   {status.usb_free_buffers}', file=file)
+    print(f'  Filled buffers: {status.usb_filled_buffers}', file=file)
+    print(f'  Samples/block:  {status.usb_samples_per_block}', file=file)
+    print(f'  Bytes/block:    {status.usb_bytes_per_block}', file=file)
+    print(f'', file=file)
 
     if status.clock_irc:
         print(f'Measured clock source frequencies (MHz):', file=file)
