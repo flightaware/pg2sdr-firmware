@@ -102,6 +102,8 @@ class BoardStatus:
 
     usb_free_buffers: int = typed('I')
     usb_filled_buffers: int = typed('I')
+    usb_samples_per_block: int = typed('I')
+    usb_bytes_per_block: int = typed('I')
 
     clock_32k: int = typed('I')
     clock_irc: int = typed('I')

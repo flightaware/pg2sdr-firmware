@@ -81,6 +81,8 @@ typedef struct {
     /* USB status */
     uint32_t usb_free_buffers;
     uint32_t usb_filled_buffers;
+    uint32_t usb_samples_per_block;
+    uint32_t usb_bytes_per_block;
 
     /* Measured clock frequencies (only if requested) */
     uint32_t clock_32k;
