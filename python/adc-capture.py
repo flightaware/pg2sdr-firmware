@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--samples', help='capture this many samples', type=int, required=True)
     parser.add_argument('--rate', help='set sampling rate (in MHz), start ADC before capture, stop ADC after capture', type=float)
     parser.add_argument('filename', help='set output filename')
+    parser.add_argument('--tsv', action='store_true', help='output samples as a tab-separated text file instead of binary')
 
     args = parser.parse_args()
 
@@ -66,10 +67,16 @@ def main():
     results = None  # allow GC of old data
 
     print(f'Unpacking data into {args.filename}', file=sys.stderr)
-    with open(args.filename, 'wb') as outf:
+    # choose text (TSV) or binary
+    mode = 'wt' if args.tsv else 'wb'
+    with open(args.filename, mode) as outf:
+        # if TSV, write a header row and init sample counter
+        if args.tsv:
+            outf.write("sample_index\tvalue\n")
+            sample_index = 0
+
         header = struct.Struct('<IIIII')
         last_seq = None
-
         # ignore first 8 blocks, to purge out any old data in the device buffers
         for offset in range(8*status.usb_bytes_per_block, total, status.usb_bytes_per_block):
             block = combined[offset:offset+status.usb_bytes_per_block]
@@ -112,7 +119,13 @@ def main():
 
             # sign-extend from 12 bits to 16 bits (so the data can be loaded as signed-16-bit)
             signed = (unpacked & 0x7FF) - (unpacked & 0x800)
-            signed.tofile(outf)
+            if args.tsv:
+                # write each sample as “index<TAB>value\n”
+                for v in signed:
+                    outf.write(f"{sample_index}\t{v.astype(np.int16)}\n")
+                    sample_index += 1
+            else:
+                signed.tofile(outf)
 
     return 0
 
