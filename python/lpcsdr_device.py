@@ -32,6 +32,7 @@ class OutReq(IntEnum):
     SET_RF_POWER = 0x15
     TUNER_WRITE = 0x16
     TUNER_UPDATE = 0x17
+    CONFIG_ADC = 0x2C
     RESET = 0x2D
     WATCHDOG_TEST = 0x2E
     UART_TEST = 0x2F
@@ -246,6 +247,12 @@ class Device(object):
         if len(new_bits) != len(mask_bits):
             raise ValueError('new_bits and mask_bits must have the same length')
         self._out_bytes(req=OutReq.TUNER_UPDATE, value=first_reg, data=bytes(new_bits) + bytes(mask_bits))
+
+    def config_adc(self, dcinpos, dcinneg, twos):
+        flags = (dcinpos and 1 or 0) | \
+            (dcinneg and 2 or 0) | \
+            (twos and 4 or 0)
+        self._out_bytes(req=OutReq.CONFIG_ADC, value=flags, data=b'')
 
     def reset(self):
         self._out_bytes(req=OutReq.RESET, data=b'')

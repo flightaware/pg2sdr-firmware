@@ -3,6 +3,10 @@
 #include "chip.h"
 #include "stopwatch.h"
 
+static bool config_dcinpos = true;
+static bool config_dcinneg = true;
+static bool config_twos = true;
+
 static uint32_t compute_mdec(uint32_t msel)
 {
     /* from UM10503, 12.6.4.3 */
@@ -249,13 +253,17 @@ bool lpcsdr_hsadc_conversion_start()
         adc_speed = 0;
     }
 
+    uint32_t dcinpos = (config_dcinpos ? 0x3F : 0);
+    uint32_t dcinneg = (config_dcinneg ? 0x3F : 0);
+    uint32_t twos = (config_twos ? 1 : 0);
+
     LPC_ADCHS->POWER_CONTROL =
-            (crs << 0)   |    // CRS
-            (0x01 << 4)  |    // DCINNEG=1, enable DC bias, negative side, channel 0
-            (0x01 << 10) |    // DCINPOS=1, enable DC bias, positive side, channel 0
-            _BIT(16)     |    // TWOS=1, output format is two's complement
-            _BIT(17)     |    // POWER_SWITCH=1, ADC active
-            _BIT(18);         // BGAP_SWITCH=1, band gap reference active
+            (crs << 0)      |    // CRS
+            (dcinneg << 4)  |    // DCINNEG=0/1, configure DC bias, negative side, all channels
+            (dcinpos << 10) |    // DCINPOS=0/1, configure DC bias, positive side, all channels
+            (twos << 16)    |    // TWOS=0/1, configure output format to offset binary or two's complement
+            _BIT(17)        |    // POWER_SWITCH=1, ADC active
+            _BIT(18);            // BGAP_SWITCH=1, band gap reference active
     LPC_ADCHS->ADC_SPEED = adc_speed;
 
     // Populate descriptor tables, with extra paranoia
@@ -331,5 +339,24 @@ void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
         status->adchs_int0_status = LPC_ADCHS->INTS[0].STATUS;
         status->adchs_fifo_sts = LPC_ADCHS->FIFO_STS;
         status->adchs_dscr_sts = LPC_ADCHS->DSCR_STS;
+    }
+}
+
+void lpcsdr_hsadc_set_config(bool dcinpos, bool dcinneg, bool twos)
+{
+    config_dcinpos = dcinpos;
+    config_dcinneg = dcinneg;
+    config_twos = twos;
+
+    if (hsadc_frequency) {
+        uint32_t dcinpos = (config_dcinpos ? 0x3F : 0);
+        uint32_t dcinneg = (config_dcinneg ? 0x3F : 0);
+        uint32_t twos = (config_twos ? 1 : 0);
+
+        uint32_t control = LPC_ADCHS->POWER_CONTROL;
+        control = (control & ~(0x3F << 4)) | (dcinneg << 4);
+        control = (control & ~(0x3F << 10)) | (dcinpos << 10);
+        control = (control & ~(1 << 16)) | (twos << 16);
+        LPC_ADCHS->POWER_CONTROL = control;
     }
 }

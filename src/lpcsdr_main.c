@@ -661,6 +661,11 @@ static bool process_ep0_out(const ipc_message_t *message)
         return true;
     }
 
+    case EP0_OUT_CONFIG_ADC: {
+        lpcsdr_hsadc_set_config(valueAndIndex & 1, valueAndIndex & 2, valueAndIndex & 4);
+        return true;
+    }
+
     default:
         return false;
     }

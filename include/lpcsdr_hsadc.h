@@ -17,4 +17,6 @@ void lpcsdr_hsadc_conversion_stop(void);
 
 void lpcsdr_hsadc_status(ep0_in_board_status_t *status);
 
+void lpcsdr_hsadc_set_config(bool dcinpos, bool dcinneg, bool twos);
+
 #endif
