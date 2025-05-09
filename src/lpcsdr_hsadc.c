@@ -324,7 +324,10 @@ void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
         status->pll_frac = LPC_CGU->PLL0AUDIO_FRAC;
         status->idiv_e_ctrl = LPC_CGU->IDIV_CTRL[CLK_IDIV_E];
 
+        status->adchs_fifo_cfg = LPC_ADCHS->FIFO_CFG;
         status->adchs_config = LPC_ADCHS->CONFIG;
+        status->adchs_adc_speed = LPC_ADCHS->ADC_SPEED;
+        status->adchs_power_control = LPC_ADCHS->POWER_CONTROL;
         status->adchs_int0_status = LPC_ADCHS->INTS[0].STATUS;
         status->adchs_fifo_sts = LPC_ADCHS->FIFO_STS;
         status->adchs_dscr_sts = LPC_ADCHS->DSCR_STS;

@@ -12,8 +12,15 @@ def show_status(status, file):
     clock_status.print_status(status, file=file)
 
     if lpcsdr_device.StatusFlags.HSADC_RUN in status.flags:
+        dcinpos = (status.adchs_power_control & (0x3F << 10)) >> 10
+        dcinneg = (status.adchs_power_control & (0x3F << 4)) >> 4
+        twos = (status.adchs_power_control & (1 << 16)) >> 16
+
         print(f'HSADC:', file=file)
+        print(f'  FIFO_CFG:       {status.adchs_fifo_cfg:08X}', file=file)
         print(f'  CONFIG:         {status.adchs_config:08X}', file=file)
+        print(f'  ADC_SPEED:      {status.adchs_adc_speed:08X}', file=file)
+        print(f'  POWER_CONTROL:  {status.adchs_power_control:08X}  DCINPOS={dcinpos:06b} DCINNEG={dcinneg:06b} TWOS={twos}', file=file)
         print(f'  INTS[0].STATUS: {status.adchs_int0_status:08X}', file=file)
         print(f'  FIFO_STS:       {status.adchs_fifo_sts:08X}', file=file)
         print(f'  DSCR_STS:       {status.adchs_dscr_sts:08X}', file=file)

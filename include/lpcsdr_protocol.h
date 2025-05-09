@@ -57,7 +57,10 @@ typedef struct {
     uint32_t idiv_e_ctrl;
 
     /* HSADC status */
+    uint32_t adchs_fifo_cfg;
     uint32_t adchs_config;
+    uint32_t adchs_adc_speed;
+    uint32_t adchs_power_control;
     uint32_t adchs_int0_status;
     uint32_t adchs_fifo_sts;
     uint32_t adchs_dscr_sts;

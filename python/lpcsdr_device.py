@@ -90,7 +90,10 @@ class BoardStatus:
     pll_frac: int = typed('I')
     idiv_e_ctrl: int = typed('I')
 
+    adchs_fifo_cfg: int = typed('I')
     adchs_config: int = typed('I')
+    adchs_adc_speed: int = typed('I')
+    adchs_power_control: int = typed('I')
     adchs_int0_status: int = typed('I')
     adchs_fifo_sts: int = typed('I')
     adchs_dscr_sts: int = typed('I')
