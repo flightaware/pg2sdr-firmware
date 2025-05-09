@@ -140,7 +140,7 @@ typedef struct {
     uint32_t status;      /* Status bits for this block */
 } ep1_header_t;
 
-/* status bits for usb_header_t.status */
+/* status bits for ep1_header_t.status */
 
 /* ADC FIFO overrun, data was dropped */
 #define BLOCK_STATUS_ADC_OVERRUN _BIT(0)
