@@ -67,7 +67,7 @@ executed by the M4 core.
 
 ## Building with MCUXpresso
 
-.. todo, gather up notes previously sent to Eric/Tren ..
+Notes on how to build and upload firmware can be found on this [Confluence page](https://flightaware.atlassian.net/wiki/spaces/ADSB/pages/3611590682/LPC4370+firmware+sdk+notes)
 
 ## Image format
 
