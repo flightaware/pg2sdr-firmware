@@ -118,6 +118,12 @@ class BoardStatus:
     usb_samples_per_block: int = typed('I')
     usb_bytes_per_block: int = typed('I')
 
+    m4_freq: int = typed('I')
+    m4_mean_idle: int = typed('I')
+    m4_mean_idle_scale: int = typed('I')
+    m4_min_idle: int = typed('I')
+    m4_min_idle_scale: int = typed('I')
+
     clock_32k: int = typed('I')
     clock_irc: int = typed('I')
     clock_pll0usb: int = typed('I')

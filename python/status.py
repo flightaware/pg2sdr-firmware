@@ -54,6 +54,12 @@ def show_status(status, file):
     print(f'  Bytes/block:    {status.usb_bytes_per_block}', file=file)
     print(f'', file=file)
 
+    print(f'M4:', file=file)
+    print(f'  Core clock:     {status.m4_freq/1e6:.1f} MHz', file=file)
+    print(f'  Mean load:      {100-status.m4_mean_idle/status.m4_mean_idle_scale*100:.1f}%', file=file)
+    print(f'  Peak load:      {100-status.m4_min_idle/status.m4_min_idle_scale*100:.1f}%', file=file)
+    print(f'', file=file)
+
     if status.clock_irc:
         print(f'Measured clock source frequencies (MHz):', file=file)
         print(f'  IRC:       {status.clock_irc/1e6:6.2f}', file=file)

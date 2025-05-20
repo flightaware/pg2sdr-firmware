@@ -87,6 +87,13 @@ typedef struct {
     uint32_t usb_samples_per_block;
     uint32_t usb_bytes_per_block;
 
+    /* CPU clock / load info */
+    uint32_t m4_freq;               /* M4 clock frequency, Hz */
+    uint32_t m4_mean_idle;          /* Recent idle CPU time, in CPU cycles */
+    uint32_t m4_mean_idle_scale;    /* Divisor for m4_mean_idle, total busy+idle CPU cycles in the measurement period */
+    uint32_t m4_min_idle;           /* Recent minimum idle CPU time, in CPU cycles */
+    uint32_t m4_min_idle_scale;     /* Divisor for m4_min_idle, total busy+idle CPU cycles in the minimum period */
+
     /* Measured clock frequencies (only if requested) */
     uint32_t clock_32k;
     uint32_t clock_irc;
