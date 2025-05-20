@@ -14,7 +14,7 @@
 static uint32_t current_freq;
 
 /* number of M4 clock cycles per systick interrupt */
-#define SYSTICK_INTERVAL 1000000
+#define SYSTICK_INTERVAL (MIN_M4_FREQ/4)
 
 /* number of systick interrupts per measurement period */
 static uint32_t systick_max_count;
