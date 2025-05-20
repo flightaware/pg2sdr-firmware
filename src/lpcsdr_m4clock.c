@@ -6,6 +6,10 @@
 
 /* M4 clock management & load stats */
 
+/* allowed M4 clock range, Hz */
+#define MIN_M4_FREQ 24000000      /* 12MHz seems to tickle some USB race conditions, don't go that slow */
+#define MAX_M4_FREQ 204000000
+
 /* current M4 frequency, Hz */
 static uint32_t current_freq;
 
@@ -62,13 +66,13 @@ void SysTick_Handler(void)
 
 void lpcsdr_m4clock_set_freq(uint32_t new_freq)
 {
+    if (new_freq < MIN_M4_FREQ)
+        new_freq = MIN_M4_FREQ;
+    if (new_freq > MAX_M4_FREQ)
+        new_freq = MAX_M4_FREQ;
+
     /* force frequency to a multiple of 12MHz, so MAINPLL can stay in integer mode */
     new_freq = (new_freq + 11999999) / 12000000 * 12000000;
-
-    if (new_freq < PLL_MIN_CCO_FREQ/16)
-        new_freq = PLL_MIN_CCO_FREQ/16;
-    if (new_freq > MAX_CLOCK_FREQ)
-        new_freq = MAX_CLOCK_FREQ;
 
     if (current_freq == new_freq)
         return;
