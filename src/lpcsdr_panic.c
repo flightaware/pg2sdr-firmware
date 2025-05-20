@@ -171,10 +171,6 @@ void PendSV_Handler(void)
 {
     lpcsdr_panic(MORSE_P);
 }
-void SysTick_Handler(void)
-{
-    lpcsdr_panic(MORSE_T);
-}
 
 /* We can't directly override IntDefaultHandler because of how cr_startup does symbol aliasing;
  * instead, we do the minimum change necessary in cr_startup to have its IntDefaultHandler call `lpcsdr_unexpected_interrupt` instead

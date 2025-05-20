@@ -9,6 +9,24 @@
 /* current M4 frequency, Hz */
 static uint32_t current_freq;
 
+/* number of M4 clock cycles per systick interrupt */
+#define SYSTICK_INTERVAL 1000000
+
+/* number of systick interrupts per measurement period */
+#define SYSTICK_MAX_COUNT 500
+
+/* number of systick interrupts processed so far in the current measurement period */
+static uint32_t systick_count;
+
+/* total idle CPU cycles in last & current measurement period */
+static volatile uint32_t idle_cycles_last;
+static uint32_t idle_cycles;
+static volatile uint32_t idle_cycles_accumulator; /* updated by lpcsdr_m4clock_wfi() */
+
+/* min idle CPU cycles in last & current measurement period */
+static volatile uint32_t min_idle_cycles_last;
+static uint32_t min_idle_cycles;
+
 void lpcsdr_m4clock_init()
 {
     /* switch the M4 clock to use the crystal immediately */
@@ -18,6 +36,28 @@ void lpcsdr_m4clock_init()
 
     /* reset internal state, initialize timers */
     lpcsdr_m4clock_set_freq(48000000);
+
+    /* start systick */
+    SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk;   /* use processor clock source, do generate interrupts */
+    SysTick->LOAD = SYSTICK_INTERVAL - 1;
+}
+
+void SysTick_Handler(void)
+{
+    if (idle_cycles_accumulator < min_idle_cycles)
+        min_idle_cycles = idle_cycles_accumulator;
+
+    idle_cycles += idle_cycles_accumulator;
+    idle_cycles_accumulator = 0;
+
+    if (++systick_count >= SYSTICK_MAX_COUNT) {
+        /* end of this measurement period, update last values from current values, reset current values */
+        systick_count = 0;
+        idle_cycles_last = idle_cycles;
+        min_idle_cycles_last = min_idle_cycles;
+        idle_cycles = 0;
+        min_idle_cycles = SYSTICK_INTERVAL;
+    }
 }
 
 void lpcsdr_m4clock_set_freq(uint32_t new_freq)
@@ -39,7 +79,33 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq)
     StopWatch_Init();
     lpcsdr_i2c_clock_update();
 
+    WITH_DISABLED_INTERRUPTS {
+        systick_count = 0;
+        idle_cycles_last = idle_cycles = 0;
+        min_idle_cycles_last = min_idle_cycles = SYSTICK_INTERVAL;
+        SysTick->VAL = 0;                   /* restart SysTick */
+    }
+}
+
 void lpcsdr_m4clock_status(ep0_in_board_status_t *status)
 {
     status->m4_freq = current_freq;
+    status->m4_mean_idle = idle_cycles_last;
+    status->m4_mean_idle_scale = SYSTICK_INTERVAL * SYSTICK_MAX_COUNT;
+    status->m4_min_idle = min_idle_cycles_last;
+    status->m4_min_idle_scale = SYSTICK_INTERVAL;
+}
+
+void lpcsdr_m4clock_wfi()
+{
+    /* called with interrupts disabled! */
+    uint32_t start_systick = SysTick->VAL;
+    __DSB(); /* v7-M architecture requirement, but not strictly necessary on M0/M4 */
+    __WFI();
+    uint32_t end_systick = SysTick->VAL;
+
+    if (start_systick > end_systick)
+        idle_cycles_accumulator = idle_cycles_accumulator + start_systick - end_systick;
+    else
+        idle_cycles_accumulator = idle_cycles_accumulator + start_systick + SYSTICK_INTERVAL - end_systick;
 }

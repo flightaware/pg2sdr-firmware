@@ -1,6 +1,7 @@
 #include "lpcsdr_uart.h"
 #include "lpcsdr_common.h"
 #include "lpcsdr_panic.h"
+#include "lpcsdr_m4clock.h"
 #include "chip.h"
 #include <stdarg.h>
 
@@ -91,8 +92,7 @@ void lpcsdr_uart_flush()
             /* Ring/FIFO are empty but shift register is not empty, busy-wait until TEMT is set */
         } else {
             /* Ring or FIFO are not empty, sleep until interrupt */
-            __DSB(); /* v7-M architecture requirement, but not strictly necessary on M0/M4 */
-            __WFI();
+            lpcsdr_m4clock_wfi();
         }
 
         /* let pending interrupts execute */

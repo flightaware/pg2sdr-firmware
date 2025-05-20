@@ -4,6 +4,7 @@
 #include "chip.h"
 
 #include "lpcsdr_common.h"
+#include "lpcsdr_m4clock.h"
 
 void lpcsdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
 {
@@ -114,8 +115,9 @@ void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
         lpcsdr_ipc_receive(m4_to_m4_mailbox, handler);
         lpcsdr_ipc_receive(m0_to_m4_mailbox, handler);
         __disable_irq();
-        if (!m4_wakeup_requested)
-            __WFI();
+        if (!m4_wakeup_requested) {
+            lpcsdr_m4clock_wfi();
+        }
         m4_wakeup_requested = false;
         Chip_WWDT_Feed(LPC_WWDT);
         __enable_irq();
