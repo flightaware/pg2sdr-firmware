@@ -360,3 +360,8 @@ void lpcsdr_hsadc_set_config(bool dcinpos, bool dcinneg, bool twos)
         LPC_ADCHS->POWER_CONTROL = control;
     }
 }
+
+uint32_t lpcsdr_hsadc_get_sampling_rate()
+{
+    return hsadc_frequency;
+}
