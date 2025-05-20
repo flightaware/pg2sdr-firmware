@@ -22,10 +22,10 @@
 #include "lpcsdr_protocol.h"
 #include "lpcsdr_uart.h"
 #include "lpcsdr_panic.h"
+#include "lpcsdr_m4clock.h"
 #include <string.h>
 
 static bool bulk_test_mode = false;
-static bool fast_cpu = false;
 static bool rf_power = false;
 
 #define USB_BLOCK_SIZE ALIGN_TO(sizeof(ep1_header_t) + (HSADC_BUFFER_SIZE * 3 / 4), 512)
@@ -187,39 +187,10 @@ static void m4_queue_test_data()
     }
 }
 
-static void handle_clock_change(void)
+static void update_cpu_speed(void)
 {
-    SystemCoreClockUpdate();
-    StopWatch_Init();
-    lpcsdr_i2c_clock_update();
-}
-
-static void setup_clocks(void)
-{
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
-    Chip_Clock_SetBaseClock(CLK_BASE_APB1, CLKIN_MAINPLL, true, false);
-    Chip_Clock_SetBaseClock(CLK_BASE_APB3, CLKIN_MAINPLL, true, false);
-    handle_clock_change();
-}
-
-static void set_slow_cpu(void)
-{
-    if (!fast_cpu)
-        return;
-
-    fast_cpu = false;
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, 48000000, false);
-    handle_clock_change();
-}
-
-static void set_fast_cpu(void)
-{
-    if (fast_cpu)
-        return;
-
-    fast_cpu = true;
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, 110000000, false);
-    handle_clock_change();
+    uint32_t hsadc_frequency = lpcsdr_hsadc_get_sampling_rate();
+    lpcsdr_m4clock_set_freq(hsadc_frequency * 5);
 }
 
 static void set_rf_power_off(void)
@@ -390,8 +361,6 @@ static bool process_ep0_in(const ipc_message_t *message)
     case EP0_IN_BOARD_STATUS: {
         /* Fill in the state we know of directly */
         ep0_in_board_status_t *result = (ep0_in_board_status_t *)buf;
-        if (fast_cpu)
-            result->flags |= STATUS_FAST_CPU;
         if (lpcsdr_read_sw1())
             result->flags |= STATUS_SW1_USBBOOT;
         if (!lpcsdr_read_sw2())
@@ -546,7 +515,7 @@ static bool process_ep0_out(const ipc_message_t *message)
             return false;
         }
 
-        set_fast_cpu();
+        update_cpu_speed();
         lpcsdr_dma_hsadc_start();
         lpcsdr_usb_ep1_enable();
         return true;
@@ -558,7 +527,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         lpcsdr_usb_ep1_disable();
         lpcsdr_hsadc_conversion_stop();
         lpcsdr_hsadc_clock_stop();
-        set_slow_cpu();
+        update_cpu_speed();
         return true;
 
     case EP0_OUT_SET_RF_POWER:
@@ -705,8 +674,7 @@ static void m4_handle_message(const ipc_message_t *message)
 }
 
 int main(void) {
-    setup_clocks();
-
+    lpcsdr_m4clock_init();
     lpcsdr_uart_init();
     lpcsdr_diagnose_reset();
     lpcsdr_gpio_init();

@@ -34,7 +34,7 @@ typedef struct {
 } ep0_in_flash_unique_id_t;
 
 /* Various status flags */
-#define STATUS_FAST_CPU      1  /* CPU is running at fast speed */
+/* #define STATUS_FAST_CPU      1 */ /* CPU is running at fast speed */
 #define STATUS_SW1_USBBOOT   2  /* SW1 is closed (boot-from-USB mode) */
 #define STATUS_SW2_PRESSED   4  /* SW2 is depressed */
 #define STATUS_RF_POWER_ON   8  /* RF power is on */
