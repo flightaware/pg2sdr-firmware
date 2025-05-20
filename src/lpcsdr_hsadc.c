@@ -207,6 +207,10 @@ void lpcsdr_hsadc_clock_stop(void)
 
 void lpcsdr_hsadc_init()
 {
+    /* Enable CLK0/CLK2 for ADC clock measurement */
+    Chip_SCU_ClockPinMuxSet(0, SCU_MODE_FUNC1 | SCU_MODE_INACT);
+    Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
+
     /* Enable register clock, reset ADC */
     Chip_Clock_EnableOpts(CLK_MX_ADCHS, true, true, 1);
     Chip_RGU_TriggerReset(RGU_ADCHS_RST);

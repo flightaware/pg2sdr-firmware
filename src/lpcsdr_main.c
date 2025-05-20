@@ -200,10 +200,6 @@ static void setup_clocks(void)
     Chip_Clock_SetBaseClock(CLK_BASE_APB1, CLKIN_MAINPLL, true, false);
     Chip_Clock_SetBaseClock(CLK_BASE_APB3, CLKIN_MAINPLL, true, false);
     handle_clock_change();
-
-    /* enable CLK0/CLK2 for ADC clock measurement */
-    Chip_SCU_ClockPinMuxSet(0, SCU_MODE_FUNC1 | SCU_MODE_INACT);
-    Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
 }
 
 static void set_slow_cpu(void)
