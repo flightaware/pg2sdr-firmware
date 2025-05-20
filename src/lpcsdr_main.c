@@ -376,6 +376,7 @@ static bool process_ep0_in(const ipc_message_t *message)
         lpcsdr_dma_status(result);
         lpcsdr_usb_status(result);
         lpcsdr_tuner_status(result);
+        lpcsdr_m4clock_status(result);
 
         /* measure base clock frequencies (takes about 20ms per clock, so we only do this if requested) */
         if (valueAndIndex != 0) {

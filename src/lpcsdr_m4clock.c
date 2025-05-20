@@ -38,4 +38,8 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq)
     SystemCoreClockUpdate();
     StopWatch_Init();
     lpcsdr_i2c_clock_update();
+
+void lpcsdr_m4clock_status(ep0_in_board_status_t *status)
+{
+    status->m4_freq = current_freq;
 }
