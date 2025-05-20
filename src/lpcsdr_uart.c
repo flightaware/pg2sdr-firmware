@@ -92,7 +92,8 @@ void lpcsdr_uart_flush()
             /* Ring/FIFO are empty but shift register is not empty, busy-wait until TEMT is set */
         } else {
             /* Ring or FIFO are not empty, sleep until interrupt */
-            lpcsdr_m4clock_wfi();
+            __DSB(); /* v7-M architecture requirement, but not strictly necessary on M0/M4 */
+            __WFI();
         }
 
         /* let pending interrupts execute */
