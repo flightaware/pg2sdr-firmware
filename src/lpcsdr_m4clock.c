@@ -17,7 +17,7 @@ static uint32_t current_freq;
 #define SYSTICK_INTERVAL 1000000
 
 /* number of systick interrupts per measurement period */
-#define SYSTICK_MAX_COUNT 500
+static uint32_t systick_max_count;
 
 /* number of systick interrupts processed so far in the current measurement period */
 static uint32_t systick_count;
@@ -54,7 +54,7 @@ void SysTick_Handler(void)
     idle_cycles += idle_cycles_accumulator;
     idle_cycles_accumulator = 0;
 
-    if (++systick_count >= SYSTICK_MAX_COUNT) {
+    if (++systick_count >= systick_max_count) {
         /* end of this measurement period, update last values from current values, reset current values */
         systick_count = 0;
         idle_cycles_last = idle_cycles;
@@ -85,6 +85,7 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq)
 
     WITH_DISABLED_INTERRUPTS {
         systick_count = 0;
+        systick_max_count = current_freq / SYSTICK_INTERVAL;  /* update once a second */
         idle_cycles_last = idle_cycles = 0;
         min_idle_cycles_last = min_idle_cycles = SYSTICK_INTERVAL;
         SysTick->VAL = 0;                   /* restart SysTick */
@@ -95,7 +96,7 @@ void lpcsdr_m4clock_status(ep0_in_board_status_t *status)
 {
     status->m4_freq = current_freq;
     status->m4_mean_idle = idle_cycles_last;
-    status->m4_mean_idle_scale = SYSTICK_INTERVAL * SYSTICK_MAX_COUNT;
+    status->m4_mean_idle_scale = SYSTICK_INTERVAL * systick_max_count;
     status->m4_min_idle = min_idle_cycles_last;
     status->m4_min_idle_scale = SYSTICK_INTERVAL;
 }
