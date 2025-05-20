@@ -219,30 +219,30 @@ static void set_rf_power_on(void)
  * This produces a frequency estimate relative to the internal IRC 12MHz clock.
  *
  * clkin: the CLKIN_* constant for the clock input to measure (should be a real clock input, not CLKINPUT_PD)
- * cycles: approximate number of IRC clock cycles to measure over
  * *rcnt_sum: on return, total number of clock cycles of the IRC clock seen over the measurement period
  * *fcnt_sum: on return, total number of clock cycles of the measured input seen over the measurement period
  *
  * The measured clock frequency is approximately (12e6 * (*fcnt_sum) / (*rcnt_sum))
  */
-static void measure_frequency_raw(CHIP_CGU_CLKIN_T clkin, uint32_t cycles, uint32_t *rcnt_sum, uint32_t *fcnt_sum)
+static void measure_frequency_vs_irc(CHIP_CGU_CLKIN_T clkin, uint32_t *rcnt_sum, uint32_t *fcnt_sum)
 {
     uint32_t r_sum = 0, f_sum = 0;
-
     uint32_t rcnt_initial = 0x1FF;
-    while (r_sum < cycles) {
+    uint32_t timeout_ticks = StopWatch_MsToTicks(5); /* Measure over 5ms */
+    uint32_t start_ticks = StopWatch_Start();
+
+    while (StopWatch_Elapsed(start_ticks) < timeout_ticks) {
         LPC_CGU->FREQ_MON =
                 rcnt_initial | /* RCNT */
                 ((clkin & 0x1F) << 24); /* CLK_SEL */
-        for (int delay = 100; delay; --delay)
-            ;
+        StopWatch_DelayUs(5);
         LPC_CGU->FREQ_MON |= _BIT(23); /* set MEAS */
 
-        unsigned timeout = 200000;
+        uint32_t start_ticks = StopWatch_Start();
         uint32_t stat;
-        while ( ((stat = LPC_CGU->FREQ_MON) & _BIT(23)) && --timeout )
+        while ( ((stat = LPC_CGU->FREQ_MON) & _BIT(23)) && StopWatch_Elapsed(start_ticks) < timeout_ticks )
             __NOP();
-        if (!timeout)
+        if (stat & _BIT(23))
             break;
 
         uint32_t rcnt = rcnt_initial - (stat & 0x1FF);
@@ -272,12 +272,23 @@ static void measure_frequency_raw(CHIP_CGU_CLKIN_T clkin, uint32_t cycles, uint3
     *fcnt_sum = f_sum;
 }
 
+static uint32_t irc_xtal_rcnt, irc_xtal_fcnt;
+
+/* Update the IRC calibration used by measure_frequency
+ * by measuring the presumed-to-be-accurate 12MHz crystal input
+ * against the IRC clock.
+ */
+static void calibrate_irc()
+{
+    measure_frequency_vs_irc(CLKIN_CRYSTAL, &irc_xtal_rcnt, &irc_xtal_fcnt);
+}
+
 /* Measure the frequency of a given clock input, using the 12MHz crystal oscillator
  * as a reference.
  *
- * This measures both the crystal oscillator and the requested clock input against
- * the internal IRC clock using measure_frequency_raw, then returns an adjusted
- * measurement assuming that the crystal is at exactly 12MHz.
+ * The internal reference is actually the IRC clock, and we then adjust for the
+ * frequency of that versus the crystal (assuming that the crystal is more accurate
+ * than the IRC clock)
  *
  * Returns a frequency in Hz, or 0 if something went wrong
  */
@@ -288,17 +299,15 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin)
     if (clkin == CLKIN_CRYSTAL)
         return 12000000; /* by definition */
 
-    uint32_t rcnt_xtal, fcnt_xtal;
-    measure_frequency_raw(CLKIN_CRYSTAL, 250, &rcnt_xtal, &fcnt_xtal);
-    if (!fcnt_xtal)
-        return 0;
-
     uint32_t rcnt, fcnt;
-    measure_frequency_raw(clkin, 250, &rcnt, &fcnt);
+    measure_frequency_vs_irc(clkin, &rcnt, &fcnt);
     if (!rcnt)
         return 0;
 
-    return (uint32_t) (12000000.0 * fcnt / rcnt * rcnt_xtal / fcnt_xtal);
+    if (irc_xtal_fcnt)
+        return (uint32_t) (12000000.0 * fcnt / rcnt * irc_xtal_rcnt / irc_xtal_fcnt);
+    else
+        return (uint32_t) (12000000.0 * fcnt / rcnt);
 }
 
 /* Process an EP0 IN control transfer described in `message`;
@@ -378,8 +387,9 @@ static bool process_ep0_in(const ipc_message_t *message)
         lpcsdr_tuner_status(result);
         lpcsdr_m4clock_status(result);
 
-        /* measure base clock frequencies (takes about 20ms per clock, so we only do this if requested) */
+        /* measure base clock frequencies (takes about 5ms per clock, so we only do this if requested) */
         if (valueAndIndex != 0) {
+            calibrate_irc();
             result->clock_32k = measure_frequency(CLKIN_32K);
             result->clock_irc = measure_frequency(CLKIN_IRC);
             result->clock_pll0usb = measure_frequency(CLKIN_USBPLL);
