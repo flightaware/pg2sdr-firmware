@@ -339,6 +339,7 @@ static bool process_ep0_in(const ipc_message_t *message)
 
     case EP0_IN_FLASH_DEVICE_ID: {
         /* SPI: read manufacturer/device ID */
+        debug_printf("< FLASH_DEVICE_ID\r\n");
         ep0_in_flash_device_id_t *result = (ep0_in_flash_device_id_t *)buf;
         lpcsdr_spifi_read_manufacturer_device_id(&result->device_id);
         return true;
@@ -346,6 +347,7 @@ static bool process_ep0_in(const ipc_message_t *message)
 
     case EP0_IN_FLASH_UNIQUE_ID: {
         /* SPI: read unique ID */
+        debug_printf("< FLASH_UNIQUE_ID\r\n");
         ep0_in_flash_unique_id_t *result = (ep0_in_flash_unique_id_t *)buf;
         lpcsdr_spifi_read_unique_id(&result->unique_id);
         return true;
@@ -353,6 +355,7 @@ static bool process_ep0_in(const ipc_message_t *message)
 
     case EP0_IN_FLASH_READ:
         /* SPI: read data */
+        debug_printf("< FLASH_READ(0x%06x, <%u bytes>)\r\n", valueAndIndex, length);
         if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
             return false;
 
@@ -361,6 +364,7 @@ static bool process_ep0_in(const ipc_message_t *message)
 
     case EP0_IN_FLASH_READ_QUAD:
         /* SPI: read data, quad */
+        debug_printf("< FLASH_READ_QUAD(0x%06x, <%u bytes>)\r\n", valueAndIndex, length);
         if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
             return false;
 
@@ -368,8 +372,9 @@ static bool process_ep0_in(const ipc_message_t *message)
         return true;
 
     case EP0_IN_BOARD_STATUS: {
-        /* Fill in the state we know of directly */
         ep0_in_board_status_t *result = (ep0_in_board_status_t *)buf;
+
+        /* Fill in the state we know of directly */
         if (lpcsdr_read_sw1())
             result->flags |= STATUS_SW1_USBBOOT;
         if (!lpcsdr_read_sw2())
@@ -407,10 +412,13 @@ static bool process_ep0_in(const ipc_message_t *message)
 
     case EP0_IN_MEMORY_READ:
         /* read arbitrary area of memory */
+        debug_printf("< MEMORY_READ(0x%08x, <%u bytes>)\r\n", valueAndIndex, length);
         memcpy(buf, (uint8_t*) valueAndIndex, length);
         return true;
 
     case EP0_IN_TUNER_READ: {
+        debug_printf("< TUNER_READ(%u..%u, mode=%u)\r\n", value, value + length - 1, index);
+
         /* read tuner regs; value = first reg to read; index = cache mode (0=use cache if possible, 1=bypass cache, 2=refresh cache) */
         if (value >= 32 || (value + length) > 32) {
             /* out of range */
@@ -476,9 +484,6 @@ static bool process_ep0_in(const ipc_message_t *message)
  */
 static void m4_usb_ep0_in(const ipc_message_t *message)
 {
-    debug_printf("ep0 in (type=%02x, index=%02x, value=%02x, length=%u): ",
-                 message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
-
     uint32_t requested_length = message->values[2];
     if (requested_length > sizeof lpcsdr_usb_control_buffer) {
         lpcsdr_usb_ep0_stall();
@@ -487,12 +492,12 @@ static void m4_usb_ep0_in(const ipc_message_t *message)
 
     memset(lpcsdr_usb_control_buffer, 0, sizeof lpcsdr_usb_control_buffer);
     if (!process_ep0_in(message)) {
-        debug_printf("STALL\r\n");
+        debug_printf("EP0 in: control transfer stall, type=%02x index=%02x value=%02x length=%u\r\n",
+                    message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
         lpcsdr_usb_ep0_stall();
         return;
     }
 
-    debug_printf("returning %u bytes\r\n", requested_length);
     lpcsdr_usb_ep0_data_in(lpcsdr_usb_control_buffer, requested_length);
 }
 
@@ -516,6 +521,7 @@ static bool process_ep0_out(const ipc_message_t *message)
     }
 
     case EP0_OUT_FLASH_WRITE:
+        debug_printf("> FLASH_WRITE(0x%06x,<%u bytes>)\r\n", valueAndIndex, length);
         /* SPI: write data */
         if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
             return false;
@@ -527,6 +533,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         return (lpcsdr_spifi_page_program(valueAndIndex, buf, length) == LPC_OK);
 
     case EP0_OUT_FLASH_ERASE:
+        debug_printf("> FLASH_ERASE(0x%06x)\r\n", valueAndIndex);
         /* SPI: erase sector */
         if (valueAndIndex > 0x00FFFFFF || (valueAndIndex & 0x0FFF) != 0)
             return false;
@@ -539,6 +546,11 @@ static bool process_ep0_out(const ipc_message_t *message)
             return false;
 
         ep0_out_start_transfer_t *param = (ep0_out_start_transfer_t *) buf;
+        debug_printf("> START_TRANSFER(N=%u,M=%u,P=%u,I=%u)\r\n",
+                     param->n_divisor,
+                     param->m_divisor,
+                     param->p_divisor,
+                     param->idiv_divisor);
         if (!lpcsdr_hsadc_clock_start(param->n_divisor,
                                       param->m_divisor,
                                       param->p_divisor,
@@ -558,6 +570,7 @@ static bool process_ep0_out(const ipc_message_t *message)
 
     case EP0_OUT_STOP_TRANSFER:
         /* Stop ADC conversion & bulk transfer */
+        debug_printf("> STOP_TRANSFER\r\n");
         lpcsdr_dma_hsadc_stop();
         lpcsdr_usb_ep1_disable();
         lpcsdr_hsadc_conversion_stop();
@@ -566,6 +579,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         return true;
 
     case EP0_OUT_SET_RF_POWER:
+        debug_printf("> SET_RF_POWER(%u)\r\n", valueAndIndex);
         switch (valueAndIndex) {
         case 0: /* RF power off */
             set_rf_power_off();
@@ -586,11 +600,13 @@ static bool process_ep0_out(const ipc_message_t *message)
         }
 
     case EP0_OUT_TUNER_WRITE: {
+        debug_printf("> TUNER_WRITE(%u..%u)\r\n", valueAndIndex, valueAndIndex+length-1);
         /* write tuner regs starting at valueAndIndex */
         return lpcsdr_tuner_write_regs(valueAndIndex, buf, length);
     }
 
     case EP0_OUT_TUNER_UPDATE: {
+        debug_printf("> TUNER_UPDATE(%u..%u)\r\n", valueAndIndex, valueAndIndex+length/2-1);
         /* selective tuner reg update
          * first half of data contains new bit values to set
          * second half of data indicates which bits to apply changes to
@@ -605,17 +621,17 @@ static bool process_ep0_out(const ipc_message_t *message)
 
     case EP0_OUT_RESET: {
         /* ack, then delay a bit before the reset to give the host a chance to see the ack */
-        debug_printf("Preparing to reset.. ");
+        debug_printf("> RESET\r\n");
         lpcsdr_usb_ep0_out_ack();
         StopWatch_DelayMs(250);
-        debug_printf("resetting now.\r\n");
+        debug_printf("Resetting now.\r\n");
         lpcsdr_uart_flush();
         lpcsdr_reset();
         /* not reached */
     }
 
     case EP0_OUT_WATCHDOG_TEST: {
-        debug_printf("sleeping for a long time to trigger WDT: ");
+        debug_printf("> WATCHDOG_TEST\r\n");
         for (unsigned i = 0; i < 100; ++i) {
             debug_printf("%u ", i);
             StopWatch_DelayMs(100);
@@ -626,7 +642,7 @@ static bool process_ep0_out(const ipc_message_t *message)
 
     case EP0_OUT_UART_TEST: {
         /* run UART tests */
-        debug_printf("basic UART tests:\r\n");
+        debug_printf("> UART_TEST\r\n");
 
         lpcsdr_uart_write(">123456<", 8);            /* write < FIFO size */
         lpcsdr_uart_flush();
@@ -662,6 +678,7 @@ static bool process_ep0_out(const ipc_message_t *message)
     }
 
     case EP0_OUT_CONFIG_ADC: {
+        debug_printf("> CONFIG_ADC(%u)\r\n", valueAndIndex);
         lpcsdr_hsadc_set_config(valueAndIndex & 1, valueAndIndex & 2, valueAndIndex & 4);
         return true;
     }
@@ -675,14 +692,11 @@ static bool process_ep0_out(const ipc_message_t *message)
 
 static void m4_usb_ep0_out(const ipc_message_t *message)
 {
-    debug_printf("ep0 out (type=%02x, index=%02x, value=%02x, length=%u): ",
-                 message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
-
     if (process_ep0_out(message)) {
-        debug_printf("ACK\r\n");
         lpcsdr_usb_ep0_out_ack();
     } else {
-        debug_printf("STALL\r\n");
+        debug_printf("EP0 out: control transfer stall, type=%02x index=%02x value=%02x length=%u\r\n",
+                     message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
         lpcsdr_usb_ep0_stall();
     }
 }
