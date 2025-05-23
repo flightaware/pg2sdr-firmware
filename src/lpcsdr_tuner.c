@@ -1,5 +1,6 @@
 #include "lpcsdr_tuner.h"
 #include "lpcsdr_gpio.h"
+#include "lpcsdr_uart.h"
 
 #include "chip.h"
 #include "stopwatch.h"
@@ -47,6 +48,18 @@ static void update_tuner_led()
 
 static bool handle_i2c_error(int status)
 {
+    const char *err;
+    switch (status) {
+    case I2C_STATUS_DONE:     err = "DONE (?!)"; break;
+    case I2C_STATUS_NAK:      err = "NAK"; break;
+    case I2C_STATUS_ARBLOST:  err = "ARBLOST"; break;
+    case I2C_STATUS_BUSERR:   err = "BUSERR"; break;
+    case I2C_STATUS_BUSY:     err = "BUSY"; break;
+    case I2C_STATUS_SLAVENAK: err = "SLAVENAK"; break;
+    default:                  err = "(unknown)"; break;
+    }
+
+    debug_printf("tuner: I2C error! status=%u (%s)\r\n", status, err);
     i2c_error = status;
     shadow_is_valid = false;
     update_tuner_led();
@@ -91,27 +104,35 @@ bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
         return true;
     }
 
-    I2C_XFER_T xfer = {0};
-    xfer.slaveAddr = R860T_I2C_ADDR;
-    xfer.rxBuff = regs;
-    xfer.rxSz = count;
+    int status;
+    for (uint32_t retry = 0; retry < 3; ++retry) {
+        if (retry) {
+            debug_printf("tuner: retry failed I2C read (#%u)\n\r", retry);
+        }
+        I2C_XFER_T xfer = {0};
+        xfer.slaveAddr = R860T_I2C_ADDR;
+        xfer.rxBuff = regs;
+        xfer.rxSz = count;
 
-    int status = Chip_I2C_MasterTransfer(I2C0, &xfer);
-    if (status != I2C_STATUS_DONE) {
-        return handle_i2c_error(status);
+        status = Chip_I2C_MasterTransfer(I2C0, &xfer);
+        if (status != I2C_STATUS_DONE)
+            continue;
+
+        if (xfer.rxSz) {
+            /* short read */
+            status = I2C_STATUS_NAK;
+            continue;
+        }
+
+        // The R860T returns register values bit-reversed (because what's one more weird thing), unreverse the values
+        for (unsigned i = 0; i < count; ++i) {
+            regs[i] = bitreverse(regs[i]);
+        }
+
+        return true;
     }
 
-    if (xfer.rxSz) {
-        /* short read */
-        return handle_i2c_error(I2C_STATUS_NAK);
-    }
-
-    // The R860T returns register values bit-reversed (because what's one more weird thing), unreverse the values
-    for (unsigned i = 0; i < count; ++i) {
-        regs[i] = bitreverse(regs[i]);
-    }
-
-    return true;
+    return handle_i2c_error(status);
 }
 
 // write registers first .. first+count-1 using values from regs[0] .. regs[count-1]
@@ -133,26 +154,35 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
         return false;
     }
 
-    uint8_t buf[28];
-    buf[0] = first;
-    memcpy(buf + 1, regs, count);
+    int status;
+    for (uint32_t retry = 0; retry < 3; ++retry) {
+        if (retry) {
+            debug_printf("tuner: retry failed I2C write (#%u)\n\r", retry);
+        }
 
-    I2C_XFER_T xfer = {0};
-    xfer.slaveAddr = R860T_I2C_ADDR;
-    xfer.txBuff = buf;
-    xfer.txSz = count + 1;
+        uint8_t buf[28];
+        buf[0] = first;
+        memcpy(buf + 1, regs, count);
 
-    int status = Chip_I2C_MasterTransfer(I2C0, &xfer);
-    if (status != I2C_STATUS_DONE) {
-        return handle_i2c_error(status);
+        I2C_XFER_T xfer = {0};
+        xfer.slaveAddr = R860T_I2C_ADDR;
+        xfer.txBuff = buf;
+        xfer.txSz = count + 1;
+
+        status = Chip_I2C_MasterTransfer(I2C0, &xfer);
+        if (status != I2C_STATUS_DONE)
+            continue;
+
+        if (xfer.txSz) {
+            /* short write */
+            status = I2C_STATUS_NAK;
+            continue;
+        }
+
+        return true;
     }
 
-    if (xfer.txSz) {
-        /* short write */
-        return handle_i2c_error(I2C_STATUS_NAK);
-    }
-
-    return true;
+    return handle_i2c_error(status);
 }
 
 // Read one register, directly for R0..R4 or from our shadow copy for others
