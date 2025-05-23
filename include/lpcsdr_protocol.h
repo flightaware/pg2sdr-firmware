@@ -16,6 +16,7 @@ typedef enum {
     EP0_IN_MEMORY_READ = 0x0B,        /* read arbitrary memory; valueAndIndex = start address */
     EP0_IN_TUNER_READ = 0x0C,         /* read tuner regs; value = first reg to read; index = cache mode (0=use cache if possible, 1=bypass cache, 2=refresh cache) */
     EP0_IN_BOARD_STATUS = 0x0D,       /* read misc board status; valueAndIndex != 0 to also measure clock frequencies (takes longer) */
+    EP0_IN_TUNER_LOCK = 0x0E,         /* update vco_current, wait for PLL to lock, return PLL status. value = vco_current to set (0..7), index = timeout in ms */
 } ep0_in_request_t;
 
 /* structures returned from IN transfers */
@@ -107,6 +108,10 @@ typedef struct {
     uint32_t clock_idiv_e;
 } ep0_in_board_status_t;
 
+
+typedef struct {
+    uint8_t pll_locked;    /* 0 = not locked, 1 = locked */
+} ep0_in_tuner_lock_t;
 
 /* vendor requests, OUT (host -> lpc) */
 typedef enum {

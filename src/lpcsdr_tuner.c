@@ -348,3 +348,43 @@ void lpcsdr_tuner_status(ep0_in_board_status_t *status)
             status->flags |= STATUS_TUNER_PLL_LOCK;
     }
 }
+
+/* Update vco_current and wait for PLL lock
+ * Returns:
+ *    1 - PLL now has lock
+ *    0 - PLL did not lock within timeout
+ *   <0 - error communicating with the tuner
+ */
+int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
+{
+    /* ensure reg_shadow is valid */
+    if (!shadow_is_valid && !lpcsdr_tuner_shadow_from_chip()) {
+        return -1;
+    }
+
+    /* update vco_current (reg 18, bits 7..5) if necessary */
+    uint8_t new_18 = (reg_shadow[18] & ~0xE0) | ((vco_current << 5) & 0xE0);
+    if (reg_shadow[18] != new_18) {
+        reg_shadow[18] = new_18;
+        if (!lpcsdr_tuner_write_regs_direct(18, reg_shadow + 18, 1))
+            return -1;
+    }
+
+    /* poll the tuner, waiting for lock */
+    uint32_t timeout_ticks = StopWatch_MsToTicks(timeout);
+    uint32_t start_ticks = StopWatch_Start();
+    do {
+
+        /* read reg 2 for PLL lock status */
+        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, 3))
+            return -1;
+        if (reg_shadow[2] & 0x40) {
+            debug_printf("tuner: PLL lock with vco_current=%u in %u us\r\n", vco_current, StopWatch_TicksToUs(StopWatch_Elapsed(start_ticks)));
+            return 1; /* PLL has lock */
+        }
+    } while (StopWatch_Elapsed(start_ticks) < timeout_ticks);
+
+    /* timeout */
+    debug_printf("tuner: PLL lock with vco_current=%u timed out\r\n", vco_current);
+    return 0;
+}

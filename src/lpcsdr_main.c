@@ -437,6 +437,30 @@ static bool process_ep0_in(const ipc_message_t *message)
         }
     }
 
+    case EP0_IN_TUNER_LOCK: {
+        debug_printf("< TUNER_LOCK(vco=%u,timeout=%u)\r\n", value, index);
+
+        if (value > 7) {
+            /* bad vco_current */
+            return false;
+        }
+
+        if (index > 500) {
+            /* timeout too large */
+            return false;
+        }
+
+        int lock = lpcsdr_tuner_lock(value, index);
+        if (lock < 0) {
+            /* I2C communication error */
+            return false;
+        }
+
+        ep0_in_tuner_lock_t *result = (ep0_in_tuner_lock_t *)buf;
+        result->pll_locked = lock ? 1 : 0;
+        return true;
+    }
+
     default:
         return false;
     }

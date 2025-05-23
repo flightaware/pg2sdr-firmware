@@ -31,6 +31,11 @@ bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned coun
  */
 bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count);
 
+/* write a given value to vco_current, then wait for up to "timeout" ms for PLL lock
+ * returns 0 (PLL not locked), 1 (PLL locked), or <0 (communication error)
+ */
+int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout);
+
 void lpcsdr_tuner_status(ep0_in_board_status_t *status);
 
 #endif /* LPCSDR_TUNER_H */
