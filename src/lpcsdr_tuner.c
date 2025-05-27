@@ -76,7 +76,7 @@ void lpcsdr_tuner_init(void)
 
 void lpcsdr_i2c_clock_update(void)
 {
-    Chip_I2C_SetClockRate(I2C0, 100000);
+    Chip_I2C_SetClockRate(I2C0, 400000);
 }
 
 /* bit-reverse a single byte */
