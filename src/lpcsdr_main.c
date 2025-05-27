@@ -631,7 +631,9 @@ static bool process_ep0_out(const ipc_message_t *message)
     }
 
     case EP0_OUT_WATCHDOG_TEST: {
+        /* ack first, to give the host a chance to see the ack before we reset */
         debug_printf("> WATCHDOG_TEST\r\n");
+        lpcsdr_usb_ep0_out_ack();
         for (unsigned i = 0; i < 100; ++i) {
             debug_printf("%u ", i);
             StopWatch_DelayMs(100);
