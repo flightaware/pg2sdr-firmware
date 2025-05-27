@@ -9,10 +9,9 @@ def main():
         print('no lpcsdr device found')
         return 1
 
-    dev.comms_check()
-    print('comms check was okay')
+    dev.watchdog_test()
+    print('triggered watchdog tests')
     return 0
 
 if __name__ == '__main__':
     sys.exit(main())
-

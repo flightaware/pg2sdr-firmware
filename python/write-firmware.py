@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-import lpcsdr_device
+import lpcsdr.device
 import argparse
 
 empty_page = b'\xFF' * 256
@@ -67,18 +67,28 @@ def write_sector(dev, sector_address, blob, force):
         print(f'Programming page {address:08x}..{address+page_len-1:08x}')
         dev.flash_write(address, blob[offset:offset+page_len])
 
+    return (needs_erase or needs_write)
+
 def write_firmware(dev, path, force):
+    print(f'Writing firmware from {path} to flash..')
+    changes = 0
     with open(path, 'rb') as f:
         address = 0
         while True:
             sector = f.read(4096)
             if len(sector) > 0:
-                write_sector(dev, address, sector, force)
+                if write_sector(dev, address, sector, force):
+                    changes += 1
             if len(sector) < 4096:
                 break
             address += len(sector)
+    if changes:
+        print(f'Updated {changes} sectors')
+    else:
+        print('Existing flash contents match the firmware file, no changes written')
 
 def verify_firmware(dev, path):
+    print('Verifying..')
     with open(path, 'rb') as f:
         address = 0
         while True:
@@ -88,13 +98,13 @@ def verify_firmware(dev, path):
                 if page != existing:
                     for i in range(len(page)):
                         if page[i] != existing[i]:
-                            print(f'Verify failed, first mismatch at 0x{address+i:04X}')
+                            print(f'Page verify failed, first mismatch at 0x{address+i:04X}')
                             print(page.hex())
                             print(existing.hex())
                             break
                     else:
                         print(f"Verify failed somewhere around 0x{address:04X} but I couldn't find the exact address??")
-                    #return False
+                    return False
             if len(page) < 256:
                 break
             address += len(page)
@@ -121,7 +131,7 @@ def main():
         print("doesn't make sense to specify both --dryrun and --verify together")
         return 1
 
-    dev = lpcsdr_device.find()
+    dev = lpcsdr.device.find()
     if dev is None:
         print('no lpcsdr device found')
         return 1
@@ -130,6 +140,7 @@ def main():
     verify = (not args.dryrun) or args.verify
 
     if args.dryrun:
+        print('dryrun mode, no changes will be made')
         dev.flash_write = dryrun_flash_write
         dev.flash_erase = dryrun_flash_erase
 

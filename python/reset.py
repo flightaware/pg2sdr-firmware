@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import sys
-import lpcsdr_device
+import lpcsdr.device
 
 def main():
-    dev = lpcsdr_device.find()
+    dev = lpcsdr.device.find()
     if dev is None:
         print('no lpcsdr device found')
         return 1

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+"""A basic DFU implementation, just enough to talk to the LPC's bootloader"""
 
 import sys
 import typing

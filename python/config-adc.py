@@ -2,7 +2,7 @@
 
 import sys
 import argparse
-import lpcsdr_device
+import lpcsdr.device
 
 def main():
     parser = argparse.ArgumentParser(description="control LPCSDR ADC settings")
@@ -11,7 +11,7 @@ def main():
     parser.add_argument('--twos', help='configure TWOS', type=int, required=True)
     args = parser.parse_args()
 
-    dev = lpcsdr_device.find()
+    dev = lpcsdr.device.find()
     if dev is None:
         print('no lpcsdr device found')
         return 1

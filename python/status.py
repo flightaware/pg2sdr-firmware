@@ -2,31 +2,19 @@
 
 import sys
 import math
-import lpcsdr_device
-import clock_status
+
+import lpcsdr.adc_status
+import lpcsdr.device
+import lpcsdr.tuner
+from lpcsdr.util import flag_string
 
 def show_status(status, file):
-    print(f"Flags: {' '.join(flag.name for flag in lpcsdr_device.StatusFlags if flag in status.flags)}", file=file)
+    print(f'Flags: {flag_string(status.flags)}', file=file)
     print(f'', file=file)
 
-    clock_status.print_status(status, file=file)
+    lpcsdr.adc_status.print_status(status, file=file)
 
-    if lpcsdr_device.StatusFlags.HSADC_RUN in status.flags:
-        dcinpos = (status.adchs_power_control & (0x3F << 10)) >> 10
-        dcinneg = (status.adchs_power_control & (0x3F << 4)) >> 4
-        twos = (status.adchs_power_control & (1 << 16)) >> 16
-
-        print(f'HSADC:', file=file)
-        print(f'  FIFO_CFG:       {status.adchs_fifo_cfg:08X}', file=file)
-        print(f'  CONFIG:         {status.adchs_config:08X}', file=file)
-        print(f'  ADC_SPEED:      {status.adchs_adc_speed:08X}', file=file)
-        print(f'  POWER_CONTROL:  {status.adchs_power_control:08X}  DCINPOS={dcinpos:06b} DCINNEG={dcinneg:06b} TWOS={twos}', file=file)
-        print(f'  INTS[0].STATUS: {status.adchs_int0_status:08X}', file=file)
-        print(f'  FIFO_STS:       {status.adchs_fifo_sts:08X}', file=file)
-        print(f'  DSCR_STS:       {status.adchs_dscr_sts:08X}', file=file)
-        print(f'', file=file)
-
-    if lpcsdr_device.StatusFlags.DMA_RUN in status.flags:
+    if lpcsdr.device.StatusFlags.DMA_RUN in status.flags:
         print(f'DMA:', file=file)
         print(f'  CONFIG:         {status.gpdma_config:08x}', file=file)
         print(f'  ENBLDCHNS:      {status.gpdma_enbldchns:08X}', file=file)
@@ -41,11 +29,8 @@ def show_status(status, file):
         print(f'  next sequence:  {status.next_sequence}', file=file)
         print(f'', file=file)
 
-    if lpcsdr_device.StatusFlags.RF_POWER_ON in status.flags:
-        print(f'Tuner:', file=file)
-        for i in range(0, 32, 4):
-            print(f'  {i:2d}: ' + ' '.join(f'{r:02X}' for r in status.tuner_regs[i:i+4]))
-        print(f'', file=file)
+    if lpcsdr.device.StatusFlags.RF_POWER_ON in status.flags:
+        lpcsdr.tuner.print_regs(status.tuner_regs)
 
     print(f'USB:', file=file)
     print(f'  Free buffers:   {status.usb_free_buffers}', file=file)
@@ -75,7 +60,7 @@ def show_status(status, file):
         
 
 def main():
-    dev = lpcsdr_device.find()
+    dev = lpcsdr.device.find()
     if not dev:
         print('no lpcsdr found')
         return

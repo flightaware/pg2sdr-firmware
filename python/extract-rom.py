@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 import sys
-import lpcsdr_device
+import lpcsdr.device
 
 def main():
     if len(sys.argv) < 2:
         print(f'syntax: {sys.argv[0]} <path to output file>')
         return 2
 
-    dev = lpcsdr_device.find()
+    dev = lpcsdr.device.find()
     if dev is None:
         print('no lpcsdr device found')
         return 1

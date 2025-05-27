@@ -1,4 +1,4 @@
-# a raw interface to the LPCSDR USB protocol
+"""A raw interface to the LPCSDR USB protocol"""
 
 import usb.core
 import usb.util
@@ -10,7 +10,8 @@ import sys
 import os
 import time
 
-import dfu
+from . import dfu
+from .util import BitFlag
 
 # Should match defines in lpcsdr_protocol.h
 class InReq(IntEnum):
@@ -22,6 +23,7 @@ class InReq(IntEnum):
     MEMORY_READ = 0x0B
     TUNER_READ = 0x0C
     BOARD_STATUS = 0x0D
+    TUNER_LOCK = 0x0E
 
 class OutReq(IntEnum):
     COMMS_CHECK = 0x01
@@ -59,7 +61,7 @@ class FlashDeviceID:
 class FlashUniqueID:
     unique_id: int = typed('Q')
 
-class StatusFlags(IntFlag):
+class StatusFlags(BitFlag):
     FAST_CPU = 1
     SW1_USBBOOT = 2
     SW2_PRESSED = 4
@@ -70,7 +72,7 @@ class StatusFlags(IntFlag):
     TUNER_I2C_ERROR = 128
     TUNER_PLL_LOCK = 256
 
-class BlockStatusFlags(IntFlag):
+class BlockStatusFlags(BitFlag):
     ADC_OVERRUN = 1
     DMA_ERROR = 2
     PACKING_OVERRUN = 4
@@ -139,6 +141,10 @@ class BoardStatus:
         self.flags = StatusFlags(self.flags)
 
 @ctrl
+class TunerLock:
+    pll_locked: int = typed('I')
+
+@ctrl
 class StartTransfer:
     n_divisor: int = typed('I')
     m_divisor: int = typed('I')
@@ -161,8 +167,73 @@ class RFPowerMode(IntEnum):
     ON = 1
     RESET = 2
 
-# TODO enum for switch states
-    
+@ctrl
+class BlockHeader:
+    magic: int = typed('I')
+    block_len: int = typed('I')
+    samples: int = typed('I')
+    sequence: int = typed('I')
+    flags: BlockStatusFlags = typed('I')    
+    EXPECTED_MAGIC: ClassVar[int] = 0xdeadbeef
+
+    def __post_init__(self):
+        self.flags = BlockStatusFlags(self.flags)
+
+class Changeset:
+    """A set of pending tuner register changes, suitable for passing to Device.tuner_update()"""
+
+    def __init__(self):
+        self.pending = {}
+
+    def write(self, reg, value):
+        """Update the entire value of a single register"""
+        self.write_bits(reg, 0xFF, int(value))
+
+    def write_bits(self, reg, mask, value):
+        """Update specific bits of a single register"""
+
+        mask = int(mask)
+        value = int(value)
+
+        if (value & mask) != value:
+            raise ValueError('value has bits set outside of mask')
+        if mask == 0:
+            return
+
+        old_mask, old_value = self.pending.get(reg, (0,0))
+        self.pending[reg] = (old_mask | mask, (old_value & ~mask) | value)
+
+    def clear(self):
+        """Reset all pending updates"""
+        self.pending.clear()
+        
+    def get_update_data(self):
+        """Return a tuple of (first_reg, update_bytes) suitable for
+passing to the LPCSDR device to implement the updates stored in this
+changeset"""
+
+        if not self.pending:
+            return (0, b'')
+
+        # find the range of registers to update
+        sorted_keys = sorted(self.pending.keys())
+        first = sorted_keys[0]
+        last = sorted_keys[-1]
+        count = last - first + 1
+
+        # bytes to pass to the LPCSDR;
+        # first half is values, second half is masks
+        update_bytes = bytearray(2 * count)   # initially all zero
+
+        # fill in all non-zero entries
+        for reg, (mask, value) in self.pending.items():            
+            offset = reg - first
+            update_bytes[offset] = value
+            update_bytes[offset + count] = mask
+
+        return (first, bytes(update_bytes))
+
+        
 class Device(object):
     def __init__(self, dev):
         self.dev = dev
@@ -200,7 +271,7 @@ class Device(object):
     def _out(self, *, req:OutReq, data, value=0, index=0):
         raw = data.struct.pack(*(getattr(data, field.name) for field in dataclasses.fields(data)))
         self._out_bytes(req=req, value=value, index=index, data=raw)
-    
+
     def comms_check(self):
         message = self._in(req=InReq.COMMS_CHECK, value=0, index=0, klass=CommsCheck)
         if message.magic != CommsCheck.EXPECTED_MAGIC:
@@ -230,6 +301,10 @@ class Device(object):
     def board_status(self, measure_clocks=False) -> BoardStatus:
         return self._in(req=InReq.BOARD_STATUS, value=(1 if measure_clocks else 0), index=0, klass=BoardStatus)
 
+    def tuner_lock(self, vco_current: int, timeout_ms: int) -> bool:
+        message = self._in(req=InReq.TUNER_LOCK, value=vco_current, index=timeout_ms, klass=TunerLock)
+        return (message.pll_locked != 0)
+
     def flash_write(self, address: int, page_data: bytes):
         self._out_bytes(req=OutReq.FLASH_WRITE, value=(address & 0xFFFF), index=(address >> 16), data=page_data)
 
@@ -249,12 +324,14 @@ class Device(object):
     def tuner_write(self, first_reg:int, data:bytes, mode:TunerCacheMode=TunerCacheMode.USE_CACHE):
         self._out_bytes(req=OutReq.TUNER_WRITE, value=first_reg, index=mode, data=data)
 
-    def tuner_update(self, first_reg:int, new_bits:bytes, mask_bits:bytes):
-        if len(new_bits) != len(mask_bits):
-            raise ValueError('new_bits and mask_bits must have the same length')
-        self._out_bytes(req=OutReq.TUNER_UPDATE, value=first_reg, data=bytes(new_bits) + bytes(mask_bits))
+    def tuner_update(self, changeset:Changeset):
+        if not changeset.pending:
+            return  # no changes pending
+        first, update_bytes = changeset.get_update_data()
+        self._out_bytes(req=OutReq.TUNER_UPDATE, value=first, data=update_bytes)
+        changeset.clear()
 
-    def config_adc(self, dcinpos, dcinneg, twos):
+    def config_adc(self, dcinpos:bool, dcinneg:bool, twos:bool):
         flags = (dcinpos and 1 or 0) | \
             (dcinneg and 2 or 0) | \
             (twos and 4 or 0)
@@ -268,6 +345,9 @@ class Device(object):
 
     def uart_test(self):
         self._out_bytes(req=OutReq.UART_TEST, data=b'')
+
+    def ep1_read(self, length, timeout):
+        return self.dev.read(0x81, length, timeout)
 
 
 def locate_firmware():
