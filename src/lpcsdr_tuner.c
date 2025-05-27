@@ -362,24 +362,26 @@ int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
         return -1;
     }
 
-    /* update vco_current (reg 18, bits 7..5) if necessary */
-    uint8_t new_18 = (reg_shadow[18] & ~0xE0) | ((vco_current << 5) & 0xE0);
-    if (reg_shadow[18] != new_18) {
-        reg_shadow[18] = new_18;
-        if (!lpcsdr_tuner_write_regs_direct(18, reg_shadow + 18, 1))
-            return -1;
-    }
+    /* update vco_current (reg 18, bits 7..5) to the requested vco_current
+     *    and vco_mode (reg 19, bit 6) to auto-mode
+     * (if necessary)
+     */
+    uint8_t bits[2] = { (vco_current << 5) & 0xE0, 0x00 };
+    uint8_t mask[2] = { 0xE0, 0x40 };
+    if (!lpcsdr_tuner_update_regs(18, bits, mask, 2))
+        return -1;
 
     /* poll the tuner, waiting for lock */
     uint32_t timeout_ticks = StopWatch_MsToTicks(timeout);
     uint32_t start_ticks = StopWatch_Start();
+    uint32_t loops = 0;
     do {
-
+        ++loops;
         /* read reg 2 for PLL lock status */
         if (!lpcsdr_tuner_read_regs_direct(reg_shadow, 3))
             return -1;
         if (reg_shadow[2] & 0x40) {
-            debug_printf("tuner: PLL lock with vco_current=%u in %u us\r\n", vco_current, StopWatch_TicksToUs(StopWatch_Elapsed(start_ticks)));
+            debug_printf("tuner: PLL lock with vco_current=%u in %u us (%u loops)\r\n", vco_current, StopWatch_TicksToUs(StopWatch_Elapsed(start_ticks)), loops);
             return 1; /* PLL has lock */
         }
     } while (StopWatch_Elapsed(start_ticks) < timeout_ticks);
