@@ -71,10 +71,10 @@ void lpcsdr_tuner_init(void)
     Chip_SCU_I2C0PinConfig(I2C0_STANDARD_FAST_MODE);
     Chip_I2C_Init(I2C0);
     Chip_I2C_SetMasterEventHandler(I2C0, Chip_I2C_EventHandlerPolling); // Use polling mode. todo: look into interrupt-driven mode
-    lpcsdr_i2c_clock_update();
+    lpcsdr_tuner_clock_update();
 }
 
-void lpcsdr_i2c_clock_update(void)
+void lpcsdr_tuner_clock_update(void)
 {
     Chip_I2C_SetClockRate(I2C0, 400000);
 }

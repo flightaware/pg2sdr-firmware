@@ -81,7 +81,7 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq)
     }
     SystemCoreClockUpdate();
     StopWatch_Init();
-    lpcsdr_i2c_clock_update();
+    lpcsdr_tuner_clock_update();
 
     WITH_DISABLED_INTERRUPTS {
         systick_count = 0;

@@ -5,7 +5,7 @@
 #include "lpcsdr_protocol.h"
 
 void lpcsdr_tuner_init(void);
-void lpcsdr_i2c_clock_update(void);
+void lpcsdr_tuner_clock_update(void);
 void lpcsdr_tuner_handle_poweron(void);
 void lpcsdr_tuner_handle_poweroff(void);
 
