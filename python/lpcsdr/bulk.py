@@ -54,7 +54,7 @@ def unpack_blocks(raw: Sequence[Sequence[int]]) -> Generator[ADCBlock]:
 
     # accumulate more raw data into 'data' from 'raw'
     while len(data) < BHS.size and len(raw) > 0:
-        data = np.concat((data, raw.pop(0)), dtype=np.uint8, casting='unsafe')
+        data = np.concatenate((data, raw.pop(0)), dtype=np.uint8, casting='unsafe')
     if len(data) < BHS.size:
         # not even one block's worth
         return
@@ -79,7 +79,7 @@ def unpack_blocks(raw: Sequence[Sequence[int]]) -> Generator[ADCBlock]:
     while True:
         # accumulate more raw data into 'data' from 'raw'
         while len(data) < bytes_per_block and len(raw) > 0:
-            data = np.concat((data, raw.pop(0)), dtype=np.uint8, casting='unsafe')
+            data = np.concatenate((data, raw.pop(0)), dtype=np.uint8, casting='unsafe')
         if len(data) < bytes_per_block:  # not enough remaining for a complete block, we're done
             return
 
