@@ -357,6 +357,8 @@ void lpcsdr_tuner_status(ep0_in_board_status_t *status)
  */
 int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
 {
+    uint32_t start_ticks = StopWatch_Start();
+
     /* ensure reg_shadow is valid */
     if (!shadow_is_valid && !lpcsdr_tuner_shadow_from_chip()) {
         return -1;
@@ -373,7 +375,7 @@ int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
 
     /* poll the tuner, waiting for lock */
     uint32_t timeout_ticks = StopWatch_MsToTicks(timeout);
-    uint32_t start_ticks = StopWatch_Start();
+    uint32_t post_setup_ticks = StopWatch_Start();
     uint32_t loops = 0;
     do {
         ++loops;
@@ -381,10 +383,15 @@ int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
         if (!lpcsdr_tuner_read_regs_direct(reg_shadow, 3))
             return -1;
         if (reg_shadow[2] & 0x40) {
-            debug_printf("tuner: PLL lock with vco_current=%u in %u us (%u loops)\r\n", vco_current, StopWatch_TicksToUs(StopWatch_Elapsed(start_ticks)), loops);
+            uint32_t post_lock_ticks = StopWatch_Start();
+            debug_printf("tuner: PLL lock with vco_current=%u in %u+%u us (%u polls)\r\n",
+                         vco_current,
+                         StopWatch_TicksToUs(post_setup_ticks - start_ticks),
+                         StopWatch_TicksToUs(post_lock_ticks - post_setup_ticks),
+                         loops);
             return 1; /* PLL has lock */
         }
-    } while (StopWatch_Elapsed(start_ticks) < timeout_ticks);
+    } while (StopWatch_Elapsed(post_setup_ticks) < timeout_ticks);
 
     /* timeout */
     debug_printf("tuner: PLL lock with vco_current=%u timed out\r\n", vco_current);
