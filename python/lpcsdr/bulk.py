@@ -106,14 +106,14 @@ def unpack_blocks(raw: Sequence[Sequence[int]]) -> Generator[ADCBlock]:
         p3 = packed[2::3]  # 3rd uint32 of each 12-byte chunk
 
         # build 8 uint16 samples (with 12 bits of data per sample) from each 12-byte chunk
-        unpacked[0::8] = (p1 & 0x0FFF0000) >> 16
-        unpacked[1::8] = (p1 & 0x00000FFF)
-        unpacked[2::8] = (p2 & 0x0FFF0000) >> 16
-        unpacked[3::8] = (p2 & 0x00000FFF)
-        unpacked[4::8] = (p3 & 0x0FFF0000) >> 16
-        unpacked[5::8] = (p3 & 0x00000FFF)
-        unpacked[6::8] = ((p1 & 0xF0000000) >> 20) | ((p2 & 0xF0000000) >> 24) | ((p3 & 0xF0000000) >> 28)
-        unpacked[7::8] = ((p1 & 0x0000F000) >> 4) | ((p2 & 0x0000F000) >> 8) | ((p3 & 0x0000F000) >> 12)
+        unpacked[0::8] = (p1 & 0x00000FFF)
+        unpacked[1::8] = (p1 & 0x0FFF0000) >> 16
+        unpacked[2::8] = (p2 & 0x00000FFF)
+        unpacked[3::8] = (p2 & 0x0FFF0000) >> 16
+        unpacked[4::8] = (p3 & 0x00000FFF)
+        unpacked[5::8] = (p3 & 0x0FFF0000) >> 16
+        unpacked[6::8] = ((p1 & 0x0000F000) >> 4) | ((p2 & 0x0000F000) >> 8) | ((p3 & 0x0000F000) >> 12)
+        unpacked[7::8] = ((p1 & 0xF0000000) >> 20) | ((p2 & 0xF0000000) >> 24) | ((p3 & 0xF0000000) >> 28)
         # sign-extend to 16 bits
         unpacked = (unpacked & 0x7FF) - (unpacked & 0x800)
 
