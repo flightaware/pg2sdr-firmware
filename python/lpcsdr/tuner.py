@@ -454,7 +454,7 @@ class PLLParameters(NamedTuple):
     freq: float
 
 
-def find_parameters(xtal:float, requested:float):
+def find_parameters(requested:float, xtal:float = 28.8e6):
     if xtal > 24e6:
         # Turn on the /2 divider on the PLL reference input
         refdiv = True
@@ -722,7 +722,7 @@ def main():
 
     if args.pll:
         print(f'tuning PLL to {args.pll:.3f} MHz')
-        params = find_parameters(xtal=28.8e6, requested=args.pll * 1e6)
+        params = find_parameters(requested=args.pll * 1e6)
         print(f'programming PLL with settings: {params}')
         start_pll(dev, params)
 
