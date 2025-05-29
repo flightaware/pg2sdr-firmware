@@ -465,8 +465,8 @@ def find_parameters(requested:float, xtal:float = 28.8e6):
 
     # Find a suitable seldiv output divisor that would
     # put the VCO into its supported operating range
-    VCO_MIN = 1700e6
-    VCO_MAX = 3750e6
+    VCO_MIN = 1750e6
+    VCO_MAX = 3700e6
     seldiv = 2
     while requested * seldiv < VCO_MIN and seldiv < 64:
         seldiv *= 2
