@@ -17,7 +17,7 @@
 #include "nanoprintf.h"
 
 static RINGBUFF_T ring;
-#define RING_SIZE 1024   /* Send */
+#define RING_SIZE 4096   /* Send */
 #define UART_FIFO_SIZE 16
 
 /* Transmit buffers */
@@ -49,7 +49,7 @@ void lpcsdr_uart_init(void)
     Chip_Clock_SetBaseClock(CLK_BASE_UART0, CLKIN_CRYSTAL, true, false);
     Chip_UART_Init(LPC_USART0);
     Chip_UART_ConfigData(LPC_USART0, UART_LCR_WLEN8 | UART_LCR_SBS_1BIT | UART_LCR_PARITY_DIS); /* 8 data bits, 1 stop bit, no parity */
-    Chip_UART_SetBaudFDR(LPC_USART0, 115200); /* no integer divisor for 12MHz clock -> 115200 baud, so need a fractional divisor */
+    Chip_UART_SetBaudFDR(LPC_USART0, 230400);
     Chip_UART_TXEnable(LPC_USART0);
 
     NVIC_EnableIRQ(USART0_IRQn);
