@@ -1,4 +1,5 @@
 #include "lpcsdr_hsadc.h"
+#include "lpcsdr_uart.h"
 
 #include "chip.h"
 #include "stopwatch.h"
@@ -169,6 +170,9 @@ bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (
             break;
     }
     /* PLL lock doesn't seem very reliable, so don't treat a lock failure as an error here */
+    if (!(LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT & PLL_STAT_LOCK)) {
+        debug_printf("ADC PLL did not lock at %u Hz within 100ms\r\n", fPLL);
+    }
 
     /* enable PLL0AUDIO output */
     LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_CLKEN;
