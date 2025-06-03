@@ -26,7 +26,7 @@ def read_blocks(dev: Device, nsamples: int, progress_fn:Optional[Callable[[int,i
 
     status = dev.board_status(measure_clocks=False)
     
-    blocks = math.ceil(nsamples / status.usb_samples_per_block) + 8
+    blocks = math.ceil(nsamples / status.usb_samples_per_block)
     total = blocks * status.usb_bytes_per_block
     blocks_per_chunk = 128
     chunk_size = blocks_per_chunk * status.usb_bytes_per_block
