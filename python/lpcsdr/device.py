@@ -71,6 +71,7 @@ class StatusFlags(BitFlag):
     EP1_ENABLED = 64
     TUNER_I2C_ERROR = 128
     TUNER_PLL_LOCK = 256
+    PLL0AUDIO_RUN = 512
 
 class BlockStatusFlags(BitFlag):
     ADC_OVERRUN = 1
