@@ -78,7 +78,8 @@ static uint32_t compute_ndec(uint32_t nsel)
 #define CRYSTAL_FREQ (12000000)
 #define HSADC_MAX_FREQ (80000000)
 
-static uint32_t hsadc_frequency;
+static uint32_t hsadc_frequency;  /* programmed frequency of PLL0AUDIO, 0 if inactive */
+static bool hsadc_running;        /* true if HSADC block has been triggered & is running */
 
 bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (0 = bypass divider */
                               uint32_t m_divisor,     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part */
@@ -203,6 +204,11 @@ void lpcsdr_hsadc_clock_stop(void)
         return;
     }
 
+    if (hsadc_running) {
+      /* best to stop the ADC first before messing with the branch clock */
+      lpcsdr_hsadc_conversion_stop();
+    }
+
     /* Disable ADC branch clock */
     Chip_Clock_Disable(CLK_ADCHS);
     /* Power down PLL/divider */
@@ -232,7 +238,11 @@ bool lpcsdr_hsadc_conversion_start()
         return false;
     }
 
-    lpcsdr_hsadc_conversion_stop();
+    if (hsadc_running) {
+        /* already active, do nothing */
+        return true;
+    }
+
     /* wait for any pending reset to complete */
     while (Chip_RGU_InReset(RGU_ADCHS_RST))
         __NOP();
@@ -321,13 +331,20 @@ bool lpcsdr_hsadc_conversion_start()
     /* software trigger, go */
     LPC_ADCHS->TRIGGER = 1;
 
+    hsadc_running = true;
     return true;
 }
 
 void lpcsdr_hsadc_conversion_stop()
 {
+    if (!hsadc_running) {
+        /* not running, nothing to do */
+        return;
+    }
+
     /* trigger reset, don't wait for completion */
     Chip_RGU_TriggerReset(RGU_ADCHS_RST);
+    hsadc_running = false;
 }
 
 void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
