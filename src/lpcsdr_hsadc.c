@@ -122,6 +122,11 @@ bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (
     if (fADC > HSADC_MAX_FREQ)
         return false;
 
+    if (fADC == hsadc_frequency) {
+        /* Already set up for this frequency */
+        return true;
+    }
+
     /* encode PLL0AUDIO register settings */
     uint32_t ctrl = PLL_CTRL_CLK_SEL(CLKIN_CRYSTAL) | PLL_CTRL_AUTOBLOCK;
 
