@@ -34,13 +34,12 @@ static uint32_t min_idle_cycles;
 void lpcsdr_m4clock_init()
 {
     /* switch the M4 clock to use the crystal immediately */
-    current_freq = MIN_M4_FREQ;
-    Chip_SetupCoreClock(CLKIN_CRYSTAL, current_freq, false);
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, MIN_M4_FREQ, false);
     Chip_Clock_SetBaseClock(CLK_BASE_APB1, CLKIN_MAINPLL, true, false);
     Chip_Clock_SetBaseClock(CLK_BASE_APB3, CLKIN_MAINPLL, true, false);
 
     /* reset internal state, initialize timers */
-    lpcsdr_m4clock_set_freq(current_freq);
+    lpcsdr_m4clock_set_freq(current_freq, true);
 
     /* start systick */
     SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk;   /* use processor clock source, do generate interrupts */
@@ -65,7 +64,7 @@ void SysTick_Handler(void)
     }
 }
 
-void lpcsdr_m4clock_set_freq(uint32_t new_freq)
+void lpcsdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
 {
     if (new_freq < MIN_M4_FREQ)
         new_freq = MIN_M4_FREQ;
@@ -75,10 +74,16 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq)
     /* force frequency to a multiple of 12MHz, so MAINPLL can stay in integer mode */
     new_freq = (new_freq + 11999999) / 12000000 * 12000000;
 
-    if (new_freq != current_freq) {
-        Chip_SetupCoreClock(CLKIN_CRYSTAL, new_freq, false);
-        current_freq = new_freq;
+    if (new_freq == current_freq && !first_time_init) {
+      /* nothing to do */
+      return;
     }
+
+    if (!first_time_init) {
+      Chip_SetupCoreClock(CLKIN_CRYSTAL, new_freq, false);
+    }
+    
+    current_freq = new_freq;
     SystemCoreClockUpdate();
     StopWatch_Init();
     lpcsdr_tuner_clock_update();

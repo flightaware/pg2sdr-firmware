@@ -190,7 +190,7 @@ static void m4_queue_test_data()
 static void update_cpu_speed(void)
 {
     uint32_t hsadc_frequency = lpcsdr_hsadc_get_sampling_rate();
-    lpcsdr_m4clock_set_freq(hsadc_frequency * 5);
+    lpcsdr_m4clock_set_freq(hsadc_frequency * 5, false);
 }
 
 static void set_rf_power_off(void)
