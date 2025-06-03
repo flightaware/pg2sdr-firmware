@@ -545,6 +545,10 @@ static bool process_ep0_out(const ipc_message_t *message)
         if (length != sizeof(ep0_out_start_transfer_t))
             return false;
 
+        /* stop DMA and reset EP1 to ensure there's no stale data in the queues */
+        lpcsdr_dma_hsadc_stop();
+        lpcsdr_usb_ep1_disable();
+
         ep0_out_start_transfer_t *param = (ep0_out_start_transfer_t *) buf;
         debug_printf("> START_TRANSFER(N=%u,M=%u,P=%u,I=%u)\r\n",
                      param->n_divisor,
@@ -562,6 +566,7 @@ static bool process_ep0_out(const ipc_message_t *message)
             return false;
         }
 
+        /* start everything */
         update_cpu_speed();
         lpcsdr_dma_hsadc_start();
         lpcsdr_usb_ep1_enable();
