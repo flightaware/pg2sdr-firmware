@@ -308,8 +308,9 @@ return a wrapped function with args (Device, ...)
 that applies those same changes to the given Device"""
     def _wrapper(dev, *args, **kwargs):
         cs = Changeset()
-        change_fn(cs, *args, **kwargs)
+        r = change_fn(cs, *args, **kwargs)
         dev.tuner_update(cs)
+        return r
     return _wrapper
 
 
@@ -622,18 +623,21 @@ def set_if_lpf_cs(cs:Changeset, cutoff:float):
     write_field(cs, TunerFields.iffilt_fine_lpf, lpf.lpf_fine)
     write_field(cs, TunerFields.iffilt_narrow, lpf.lpf_narrow)
     write_field(cs, TunerFields.iffilt_coarse_lpf, lpf.lpf_coarse)
+    return lpf
 set_if_lpf = wrap_change(set_if_lpf_cs)
 
 
 def set_if_hpf_cs(cs:Changeset, cutoff:float):
     hpf = hpf_settings_for(cutoff)
     write_field(cs, TunerFields.iffilt_hpf_corner, hpf.hpf_corner)
+    return hpf
 set_if_hpf = wrap_change(set_if_hpf_cs)
 
 
 def set_if_bandpass_cs(cs:Changeset, lo:float, hi:float):
-    set_if_hpf_cs(lo)
-    set_if_lpf_cs(hi)
+    hpf = set_if_hpf_cs(cs, min(lo,hi))
+    lpf = set_if_lpf_cs(cs, max(lo,hi))
+    return (hpf.cutoff_khz*1e3, lpf.cutoff_khz*1e3)
 set_if_bandpass = wrap_change(set_if_bandpass_cs)
 
 
