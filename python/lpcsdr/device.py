@@ -241,6 +241,9 @@ class Device(object):
         dev.set_configuration()
         self.comms_check()
 
+    def close(self):
+        del self.dev
+
     def _in_bytes(self, *, req:InReq, length:int, value:int=0, index:int=0) -> bytes:
         rt = usb.util.build_request_type(direction=usb.util.CTRL_IN,
                                          type=usb.util.CTRL_TYPE_VENDOR,
