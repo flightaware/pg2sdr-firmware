@@ -355,6 +355,10 @@ void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
             status->flags |= STATUS_HSADC_RUN;
         }
 
+        if (!(LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL & PLL_CTRL_PD)) {
+            status->flags |= STATUS_PLL0AUDIO_RUN;
+        }
+
         status->pll_stat = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_STAT;
         status->pll_ctrl = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL;
         status->pll_mdiv = LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_MDIV;
