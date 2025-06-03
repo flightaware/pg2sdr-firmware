@@ -223,8 +223,6 @@ void lpcsdr_hsadc_init()
     /* Enable register clock, reset ADC */
     Chip_Clock_EnableOpts(CLK_MX_ADCHS, true, true, 1);
     Chip_RGU_TriggerReset(RGU_ADCHS_RST);
-    while (Chip_RGU_InReset(RGU_ADCHS_RST))
-        __NOP();
 }
 
 bool lpcsdr_hsadc_conversion_start()
@@ -235,6 +233,9 @@ bool lpcsdr_hsadc_conversion_start()
     }
 
     lpcsdr_hsadc_conversion_stop();
+    /* wait for any pending reset to complete */
+    while (Chip_RGU_InReset(RGU_ADCHS_RST))
+        __NOP();
 
     /* basic config */
     LPC_ADCHS->INTS[0].CLR_EN = 0xFFFFFFFF; // interrupt 0, disable all interrupts
@@ -325,9 +326,8 @@ bool lpcsdr_hsadc_conversion_start()
 
 void lpcsdr_hsadc_conversion_stop()
 {
+    /* trigger reset, don't wait for completion */
     Chip_RGU_TriggerReset(RGU_ADCHS_RST);
-    while (Chip_RGU_InReset(RGU_ADCHS_RST))
-        __NOP();
 }
 
 void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
