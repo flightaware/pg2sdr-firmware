@@ -15,62 +15,62 @@ from lpcsdr.util import BitFlag, flag_string_parts, onebit, bitrange
 #
 
 class LPFSettings(NamedTuple):
-    cutoff_khz: int
+    cutoff: float
     lpf_coarse: int
     lpf_fine: int
     lpf_q: int
     lpf_narrow: int
 
 lpf_calibration = (
-    LPFSettings(cutoff_khz = 2027, lpf_coarse = 3, lpf_fine = 15, lpf_q = 0, lpf_narrow = 1), # target 1894; narrowest narrow-mode filter
-    LPFSettings(cutoff_khz = 2093, lpf_coarse = 3, lpf_fine = 13, lpf_q = 0, lpf_narrow = 1), # target 2105
-    LPFSettings(cutoff_khz = 2320, lpf_coarse = 1, lpf_fine = 15, lpf_q = 0, lpf_narrow = 1), # target 2338
-    LPFSettings(cutoff_khz = 2601, lpf_coarse = 1, lpf_fine = 9, lpf_q = 0, lpf_narrow = 1),  # target 2598
-    LPFSettings(cutoff_khz = 2891, lpf_coarse = 0, lpf_fine = 12, lpf_q = 0, lpf_narrow = 1), # target 2887
-    LPFSettings(cutoff_khz = 3177, lpf_coarse = 0, lpf_fine = 8, lpf_q = 0, lpf_narrow = 1),  # target 3207
-    LPFSettings(cutoff_khz = 3525, lpf_coarse = 0, lpf_fine = 4, lpf_q = 0, lpf_narrow = 1),  # target 3564
-    LPFSettings(cutoff_khz = 3960, lpf_coarse = 0, lpf_fine = 0, lpf_q = 0, lpf_narrow = 1),  # widest narrow-mode filter
-    LPFSettings(cutoff_khz = 5733, lpf_coarse = 3, lpf_fine = 15, lpf_q = 0, lpf_narrow = 0), # target 5355; narrowest wide-mode filter
-    LPFSettings(cutoff_khz = 5920, lpf_coarse = 3, lpf_fine = 13, lpf_q = 0, lpf_narrow = 0), # target 5950
-    LPFSettings(cutoff_khz = 6555, lpf_coarse = 1, lpf_fine = 15, lpf_q = 0, lpf_narrow = 0), # target 6611
-    LPFSettings(cutoff_khz = 7345, lpf_coarse = 1, lpf_fine = 9, lpf_q = 0, lpf_narrow = 0),  # target 7346
-    LPFSettings(cutoff_khz = 8168, lpf_coarse = 0, lpf_fine = 12, lpf_q = 0, lpf_narrow = 0), # target 8162
-    LPFSettings(cutoff_khz = 8975, lpf_coarse = 0, lpf_fine = 8, lpf_q = 0, lpf_narrow = 0),  # target 9069
-    LPFSettings(cutoff_khz = 9955, lpf_coarse = 0, lpf_fine = 4, lpf_q = 0, lpf_narrow = 0),  # target 10076
-    LPFSettings(cutoff_khz = 11196, lpf_coarse = 0, lpf_fine = 0, lpf_q = 0, lpf_narrow = 0), # widest wide-mode filter
+    LPFSettings(cutoff = 2027e3, lpf_coarse = 3, lpf_fine = 15, lpf_q = 0, lpf_narrow = 1), # target 1894; narrowest narrow-mode filter
+    LPFSettings(cutoff = 2093e3, lpf_coarse = 3, lpf_fine = 13, lpf_q = 0, lpf_narrow = 1), # target 2105
+    LPFSettings(cutoff = 2320e3, lpf_coarse = 1, lpf_fine = 15, lpf_q = 0, lpf_narrow = 1), # target 2338
+    LPFSettings(cutoff = 2601e3, lpf_coarse = 1, lpf_fine = 9, lpf_q = 0, lpf_narrow = 1),  # target 2598
+    LPFSettings(cutoff = 2891e3, lpf_coarse = 0, lpf_fine = 12, lpf_q = 0, lpf_narrow = 1), # target 2887
+    LPFSettings(cutoff = 3177e3, lpf_coarse = 0, lpf_fine = 8, lpf_q = 0, lpf_narrow = 1),  # target 3207
+    LPFSettings(cutoff = 3525e3, lpf_coarse = 0, lpf_fine = 4, lpf_q = 0, lpf_narrow = 1),  # target 3564
+    LPFSettings(cutoff = 3960e3, lpf_coarse = 0, lpf_fine = 0, lpf_q = 0, lpf_narrow = 1),  # widest narrow-mode filter
+    LPFSettings(cutoff = 5733e3, lpf_coarse = 3, lpf_fine = 15, lpf_q = 0, lpf_narrow = 0), # target 5355; narrowest wide-mode filter
+    LPFSettings(cutoff = 5920e3, lpf_coarse = 3, lpf_fine = 13, lpf_q = 0, lpf_narrow = 0), # target 5950
+    LPFSettings(cutoff = 6555e3, lpf_coarse = 1, lpf_fine = 15, lpf_q = 0, lpf_narrow = 0), # target 6611
+    LPFSettings(cutoff = 7345e3, lpf_coarse = 1, lpf_fine = 9, lpf_q = 0, lpf_narrow = 0),  # target 7346
+    LPFSettings(cutoff = 8168e3, lpf_coarse = 0, lpf_fine = 12, lpf_q = 0, lpf_narrow = 0), # target 8162
+    LPFSettings(cutoff = 8975e3, lpf_coarse = 0, lpf_fine = 8, lpf_q = 0, lpf_narrow = 0),  # target 9069
+    LPFSettings(cutoff = 9955e3, lpf_coarse = 0, lpf_fine = 4, lpf_q = 0, lpf_narrow = 0),  # target 10076
+    LPFSettings(cutoff = 11196e3, lpf_coarse = 0, lpf_fine = 0, lpf_q = 0, lpf_narrow = 0), # widest wide-mode filter
 )
 
 def lpf_settings_for(target):
     # find the lowest setting with cutoff >= target
-    n = bisect.bisect_left(lpf_calibration, target / 1000, key=operator.itemgetter(0))
+    n = bisect.bisect_left(lpf_calibration, target, key=operator.itemgetter(0))
     return lpf_calibration[min(n, len(lpf_calibration)-1)]
 
 class HPFSettings(NamedTuple):
-    cutoff_khz: int
+    cutoff: float
     hpf_corner: int
 
 hpf_calibration = (
-    HPFSettings(cutoff_khz = 527, hpf_corner = 15),
-    HPFSettings(cutoff_khz = 659, hpf_corner = 14),
-    HPFSettings(cutoff_khz = 774, hpf_corner = 13),
-    HPFSettings(cutoff_khz = 863, hpf_corner = 12),
-    HPFSettings(cutoff_khz = 1096, hpf_corner = 11),
-    HPFSettings(cutoff_khz = 1374, hpf_corner = 10),
-    HPFSettings(cutoff_khz = 1522, hpf_corner = 9),
-    HPFSettings(cutoff_khz = 1665, hpf_corner = 8),
-    HPFSettings(cutoff_khz = 1914, hpf_corner = 7),
-    HPFSettings(cutoff_khz = 2138, hpf_corner = 6),
-    HPFSettings(cutoff_khz = 2342, hpf_corner = 5),
-    HPFSettings(cutoff_khz = 2458, hpf_corner = 4),
-    HPFSettings(cutoff_khz = 2733, hpf_corner = 3),
-    HPFSettings(cutoff_khz = 3005, hpf_corner = 2),
-    HPFSettings(cutoff_khz = 3563, hpf_corner = 1),
-    HPFSettings(cutoff_khz = 3724, hpf_corner = 0),
+    HPFSettings(cutoff = 527e3, hpf_corner = 15),
+    HPFSettings(cutoff = 659e3, hpf_corner = 14),
+    HPFSettings(cutoff = 774e3, hpf_corner = 13),
+    HPFSettings(cutoff = 863e3, hpf_corner = 12),
+    HPFSettings(cutoff = 1096e3, hpf_corner = 11),
+    HPFSettings(cutoff = 1374e3, hpf_corner = 10),
+    HPFSettings(cutoff = 1522e3, hpf_corner = 9),
+    HPFSettings(cutoff = 1665e3, hpf_corner = 8),
+    HPFSettings(cutoff = 1914e3, hpf_corner = 7),
+    HPFSettings(cutoff = 2138e3, hpf_corner = 6),
+    HPFSettings(cutoff = 2342e3, hpf_corner = 5),
+    HPFSettings(cutoff = 2458e3, hpf_corner = 4),
+    HPFSettings(cutoff = 2733e3, hpf_corner = 3),
+    HPFSettings(cutoff = 3005e3, hpf_corner = 2),
+    HPFSettings(cutoff = 3563e3, hpf_corner = 1),
+    HPFSettings(cutoff = 3724e3, hpf_corner = 0),
 )
 
 def hpf_settings_for(target):
     # find the highest setting with cutoff <= target
-    n = bisect.bisect_right(hpf_calibration, target / 1000, key=operator.itemgetter(0))
+    n = bisect.bisect_right(hpf_calibration, target, key=operator.itemgetter(0))
     return hpf_calibration[max(0, n-1)]
 
 #
@@ -637,7 +637,7 @@ set_if_hpf = wrap_change(set_if_hpf_cs)
 def set_if_bandpass_cs(cs:Changeset, lo:float, hi:float):
     hpf = set_if_hpf_cs(cs, min(lo,hi))
     lpf = set_if_lpf_cs(cs, max(lo,hi))
-    return (hpf.cutoff_khz*1e3, lpf.cutoff_khz*1e3)
+    return (hpf.cutoff, lpf.cutoff)
 set_if_bandpass = wrap_change(set_if_bandpass_cs)
 
 
