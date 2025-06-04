@@ -102,3 +102,37 @@ decompose_flags) and return a list of strings making up the Flag"""
 
 def flag_string(flags: IntFlag, all_members:bool=False) -> str:
     return ' '.join(flag_string_parts(flags,all_members))
+
+
+def frequency_value(s: str) -> float:
+    s = s.strip().lower()
+    if s.endswith('hz'):
+        s = s[:-2]
+
+    multiplier: float
+    if s.endswith('g'):
+        multiplier = 1e9
+        s = s[:-1]
+    elif s.endswith('m'):
+        multiplier = 1e6
+        s = s[:-1]
+    elif s.endswith('k'):
+        multiplier = 1e3
+        s = s[:-1]
+    else:
+        multiplier = 1.0
+
+    return multiplier * float(s)
+
+
+def format_frequency(f: float, precision:int=-3) -> str:
+    # nb: precision=-3 means "show kHz-level precision"
+    #     precision=-6 means "show MHz-level precision"
+    #     etc
+    if abs(f) >= 2.0e9:
+        return f'{f/1e9:.{max(0,precision+9)}f)} GHz'
+    if abs(f) >= 2.0e6:
+        return f'{f/1e6:.{max(0,precision+6)}f} MHz'
+    if abs(f) >= 2.0e3:
+        return f'{f/1e3:.{max(0,precision+3)}f} kHz'
+    return f'{f:.{max(0,precision)}f} Hz'
