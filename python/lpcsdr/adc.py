@@ -83,7 +83,7 @@ class Settings(typing.NamedTuple):
             return f'INTEGER     N={self.n:3d} M={self.m:9.0f} P={self.p:2d} I={self.i:3d}  fCCO={self.actual_fcco/1e6:10.6f}MHz fOut={self.actual_frequency/1e6:9.6f}MHz error={self.error:.1f}Hz'
 
 
-def settings_for(target_frequency, allow_fractional=True, epsilon=1e-6):
+def settings_for(target_frequency, *, epsilon=1e-6, minimize_error=False, integer_only=False):
     min_fcco = 275e6
     max_fcco = 550e6
     ref_frequency = 12e6
@@ -105,6 +105,13 @@ def settings_for(target_frequency, allow_fractional=True, epsilon=1e-6):
         # accept the first candidate that's otherwise okay
         if current is None:
             return True
+
+        # in minimize-error mode, choose the smaller error
+        if minimize_error:
+            if (candidate.error < current.error):
+                return True
+            if (candidate.error > current.error):
+                return False
 
         # when both solutions are the same sort of solution (integer/fractional), choose whichever has smaller M
         if current.fractional == candidate.fractional:
@@ -135,7 +142,7 @@ def settings_for(target_frequency, allow_fractional=True, epsilon=1e-6):
         wanted_fcco = min(wanted_fcco, max_fcco)
         wanted_fcco = max(wanted_fcco, min_fcco)
 
-        if allow_fractional:
+        if not integer_only:
             scaled_m = round( wanted_fcco / ref_frequency / 2 * (1<<15) )
             test_fcco = 2 * scaled_m / (1<<15) * ref_frequency
             # rounding may cause test_fcco to be out of range; if so,
@@ -174,8 +181,8 @@ def settings_for(target_frequency, allow_fractional=True, epsilon=1e-6):
     return best
 
 
-def start_transfer(dev, freq, allow_fractional=True, epsilon=1e-6):
-    settings = settings_for(freq, allow_fractional, epsilon)
+def start_transfer(dev, freq, *, epsilon=1e-6, minimize_error=False, integer_only=False):
+    settings = settings_for(freq, epsilon=epsilon, minimize_error=minimize_error, integer_only=integer_only)
     if settings is None:
         raise ValueError(f'no suitable ADC settings found for sampling rate {freq/1e6:.1f}MHz')
     dev.start_transfer(n_div = settings.n,
