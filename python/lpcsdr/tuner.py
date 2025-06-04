@@ -704,6 +704,7 @@ def main():
     parser.add_argument('--vga-gain', help="Set VGA gain (0..15)", type=int)
     parser.add_argument('--mix-gain', help="Set mixer gain (0..15)", type=int)
     parser.add_argument('--lpf', help="Set IF LPF cutoff frequency >= this frequency", type=frequency_value)
+    parser.add_argument('--lpf-below', help="Set IF LPF cutoff frequency <= this frequency (use for filtering >Nyquist frequency)", type=frequency_value)
     parser.add_argument('--hpf', help="Set IF HPF cutoff frequency <= this frequency", type=frequency_value)
     parser.add_argument('--vco-scan', help="generate VCO ADC data", action='store_true')
 
@@ -755,6 +756,11 @@ def main():
         lpf = set_if_lpf(dev, args.lpf)
         print(f' -> actual cutoff of chosen filter: {format_frequency(lpf)}')
         
+    if args.lpf_below:
+        print(f'setting IF bandpass filter LPF cutoff to <= {format_frequency(args.lpf_below)}')
+        lpf = set_if_lpf(dev, args.lpf_below, args.lpf_below)
+        print(f' -> actual cutoff of chosen filter: {format_frequency(lpf)}')
+
     if args.hpf:
         print(f'setting IF bandpass filter HPF cutoff to {format_frequency(args.hpf)}')
         hpf = set_if_hpf(dev, args.hpf)
