@@ -359,12 +359,14 @@ def locate_firmware():
     env = os.environ.get('LPCSDR_FIRMWARE', None)
     if env is not None:
         candidates.append(env)
-    basedir = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), '..')
-    candidates.append(os.path.join(basedir, 'Debug', 'lpcsdr.bin'))
-    candidates.append(os.path.join(basedir, 'images', 'lpcsdr.bin'))
+
+    # use realpath here, because e.g. soapy-scan symlinks lpcsdr -> lpcsdr_firmware/python/lpcsdr
+    firmware_python_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+    firmware_base_dir = os.path.join(firmware_python_dir, '..')
+    candidates.append(os.path.realpath(os.path.join(firmware_base_dir, 'Debug', 'lpcsdr.bin')))
+    candidates.append(os.path.realpath(os.path.join(firmware_base_dir, 'images', 'lpcsdr.bin')))
 
     for path in candidates:
-        path = os.path.abspath(path)
         if os.path.exists(path):
             return path
 
