@@ -1,7 +1,7 @@
 import sys
 import math
 import time
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 import bisect
 import operator
 
@@ -40,10 +40,18 @@ lpf_calibration = (
     LPFSettings(cutoff = 11196e3, lpf_coarse = 0, lpf_fine = 0, lpf_q = 0, lpf_narrow = 0), # widest wide-mode filter
 )
 
-def lpf_settings_for(target):
-    # find the lowest setting with cutoff >= target
-    n = bisect.bisect_left(lpf_calibration, target, key=operator.itemgetter(0))
-    return lpf_calibration[min(n, len(lpf_calibration)-1)]
+def lpf_settings_for(target, not_above=None):
+    # find the lowest setting with cutoff >= target, but never above not_above
+
+    if not_above is None:
+        # no upper limit, use the whole table
+        limit = len(lpf_calibration)
+    else:
+        # limit is the lowest setting with cutoff > not_above
+        limit = bisect.bisect_right(lpf_calibration, not_above, key=operator.itemgetter(0))
+
+    n = bisect.bisect_left(lpf_calibration, target, hi=limit, key=operator.itemgetter(0))
+    return lpf_calibration[max(0, min(n, limit-1))]
 
 class HPFSettings(NamedTuple):
     cutoff: float
@@ -617,8 +625,8 @@ def set_vga_gain_cs(cs:Changeset, gain:int):
 set_vga_gain = wrap_change(set_vga_gain_cs)
 
 
-def set_if_lpf_cs(cs:Changeset, cutoff:float):
-    lpf = lpf_settings_for(cutoff)
+def set_if_lpf_cs(cs:Changeset, cutoff:float, not_above:Optional[float]=None):
+    lpf = lpf_settings_for(cutoff, not_above)
     write_field(cs, TunerFields.iffilt_q, lpf.lpf_q)
     write_field(cs, TunerFields.iffilt_fine_lpf, lpf.lpf_fine)
     write_field(cs, TunerFields.iffilt_narrow, lpf.lpf_narrow)
@@ -634,9 +642,9 @@ def set_if_hpf_cs(cs:Changeset, cutoff:float):
 set_if_hpf = wrap_change(set_if_hpf_cs)
 
 
-def set_if_bandpass_cs(cs:Changeset, lo:float, hi:float):
+def set_if_bandpass_cs(cs:Changeset, lo:float, hi:float, not_above=None):
     hpf = set_if_hpf_cs(cs, min(lo,hi))
-    lpf = set_if_lpf_cs(cs, max(lo,hi))
+    lpf = set_if_lpf_cs(cs, max(lo,hi), not_above)
     return (hpf, lpf)
 set_if_bandpass = wrap_change(set_if_bandpass_cs)
 
