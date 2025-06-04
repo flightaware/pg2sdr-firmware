@@ -623,21 +623,21 @@ def set_if_lpf_cs(cs:Changeset, cutoff:float):
     write_field(cs, TunerFields.iffilt_fine_lpf, lpf.lpf_fine)
     write_field(cs, TunerFields.iffilt_narrow, lpf.lpf_narrow)
     write_field(cs, TunerFields.iffilt_coarse_lpf, lpf.lpf_coarse)
-    return lpf
+    return lpf.cutoff
 set_if_lpf = wrap_change(set_if_lpf_cs)
 
 
 def set_if_hpf_cs(cs:Changeset, cutoff:float):
     hpf = hpf_settings_for(cutoff)
     write_field(cs, TunerFields.iffilt_hpf_corner, hpf.hpf_corner)
-    return hpf
+    return hpf.cutoff
 set_if_hpf = wrap_change(set_if_hpf_cs)
 
 
 def set_if_bandpass_cs(cs:Changeset, lo:float, hi:float):
     hpf = set_if_hpf_cs(cs, min(lo,hi))
     lpf = set_if_lpf_cs(cs, max(lo,hi))
-    return (hpf.cutoff, lpf.cutoff)
+    return (hpf, lpf)
 set_if_bandpass = wrap_change(set_if_bandpass_cs)
 
 
