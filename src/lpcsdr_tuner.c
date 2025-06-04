@@ -23,6 +23,16 @@
 /* if defined, emit extra debugging for I2C controller state machine transitions */
 #undef I2C_DEBUG_STATE_MACHINE
 
+/* The R860T sometimes misbehaves on the I2C bus, usually immediately after the PLL is retuned.
+ * If an I2C read/write fails, rather than immediately bailing out, retry a few times (after
+ * a small delay). Most of the time, the read/write succeeds on the 2nd or 3rd attempt.
+ */
+
+/* Maximum number of retries before giving up on an I2C read/write */
+#define I2C_RETRIES 4
+/* Delay before each I2C retry, microseconds */
+#define I2C_RETRY_DELAY_US 250
+
 static bool rf_power = false;            /* is RF power on? */
 static int i2c_error = I2C_STATUS_DONE;  /* if not DONE, this was the last I2C error we saw */
 static bool shadow_is_valid = false;     /* Have we actually updated the shadow regs at all yet? */
@@ -395,8 +405,9 @@ bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
     }
 
     int status;
-    for (uint32_t retry = 0; retry < 3; ++retry) {
+    for (uint32_t retry = 0; retry < I2C_RETRIES; ++retry) {
         if (retry) {
+            StopWatch_DelayUs(I2C_RETRY_DELAY_US);
             debug_printf("tuner: retry failed I2C read (#%u)\r\n", retry);
         }
         status = i2c_read(R860T_I2C_ADDR, regs, count);
@@ -434,8 +445,9 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
     }
 
     int status;
-    for (uint32_t retry = 0; retry < 3; ++retry) {
+    for (uint32_t retry = 0; retry < I2C_RETRIES; ++retry) {
         if (retry) {
+            StopWatch_DelayUs(I2C_RETRY_DELAY_US);
             debug_printf("tuner: retry failed I2C write (#%u)\r\n", retry);
         }
 
