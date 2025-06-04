@@ -211,7 +211,7 @@ def main():
     args = parser.parse_args()
 
     if args.calc:
-        print(f'{format_frequency(args.calc) => {settings_for(args.calc, epsilon=args.epsilon, minimize_error=args.minimize_error, integer_only=args.integer_only)!r}')
+        print(f'{format_frequency(args.calc)} => {ettings_for(args.calc, epsilon=args.epsilon, minimize_error=args.minimize_error, integer_only=args.integer_only)!r}')
 
     if args.start or args.stop or args.status:
         import lpcsdr.device
