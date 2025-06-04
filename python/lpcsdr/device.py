@@ -368,7 +368,7 @@ def locate_firmware():
         if os.path.exists(path):
             return path
 
-    print(f'No suitable firmware found (tried: {" ".join(candidates)})')
+    print(f'No suitable firmware found (tried: {" ".join(candidates)}); maybe set LPCSDR_FIRMWARE environment variable?', file=sys.stderr)
     return None
 
 
