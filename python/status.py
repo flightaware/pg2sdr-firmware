@@ -6,7 +6,7 @@ import math
 import lpcsdr.adc_status
 import lpcsdr.device
 import lpcsdr.tuner
-from lpcsdr.util import flag_string
+from lpcsdr.util import *
 
 def show_status(status, file):
     print(f'Flags: {flag_string(status.flags)}', file=file)
@@ -40,22 +40,22 @@ def show_status(status, file):
     print(f'', file=file)
 
     print(f'M4:', file=file)
-    print(f'  Core clock:     {status.m4_freq/1e6:.1f} MHz', file=file)
+    print(f'  Core clock:     {format_frequency(status.m4_freq)}', file=file)
     print(f'  Mean load:      {100-status.m4_mean_idle/status.m4_mean_idle_scale*100:.1f}%', file=file)
     print(f'  Peak load:      {100-status.m4_min_idle/status.m4_min_idle_scale*100:.1f}%', file=file)
     print(f'', file=file)
 
     if status.clock_irc:
-        print(f'Measured clock source frequencies (MHz):', file=file)
-        print(f'  IRC:       {status.clock_irc/1e6:6.2f}', file=file)
-        print(f'  PLL0USB:   {status.clock_pll0usb/1e6:6.2f}', file=file)
-        print(f'  PLL0AUDIO: {status.clock_pll0audio/1e6:6.2f}', file=file)
-        print(f'  PLL1:      {status.clock_pll1/1e6:6.2f}', file=file)
-        print(f'  IDIV_A:    {status.clock_idiv_a/1e6:6.2f}', file=file)
-        print(f'  IDIV_B:    {status.clock_idiv_b/1e6:6.2f}', file=file)
-        print(f'  IDIV_C:    {status.clock_idiv_c/1e6:6.2f}', file=file)
-        print(f'  IDIV_D:    {status.clock_idiv_d/1e6:6.2f}', file=file)
-        print(f'  IDIV_E:    {status.clock_idiv_e/1e6:6.2f}', file=file)
+        print(f'Measured clock source frequencies:', file=file)
+        print(f'  IRC:       {format_frequency(status.clock_irc)}', file=file)
+        print(f'  PLL0USB:   {format_frequency(status.clock_pll0usb)}', file=file)
+        print(f'  PLL0AUDIO: {format_frequency(status.clock_pll0audio)}', file=file)
+        print(f'  PLL1:      {format_frequency(status.clock_pll1)}', file=file)
+        print(f'  IDIV_A:    {format_frequency(status.clock_idiv_a)}', file=file)
+        print(f'  IDIV_B:    {format_frequency(status.clock_idiv_b)}', file=file)
+        print(f'  IDIV_C:    {format_frequency(status.clock_idiv_c)}', file=file)
+        print(f'  IDIV_D:    {format_frequency(status.clock_idiv_d)}', file=file)
+        print(f'  IDIV_E:    {format_frequency(status.clock_idiv_e)}', file=file)
         print(f'', file=file)
         
 

@@ -7,6 +7,8 @@ import typing
 import bisect
 import operator
 
+from lpcsdr.util import *
+
 def effective_n_divisor(n):
     # n=0 means "bypass N-divider" i.e. divide-by-1
     # n=1 is legal ("divide-by-1") but pointless, prefer n=0 instead
@@ -77,10 +79,8 @@ class Settings(typing.NamedTuple):
         return int(round(self.m * 32768))
 
     def __repr__(self):
-        if self.fractional:
-            return f'FRACTIONAL  N={self.n:3d} M={self.m:9.5f} P={self.p:2d} I={self.i:3d}  fCCO={self.actual_fcco/1e6:10.6f}MHz fOut={self.actual_frequency/1e6:9.6f}MHz error={self.error:.1f}Hz'
-        else:
-            return f'INTEGER     N={self.n:3d} M={self.m:9.0f} P={self.p:2d} I={self.i:3d}  fCCO={self.actual_fcco/1e6:10.6f}MHz fOut={self.actual_frequency/1e6:9.6f}MHz error={self.error:.1f}Hz'
+        m_precision = (5 if self.fractional else 0)
+        return f'{"FRACTIONAL" if self.fractional else "INTEGER"} N={self.n} M={self.m:.{m_precision}f} P={self.p} I={self.i} fCCO={format_frequency(self.actual_fcco)} fOut={format_frequency(self.actual_frequency,precision=0)} error={format_frequency(self.error,precision=1)}'
 
 
 def settings_for(target_frequency, *, epsilon=1e-6, minimize_error=False, integer_only=False):
@@ -184,7 +184,7 @@ def settings_for(target_frequency, *, epsilon=1e-6, minimize_error=False, intege
 def start_transfer(dev, freq, *, epsilon=1e-6, minimize_error=False, integer_only=False):
     settings = settings_for(freq, epsilon=epsilon, minimize_error=minimize_error, integer_only=integer_only)
     if settings is None:
-        raise ValueError(f'no suitable ADC settings found for sampling rate {freq/1e6:.1f}MHz')
+        raise ValueError(f'no suitable ADC settings found for sampling rate {format_frequency(freq)}')
     dev.start_transfer(n_div = settings.n,
                        m_div = settings.fixedpoint_m,
                        p_div = settings.p,
@@ -196,12 +196,12 @@ def main():
 
     parser = argparse.ArgumentParser(description='Control HSADC')
 
-    parser.add_argument('--calc', help="Find ADC clock settings for given frequency (specify as MHz)", type=float)
-    parser.add_argument('--start', help="Program ADC clock for given frequency (specify as MHz) and start USB transfers", type=float)    
-    parser.add_argument('--stop', help="Stop ADC clock and USB transfers", action='store_true')    
+    parser.add_argument('--calc', help="Find ADC clock settings for given frequency", type=frequency_value)
     parser.add_argument('--integer-only', help="Only choose integer-PLL clock configurations", action='store_true')
     parser.add_argument('--minimize-error', help="Prefer solutions with smaller frequency errors (default: prefer less phase noise)", action='store_true')
     parser.add_argument('--epsilon', help="Set maximum acceptable error, as a multiplier of the target frequency (default: 1e-6 = 1ppm)", type=float, default=1e-6)
+    parser.add_argument('--start', help="Program ADC clock for given frequency and start USB transfers", type=frequency_value)
+    parser.add_argument('--stop', help="Stop ADC clock and USB transfers", action='store_true')
     parser.add_argument('--status', help="Print ADC status", action='store_true')
 
     if len(sys.argv) < 2:
@@ -211,7 +211,7 @@ def main():
     args = parser.parse_args()
 
     if args.calc:
-        print(f'{args.calc:9.6f}MHz => {settings_for(args.calc*1e6, epsilon=args.epsilon, minimize_error=args.minimize_error, integer_only=args.integer_only)!r}')
+        print(f'{format_frequency(args.calc) => {settings_for(args.calc, epsilon=args.epsilon, minimize_error=args.minimize_error, integer_only=args.integer_only)!r}')
 
     if args.start or args.stop or args.status:
         import lpcsdr.device
@@ -222,8 +222,8 @@ def main():
             return 1
 
         if args.start:
-            print(f'Starting ADC transfers at {args.start:.1f}MHz')
-            start_transfer(dev, args.start*1e6)
+            print(f'Starting ADC transfers at {format_frequency(args.start)}')
+            start_transfer(dev, args.start, epsilon=args.epsilon, minimize_error=args.minimise_error, integer_only=args.integer_only)
 
         if args.stop:
             print('Stopping ADC')

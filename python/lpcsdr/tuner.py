@@ -7,7 +7,7 @@ import operator
 
 import lpcsdr.device
 from lpcsdr.device import Device, Changeset
-from lpcsdr.util import BitFlag, flag_string_parts, onebit, bitrange
+from lpcsdr.util import *
 
 #
 # IF bandpass filter magic values, taken from pxsdr-firmware/pv2-firmware.c for now
@@ -698,13 +698,13 @@ def main():
 
     parser.add_argument('--status', help="Print tuner regs", action='store_true')
     parser.add_argument('--reset', help="Reset and re-init tuner", action='store_true')
-    parser.add_argument('--pll', help="Tune PLL to given frequency (specify as MHz)", type=float)
+    parser.add_argument('--pll', help="Tune PLL to given frequency", type=frequency_value)
     parser.add_argument('--powerdown', help="Power down tuner (soft powerdown, don't turn off RF power)", action='store_true')
     parser.add_argument('--lna-gain', help="Set LNA gain (0..15)", type=int)
     parser.add_argument('--vga-gain', help="Set VGA gain (0..15)", type=int)
     parser.add_argument('--mix-gain', help="Set mixer gain (0..15)", type=int)
-    parser.add_argument('--lpf', help="Set IF LPF cutoff frequency (high limit of bandpass filter, specify as kHz)", type=float)
-    parser.add_argument('--hpf', help="Set IF HPF cutoff frequency (low limit of bandpass filter, specify as kHz)", type=float)
+    parser.add_argument('--lpf', help="Set IF LPF cutoff frequency >= this frequency", type=frequency_value)
+    parser.add_argument('--hpf', help="Set IF HPF cutoff frequency <= this frequency", type=frequency_value)
     parser.add_argument('--vco-scan', help="generate VCO ADC data", action='store_true')
 
     if len(sys.argv) < 2:
@@ -733,8 +733,8 @@ def main():
         init_tuner(dev)
 
     if args.pll:
-        print(f'tuning PLL to {args.pll:.3f} MHz')
-        params = find_parameters(requested=args.pll * 1e6)
+        print(f'tuning PLL to {format_frequency(args.pll)}')
+        params = find_parameters(requested=args.pll)
         print(f'programming PLL with settings: {params}')
         start_pll(dev, params)
 
@@ -751,12 +751,14 @@ def main():
         set_vga_gain(dev, args.vga_gain)
 
     if args.lpf:
-        print(f'setting IF bandpass filter high cutoff to {args.lpf} kHz')
-        set_if_lpf(dev, args.lpf * 1000)
+        print(f'setting IF bandpass filter LPF cutoff to {format_frequency(args.lpf)}')
+        lpf = set_if_lpf(dev, args.lpf)
+        print(f' -> actual cutoff of chosen filter: {format_frequency(lpf)}')
         
     if args.hpf:
-        print(f'setting IF bandpass filter low cutoff to {args.hpf} kHz')
-        set_if_hpf(dev, args.hpf * 1000)
+        print(f'setting IF bandpass filter HPF cutoff to {format_frequency(args.hpf)}')
+        hpf = set_if_hpf(dev, args.hpf)
+        print(f' -> actual cutoff of chosen filter: {format_frequency(hpf)}')
 
     if args.vco_scan:
         vco_scan(dev)

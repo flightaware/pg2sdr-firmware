@@ -8,13 +8,13 @@ import math
 import lpcsdr.device
 import lpcsdr.adc
 import lpcsdr.bulk
-import lpcsdr.util
+from lpcsdr.util import *
 
 def main():
     parser = argparse.ArgumentParser(description="capture ADC data")
 
     parser.add_argument('--samples', help='capture this many samples', type=int, required=True)
-    parser.add_argument('--rate', help='set sampling rate (in MHz), start ADC before capture, stop ADC after capture', type=float)
+    parser.add_argument('--rate', help='set sampling rate, start ADC before capture, stop ADC after capture', type=frequency_value)
     parser.add_argument('--format', help='Set output format to s16 (signed 16-bit) or tsv (text)', choices=['s16', 'tsv'], default='s16')
     parser.add_argument('filename', help='set output filename')
 
@@ -26,8 +26,8 @@ def main():
         return 1
 
     if args.rate:
-        print(f'Starting ADC at {args.rate}MHz', file=sys.stderr)
-        lpcsdr.adc.start_transfer(dev, args.rate * 1e6)
+        print(f'Starting ADC at {format_frequency(args.rate)}', file=sys.stderr)
+        lpcsdr.adc.start_transfer(dev, args.rate)
 
     status = dev.board_status()
     if lpcsdr.device.StatusFlags.EP1_ENABLED not in status.flags:
@@ -64,7 +64,7 @@ def main():
             last_seq = adc_block.sequence
 
             if adc_block.flags:
-                print(f'  block {adc_block.sequence} status: {lpcsdr.util.flag_string(adc_block.flags)}')
+                print(f'  block {adc_block.sequence} status: {flag_string(adc_block.flags)}')
 
             if args.format == 'tsv':
                 base = (adc_block.sequence - first_seq) * status.usb_samples_per_block

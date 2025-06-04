@@ -3,8 +3,8 @@
 __all__ = ['print_status']
 
 from enum import IntFlag
-from .device import StatusFlags
-from .util import BitFlag, onebit, bitrange, flag_string
+from lpcsdr.device import StatusFlags
+from lpcsdr.util import *
 
 def _prepare_tables():
     # The hardware appears to use LFSR counters to implement the
@@ -223,7 +223,7 @@ def print_hsadc_status(status, file):
 
     
 def print_adc_clock_status(status, file):
-    print(f'Target fADC: {status.hsadc_frequency/1e6:.6f} MHz', file=file)
+    print(f'Target fADC: {format_frequency(status.hsadc_frequency)}', file=file)
     print(f'', file=file)
     if not status.hsadc_frequency:
         return
@@ -293,10 +293,10 @@ def print_adc_clock_status(status, file):
         fadc_source = 'IDIV_E'
 
     print(f'Expected clocks with: N={n} M={m:.5f} P={p} I={i}', file=file)
-    print(f'  fRef: {fRef/1e6:10.6f} MHz', file=file)
-    print(f'  fCCO: {fCCO/1e6:10.6f} MHz', file=file)
-    print(f'  fPLL: {fPLL/1e6:10.6f} MHz', file=file)
-    print(f'  fADC: {fADC/1e6:10.6f} MHz (from {fadc_source})', file=file)
+    print(f'  fRef: {format_frequency(fRef)}', file=file)
+    print(f'  fCCO: {format_frequency(fCCO)}', file=file)
+    print(f'  fPLL: {format_frequency(fPLL)}', file=file)
+    print(f'  fADC: {format_frequency(fADC)} (from {fadc_source})', file=file)
     print(f'', file=file)
 
 
