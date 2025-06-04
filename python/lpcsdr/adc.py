@@ -199,6 +199,9 @@ def main():
     parser.add_argument('--calc', help="Find ADC clock settings for given frequency (specify as MHz)", type=float)
     parser.add_argument('--start', help="Program ADC clock for given frequency (specify as MHz) and start USB transfers", type=float)    
     parser.add_argument('--stop', help="Stop ADC clock and USB transfers", action='store_true')    
+    parser.add_argument('--integer-only', help="Only choose integer-PLL clock configurations", action='store_true')
+    parser.add_argument('--minimize-error', help="Prefer solutions with smaller frequency errors (default: prefer less phase noise)", action='store_true')
+    parser.add_argument('--epsilon', help="Set maximum acceptable error, as a multiplier of the target frequency (default: 1e-6 = 1ppm)", type=float, default=1e-6)
     parser.add_argument('--status', help="Print ADC status", action='store_true')
 
     if len(sys.argv) < 2:
@@ -208,7 +211,7 @@ def main():
     args = parser.parse_args()
 
     if args.calc:
-        print(f'{args.calc:9.6f}MHz => {settings_for(args.calc*1e6)!r}')
+        print(f'{args.calc:9.6f}MHz => {settings_for(args.calc*1e6, epsilon=args.epsilon, minimize_error=args.minimize_error, integer_only=args.integer_only)!r}')
 
     if args.start or args.stop or args.status:
         import lpcsdr.device
