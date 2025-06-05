@@ -223,7 +223,7 @@ def main():
 
         if args.start:
             print(f'Starting ADC transfers at {format_frequency(args.start)}')
-            start_transfer(dev, args.start, epsilon=args.epsilon, minimize_error=args.minimise_error, integer_only=args.integer_only)
+            start_transfer(dev, args.start, epsilon=args.epsilon, minimize_error=args.minimize_error, integer_only=args.integer_only)
 
         if args.stop:
             print('Stopping ADC')
