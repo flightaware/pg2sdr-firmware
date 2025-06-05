@@ -130,7 +130,7 @@ def format_frequency(f: float, precision:int=-3) -> str:
     #     precision=-6 means "show MHz-level precision"
     #     etc
     if abs(f) >= 2.0e9:
-        return f'{f/1e9:.{max(0,precision+9)}f)} GHz'
+        return f'{f/1e9:.{max(0,precision+9)}f} GHz'
     if abs(f) >= 2.0e6:
         return f'{f/1e6:.{max(0,precision+6)}f} MHz'
     if abs(f) >= 2.0e3:
