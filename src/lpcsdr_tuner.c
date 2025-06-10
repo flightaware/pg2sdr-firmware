@@ -1,6 +1,7 @@
 #include "lpcsdr_tuner.h"
 #include "lpcsdr_gpio.h"
 #include "lpcsdr_uart.h"
+#include "lpcsdr_hardware.h"
 
 #include "chip.h"
 #include "stopwatch.h"
@@ -627,6 +628,7 @@ void lpcsdr_tuner_status(ep0_in_board_status_t *status)
         if (reg_shadow[2] & 0x40)
             status->flags |= STATUS_TUNER_PLL_LOCK;
     }
+    status->tuner_xtal = HW_TUNER_XTAL;
 }
 
 /* Update vco_current and wait for PLL lock
