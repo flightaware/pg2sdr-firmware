@@ -182,12 +182,16 @@ bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (
         /* PLL0AUDIO -> IDIV_E -> HSADC */
         Chip_Clock_SetDivider(CLK_IDIV_E, CLKIN_AUDIOPLL, idiv_divisor);
         Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKIN_IDIVE, true, false);
+#ifdef HW_HAS_CLKOUT
         Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKIN_IDIVE, true, false);
+#endif
     } else {
         /* PLL0AUDIO -> HSADC, disable IDIV_E */
         Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
         Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKIN_AUDIOPLL, true, false);
+#ifdef HW_HAS_CLKOUT
         Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKIN_AUDIOPLL, true, false);
+#endif
     }
 
     /* Enable ADC branch clock */
@@ -222,9 +226,12 @@ void lpcsdr_hsadc_clock_stop(void)
 
 void lpcsdr_hsadc_init()
 {
+#ifdef HW_HAS_CLKOUT
     /* Enable CLK0/CLK2 for ADC clock measurement */
     Chip_SCU_ClockPinMuxSet(0, SCU_MODE_FUNC1 | SCU_MODE_INACT);
     Chip_SCU_ClockPinMuxSet(2, SCU_MODE_FUNC1 | SCU_MODE_INACT);
+    Chip_Clock_EnableBaseClock(CLK_BASE_OUT);
+#endif
 
     /* Enable register clock, reset ADC */
     Chip_Clock_EnableOpts(CLK_MX_ADCHS, true, true, 1);

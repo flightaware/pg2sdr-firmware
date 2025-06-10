@@ -11,6 +11,8 @@
 # define HW_RFEN_GPIO_PORT 1
 # define HW_RFEN_GPIO_PIN 12
 # define HW_HAS_UART
+/* HW_HAS_CLKOUT can be enabled here if CLK0/CLK2 output is needed */
+# undef HW_HAS_CLKOUT
 
 #elif defined(HW_IS_AIRSPY)
 
@@ -18,7 +20,7 @@
  *  - tuner connected to I2C1, not I2C0
  *  - tuner crystal is 24MHz
  *  - tuner power control GPIO is on P1_14 / GPIO1[7]
- *  - no exposed UART pins
+ *  - no UART pins or CLK0/2 test points
  */
 
 # define HW_USES_I2C1
@@ -28,6 +30,7 @@
 # define HW_RFEN_GPIO_PORT 1
 # define HW_RFEN_GPIO_PIN 7
 # undef HW_HAS_UART
+# undef HW_HAS_CLKOUT
 
 #else
 
