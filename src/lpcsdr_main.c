@@ -375,6 +375,8 @@ static bool process_ep0_in(const ipc_message_t *message)
     case EP0_IN_BOARD_STATUS: {
         ep0_in_board_status_t *result = (ep0_in_board_status_t *)buf;
 
+        static_assert(sizeof(ep0_in_board_status_t) <= sizeof(lpcsdr_usb_control_buffer));
+
         /* Fill in the state we know of directly */
         if (lpcsdr_read_sw1())
             result->flags |= STATUS_SW1_USBBOOT;
