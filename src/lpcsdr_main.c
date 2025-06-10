@@ -738,6 +738,99 @@ static void m4_handle_message(const ipc_message_t *message)
     }
 }
 
+static void disable_unused_clocks(void)
+{
+    /* power down unused dividers */
+    Chip_Clock_SetDivider(CLK_IDIV_A, CLKINPUT_PD, 1);
+    Chip_Clock_SetDivider(CLK_IDIV_B, CLKINPUT_PD, 1);
+    Chip_Clock_SetDivider(CLK_IDIV_C, CLKINPUT_PD, 1);
+    Chip_Clock_SetDivider(CLK_IDIV_D, CLKINPUT_PD, 1);
+    /* E will be used by ADCHS */
+
+    /* disable base clocks we don't use */
+
+    /* BASE_SAFE_CLK - used by watchdog */
+    /* BASE_USB0_CLK - used by USB0 */
+    Chip_Clock_DisableBaseClock(CLK_BASE_PERIPH);  /* SGPIO and M0 core, unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_USB1);    /* USB1, unused */
+    /* BASE_M4_CLK - used by M4, but disable branches we don't need: */
+    /* CLK_MX_BUS needed */
+    /* CLK_MX_SPIFI needed */
+    /* CLK_MX_GPIO needed */
+    Chip_Clock_Disable(CLK_MX_LCD);
+    Chip_Clock_Disable(CLK_MX_ETHERNET);
+    /* CLK_MX_USB0 needed */
+    Chip_Clock_Disable(CLK_MX_EMC);
+    Chip_Clock_Disable(CLK_MX_SDIO);
+    /* CLK_MX_DMA needed */
+    Chip_Clock_Disable(CLK_MX_SCT);
+    Chip_Clock_Disable(CLK_MX_USB1);
+    Chip_Clock_Disable(CLK_MX_EMC_DIV);
+    Chip_Clock_Disable(CLK_MX_FLASHA);
+    Chip_Clock_Disable(CLK_MX_FLASHB);
+    Chip_Clock_Disable(CLK_M4_M0APP);
+    /* CLK_MX_ADCHS needed */
+    Chip_Clock_Disable(CLK_MX_EEPROM);
+    /* CLK_MX_WWDT needed */
+#ifndef HW_HAS_UART
+    Chip_Clock_Disable(CLK_MX_UART0);
+#endif
+    Chip_Clock_Disable(CLK_MX_UART1);
+    Chip_Clock_Disable(CLK_MX_SSP0);
+    /* CLK_MX_TIMER0 needed (for StopWatch_*) */
+    Chip_Clock_Disable(CLK_MX_TIMER1);
+    Chip_Clock_Disable(CLK_MX_RITIMER);
+    Chip_Clock_Disable(CLK_MX_UART2);
+    Chip_Clock_Disable(CLK_MX_UART3);
+    Chip_Clock_Disable(CLK_MX_TIMER2);
+    Chip_Clock_Disable(CLK_MX_TIMER3);
+    Chip_Clock_Disable(CLK_MX_SSP1);
+    Chip_Clock_Disable(CLK_MX_QEI);
+
+    /* BASE_SPIFI_CLK - used by SPIFI */
+    Chip_Clock_DisableBaseClock(CLK_BASE_SPI);     /* SPI (not SPIFI), unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_PHY_RX);  /* Ethernet PHY RX, unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_PHY_TX);  /* Ethernet PHY TX, unused */
+#ifdef HW_USES_I2C0
+    /* BASE_APB1_CLK - I2C0 needed, disable other peripherals */
+    Chip_Clock_Disable(CLK_APB1_CAN1);
+    Chip_Clock_Disable(CLK_APB1_I2S);
+    Chip_Clock_Disable(CLK_APB1_MOTOCON);
+#else
+    Chip_Clock_DisableBaseClock(CLK_BASE_APB1);    /* I2C0 and other APB1 peripherals unused */
+#endif
+
+#ifdef HW_USES_I2C1
+    /* BASE_APB3_CLK - I2C1 needed, disable other peripherals */
+    Chip_Clock_Disable(CLK_APB3_ADC0);
+    Chip_Clock_Disable(CLK_APB3_ADC1);
+    Chip_Clock_Disable(CLK_APB3_CAN0);
+    Chip_Clock_Disable(CLK_APB3_DAC);
+#else
+    Chip_Clock_DisableBaseClock(CLK_BASE_APB3);    /* I2C1 and other APB3 peripherials unused */
+#endif
+    Chip_Clock_DisableBaseClock(CLK_BASE_LCD);     /* LCD, unused */
+    /* BASE_ADCHS_CLK - ADCHS */
+    Chip_Clock_DisableBaseClock(CLK_BASE_SDIO);    /* SDIO, unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_SSP0);    /* SSP0, unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_SSP1);    /* SSP1, unused */
+#ifdef HW_HAS_UART
+    /* BASE_UART0_CLK - UART */
+#else
+    Chip_Clock_DisableBaseClock(CLK_BASE_UART0);   /* UART0, unused */
+#endif
+    Chip_Clock_DisableBaseClock(CLK_BASE_UART1);   /* UART1, unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_UART2);   /* UART2, unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_UART3);   /* UART3, unused */
+#ifdef HW_HAS_CLKOUT
+    /* BASE_OUT_CLK, used for debug output on CLK0-3 */
+#else
+    Chip_Clock_DisableBaseClock(CLK_BASE_OUT);
+#endif
+    Chip_Clock_DisableBaseClock(CLK_BASE_CGU_OUT0); /* OUT0, unused */
+    Chip_Clock_DisableBaseClock(CLK_BASE_CGU_OUT1); /* OUT1, unused */
+}
+
 int main(void) {
     lpcsdr_m4clock_init();
     lpcsdr_uart_init();
@@ -749,6 +842,8 @@ int main(void) {
     lpcsdr_tuner_init();
     lpcsdr_ipc_init();
     lpcsdr_usb_init();
+
+    disable_unused_clocks();
 
     debug_printf("M4 entering main loop\r\n");
     lpcsdr_ipc_handle_messages_forever(m4_handle_message);
