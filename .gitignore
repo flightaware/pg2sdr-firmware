@@ -2,3 +2,6 @@ Debug
 *~
 __pycache__
 /Debug-Airspy/
+*.png
+*.tsv
+*.fft
