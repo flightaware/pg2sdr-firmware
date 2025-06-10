@@ -8,6 +8,16 @@
 
 #include <string.h>
 
+#if defined(HW_USES_I2C0)
+# define LPC_I2C LPC_I2C0
+# define LPC_I2C_CLK CLK_APB1_I2C0
+#elif defined(HW_USES_I2C1)
+# define LPC_I2C LPC_I2C1
+# define LPC_I2C_CLK CLK_APB3_I2C1
+#else
+# error missing HW_USES_I2Cn define, lpc_hardware.h is broken?
+#endif
+
 /* nb: I2C support library expects only 7-bit slave addresses, not including the trailing R/W bit */
 #define R860T_I2C_ADDR 0x1A
 
@@ -97,15 +107,23 @@ static bool handle_i2c_error(int status)
 void lpcsdr_tuner_init(void)
 {
     /* configure I2C pins */
+
+#ifdef HW_USES_I2C0
     LPC_SCU->SFSI2C0 = I2C0_STANDARD_FAST_MODE; /* SCL_EZI | SDA_EZI */
+#endif
+
+#ifdef HW_USES_I2C1
+    Chip_SCU_PinMuxSet(2, 3, SCU_MODE_FUNC1 | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS);
+    Chip_SCU_PinMuxSet(2, 4, SCU_MODE_FUNC1 | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS);
+#endif
 
     /* enable internal I2C clock, reset all the control state */
-    Chip_Clock_Enable(CLK_APB1_I2C0);
-    LPC_I2C0->CONCLR = I2C_I2CONCLR_AAC | I2C_I2CONCLR_SIC | I2C_I2CONCLR_STAC | I2C_I2CONCLR_I2ENC;
+    Chip_Clock_Enable(LPC_I2C_CLK);
+    LPC_I2C->CONCLR = I2C_I2CONCLR_AAC | I2C_I2CONCLR_SIC | I2C_I2CONCLR_STAC | I2C_I2CONCLR_I2ENC;
     lpcsdr_tuner_clock_update();
 
     /* we're the only master on the I2C bus, might as well just enable SCL/SDA now */
-    LPC_I2C0->CONSET = I2C_I2CONSET_I2EN;
+    LPC_I2C->CONSET = I2C_I2CONSET_I2EN;
 }
 
 void lpcsdr_tuner_clock_update(void)
@@ -115,11 +133,11 @@ void lpcsdr_tuner_clock_update(void)
      * So we need to reconfigure whenever the PLL1 frequency changes
      * (i.e. whenever we change CPU speed)
      */
-    uint32_t scl_period = Chip_Clock_GetRate(CLK_APB1_I2C0) / I2C_SPEED; /* number of I2C0 clock cycles per SCL cycle */
+    uint32_t scl_period = Chip_Clock_GetRate(LPC_I2C_CLK) / I2C_SPEED; /* number of I2C_CLK cycles per SCL cycle */
 
     /* use a 50% duty cycle on SCL */
-    LPC_I2C0->SCLH = scl_period / 2;              /* I2C0 clock cycles to keep SCL high */
-    LPC_I2C0->SCLL = scl_period - LPC_I2C0->SCLH; /* I2C0 clock cycles to keep SCL low; ensure SCLH+SCLL = scl_period */
+    LPC_I2C->SCLH = scl_period / 2;              /* I2C_CLK clock cycles to keep SCL high */
+    LPC_I2C->SCLL = scl_period - LPC_I2C->SCLH;  /* I2C_CLK clock cycles to keep SCL low; ensure SCLH+SCLL = scl_period */
 }
 
 /* bit-reverse a single byte */
@@ -144,8 +162,8 @@ static int i2c_write(uint8_t slaveAddr, const uint8_t *buf, uint8_t len)
     uint32_t bushang_ticks = StopWatch_MsToTicks(I2C_BUSHANG_TIMEOUT);
 
     /* set initial state: STA set, everything else clear -- set START condition on the I2C bus */
-    LPC_I2C0->CONCLR = I2C_I2CONCLR_AAC | I2C_I2CONCLR_SIC;
-    LPC_I2C0->CONSET = I2C_I2CONSET_STA;
+    LPC_I2C->CONCLR = I2C_I2CONCLR_AAC | I2C_I2CONCLR_SIC;
+    LPC_I2C->CONSET = I2C_I2CONSET_STA;
 
     /* monitor the I2C controller state machine, feeding it data as needed, until
      * we're finished or we hit the timeout
@@ -156,15 +174,15 @@ static int i2c_write(uint8_t slaveAddr, const uint8_t *buf, uint8_t len)
 
 #ifdef I2C_DEBUG_STATE_MACHINE
     debug_printf("  ->%02X%s%s%s\r\n", last_state,
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STA ? " STA" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STO ? " STO" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_AA ? " AA" : "");
+                 LPC_I2C->CONSET & I2C_I2CONSET_STA ? " STA" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_STO ? " STO" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_AA ? " AA" : "");
 #endif
 
     while (status == I2C_STATUS_BUSY) {
         uint32_t elapsed = StopWatch_Elapsed(start_ticks);
         if (elapsed > timeout_ticks) {
-            debug_printf("i2c_write: timeout (i=%u, len=%u, last=%02X, current=%02X)\r\n", i, len, last_state, LPC_I2C0->STAT);
+            debug_printf("i2c_write: timeout (i=%u, len=%u, last=%02X, current=%02X)\r\n", i, len, last_state, LPC_I2C->STAT);
             status = I2C_STATUS_TIMEOUT;
             break;
         }
@@ -172,30 +190,30 @@ static int i2c_write(uint8_t slaveAddr, const uint8_t *buf, uint8_t len)
         if (last_state == 0xFF && elapsed > bushang_ticks) {
             /* Waited too long to send START. Force it out. */
             debug_printf("i2c_write: bus hang, forcing STOP\r\n");
-            LPC_I2C0->CONSET = I2C_I2CONSET_STA | I2C_I2CONSET_STO;
+            LPC_I2C->CONSET = I2C_I2CONSET_STA | I2C_I2CONSET_STO;
             last_state = 0xFE;
             continue;
         }
 
-        if (!(LPC_I2C0->CONSET & I2C_I2CONSET_SI)) {
+        if (!(LPC_I2C->CONSET & I2C_I2CONSET_SI)) {
             /* busy-wait until SI indicates a change in state */
             continue;
         }
 
-        uint32_t next_state = LPC_I2C0->STAT;
+        uint32_t next_state = LPC_I2C->STAT;
 #ifdef I2C_DEBUG_STATE_MACHINE
         debug_printf("%02X->%02X%s%s%s\r\n", last_state, next_state,
-                     LPC_I2C0->CONSET & I2C_I2CONSET_STA ? " STA" : "",
-                     LPC_I2C0->CONSET & I2C_I2CONSET_STO ? " STO" : "",
-                     LPC_I2C0->CONSET & I2C_I2CONSET_AA ? " AA" : "");
+                     LPC_I2C->CONSET & I2C_I2CONSET_STA ? " STA" : "",
+                     LPC_I2C->CONSET & I2C_I2CONSET_STO ? " STO" : "",
+                     LPC_I2C->CONSET & I2C_I2CONSET_AA ? " AA" : "");
 #endif
 
         switch (next_state) {
         case 0x08: /* START transmitted */
         case 0x10: /* Repeated START (sometimes this happens after retrying a BUSERR) */
             /* transmit slave address, wait for ACK/NAK */
-            LPC_I2C0->DAT = (slaveAddr << 1) | 0; /* R/W bit = 0 = write */
-            LPC_I2C0->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_SIC; /* clear START, tell the controller it can continue */
+            LPC_I2C->DAT = (slaveAddr << 1) | 0; /* R/W bit = 0 = write */
+            LPC_I2C->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_SIC; /* clear START, tell the controller it can continue */
             break;
 
         case 0x18: /* SLA+W transmitted, ACK received */
@@ -205,8 +223,8 @@ static int i2c_write(uint8_t slaveAddr, const uint8_t *buf, uint8_t len)
                 status = I2C_STATUS_DONE;
             } else {
                 /* transmit next byte */
-                LPC_I2C0->DAT = buf[i++];
-                LPC_I2C0->CONCLR = I2C_I2CONCLR_SIC; /* tell the controller it can continue */
+                LPC_I2C->DAT = buf[i++];
+                LPC_I2C->CONCLR = I2C_I2CONCLR_SIC; /* tell the controller it can continue */
             }
             break;
 
@@ -240,16 +258,16 @@ static int i2c_write(uint8_t slaveAddr, const uint8_t *buf, uint8_t len)
     }
 
     /* set STOP condition to release the bus */
-    LPC_I2C0->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_AAC;
-    LPC_I2C0->CONSET = I2C_I2CONSET_STO;
+    LPC_I2C->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_AAC;
+    LPC_I2C->CONSET = I2C_I2CONSET_STO;
 #ifdef I2C_DEBUG_STATE_MACHINE
     debug_printf("%02X->  %s%s%s\r\n", last_state,
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STA ? " STA" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STO ? " STO" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_AA ? " AA" : "");
+                 LPC_I2C->CONSET & I2C_I2CONSET_STA ? " STA" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_STO ? " STO" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_AA ? " AA" : "");
     }
 #endif
-    LPC_I2C0->CONCLR = I2C_I2CONCLR_SIC;
+    LPC_I2C->CONCLR = I2C_I2CONCLR_SIC;
 
     return status;
 }
@@ -262,8 +280,8 @@ static int i2c_read(uint8_t slaveAddr, uint8_t *buf, uint8_t len)
     uint32_t bushang_ticks = StopWatch_MsToTicks(I2C_BUSHANG_TIMEOUT);
 
     /* set initial state: STA set, everything else clear -- set START condition on the I2C bus */
-    LPC_I2C0->CONCLR = I2C_I2CONCLR_AAC | I2C_I2CONCLR_SIC;
-    LPC_I2C0->CONSET = I2C_I2CONSET_STA;
+    LPC_I2C->CONCLR = I2C_I2CONCLR_AAC | I2C_I2CONCLR_SIC;
+    LPC_I2C->CONSET = I2C_I2CONSET_STA;
 
     /* monitor the I2C controller state machine, reading data as needed, until
      * we're finished or we hit the timeout
@@ -274,15 +292,15 @@ static int i2c_read(uint8_t slaveAddr, uint8_t *buf, uint8_t len)
 
 #ifdef I2C_DEBUG_STATE_MACHINE
     debug_printf("  ->%02X%s%s%s\r\n", last_state,
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STA ? " STA" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STO ? " STO" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_AA ? " AA" : "");
+                 LPC_I2C->CONSET & I2C_I2CONSET_STA ? " STA" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_STO ? " STO" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_AA ? " AA" : "");
 #endif
 
     while (status == I2C_STATUS_BUSY) {
         uint32_t elapsed = StopWatch_Elapsed(start_ticks);
         if (elapsed > timeout_ticks) {
-            debug_printf("i2c_read: timeout (i=%u, len=%u, last=%02X, current=%02X)\r\n", i, len, last_state, LPC_I2C0->STAT);
+            debug_printf("i2c_read: timeout (i=%u, len=%u, last=%02X, current=%02X)\r\n", i, len, last_state, LPC_I2C->STAT);
             status = I2C_STATUS_TIMEOUT;
             break;
         }
@@ -290,40 +308,40 @@ static int i2c_read(uint8_t slaveAddr, uint8_t *buf, uint8_t len)
         if (last_state == 0xFF && elapsed > bushang_ticks) {
             /* Waited too long to send START. Force it out. */
             debug_printf("i2c_read: bus hang, forcing STOP\r\n");
-            LPC_I2C0->CONSET = I2C_I2CONSET_STA | I2C_I2CONSET_STO;
+            LPC_I2C->CONSET = I2C_I2CONSET_STA | I2C_I2CONSET_STO;
             last_state = 0xFE;
             continue;
         }
 
-        if (!(LPC_I2C0->CONSET & I2C_I2CONSET_SI)) {
+        if (!(LPC_I2C->CONSET & I2C_I2CONSET_SI)) {
             /* busy-wait until SI indicates a change in state */
             continue;
         }
 
-        uint32_t next_state = LPC_I2C0->STAT;
+        uint32_t next_state = LPC_I2C->STAT;
 #ifdef I2C_DEBUG_STATE_MACHINE
         debug_printf("%02X->%02X%s%s%s\r\n", last_state, next_state,
-                     LPC_I2C0->CONSET & I2C_I2CONSET_STA ? " STA" : "",
-                     LPC_I2C0->CONSET & I2C_I2CONSET_STO ? " STO" : "",
-                     LPC_I2C0->CONSET & I2C_I2CONSET_AA ? " AA" : "");
+                     LPC_I2C->CONSET & I2C_I2CONSET_STA ? " STA" : "",
+                     LPC_I2C->CONSET & I2C_I2CONSET_STO ? " STO" : "",
+                     LPC_I2C->CONSET & I2C_I2CONSET_AA ? " AA" : "");
 #endif
 
         switch (next_state) {
         case 0x08: /* START transmitted */
         case 0x10: /* Repeated START (sometimes this happens after retrying a BUSERR) */
             /* transmit slave address, wait for ACK/NAK */
-            LPC_I2C0->DAT = (slaveAddr << 1) | 1; /* R/W bit = 1 = read */
-            LPC_I2C0->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_SIC; /* clear START, tell the controller it can continue */
+            LPC_I2C->DAT = (slaveAddr << 1) | 1; /* R/W bit = 1 = read */
+            LPC_I2C->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_SIC; /* clear START, tell the controller it can continue */
             break;
 
         case 0x40: /* SLA+R transmitted, ACK received */
             /* continue to receive first byte */
             if (len > 1) {
-                LPC_I2C0->CONSET = I2C_I2CONSET_AA; /* ACK next byte */
+                LPC_I2C->CONSET = I2C_I2CONSET_AA; /* ACK next byte */
             } else {
-                LPC_I2C0->CONCLR = I2C_I2CONCLR_AAC; /* NAK next byte */
+                LPC_I2C->CONCLR = I2C_I2CONCLR_AAC; /* NAK next byte */
             }
-            LPC_I2C0->CONCLR = I2C_I2CONCLR_SIC; /* tell the controller it can continue */
+            LPC_I2C->CONCLR = I2C_I2CONCLR_SIC; /* tell the controller it can continue */
             break;
 
         case 0x48: /* SLA+R transmitted, NAK returned (no such slave on the bus) */
@@ -339,13 +357,13 @@ static int i2c_read(uint8_t slaveAddr, uint8_t *buf, uint8_t len)
                 break;
             }
 
-            buf[i++] = LPC_I2C0->DAT; /* receive pending byte */
+            buf[i++] = LPC_I2C->DAT; /* receive pending byte */
             if (i < len-1) {
-                LPC_I2C0->CONSET = I2C_I2CONSET_AA; /* ACK next byte */
+                LPC_I2C->CONSET = I2C_I2CONSET_AA; /* ACK next byte */
             } else {
-                LPC_I2C0->CONCLR = I2C_I2CONCLR_AAC; /* NAK next byte */
+                LPC_I2C->CONCLR = I2C_I2CONCLR_AAC; /* NAK next byte */
             }
-            LPC_I2C0->CONCLR = I2C_I2CONCLR_SIC; /* tell the controller we've read the data and it can continue */
+            LPC_I2C->CONCLR = I2C_I2CONCLR_SIC; /* tell the controller we've read the data and it can continue */
             break;
 
         case 0x58: /* data byte received, NAK returned */
@@ -356,7 +374,7 @@ static int i2c_read(uint8_t slaveAddr, uint8_t *buf, uint8_t len)
                 status = I2C_STATUS_BUSERR;
                 break;
             }
-            buf[i++] = LPC_I2C0->DAT; /* receive final byte */
+            buf[i++] = LPC_I2C->DAT; /* receive final byte */
             status = I2C_STATUS_DONE;
             break;
 
@@ -380,16 +398,16 @@ static int i2c_read(uint8_t slaveAddr, uint8_t *buf, uint8_t len)
     }
 
     /* set STOP condition to release the bus */
-    LPC_I2C0->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_AAC;
-    LPC_I2C0->CONSET = I2C_I2CONSET_STO;
+    LPC_I2C->CONCLR = I2C_I2CONCLR_STAC | I2C_I2CONCLR_AAC;
+    LPC_I2C->CONSET = I2C_I2CONSET_STO;
 #ifdef I2C_DEBUG_STATE_MACHINE
     debug_printf("%02X->  %s%s%s\r\n", last_state,
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STA ? " STA" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_STO ? " STO" : "",
-                 LPC_I2C0->CONSET & I2C_I2CONSET_AA ? " AA" : "");
+                 LPC_I2C->CONSET & I2C_I2CONSET_STA ? " STA" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_STO ? " STO" : "",
+                 LPC_I2C->CONSET & I2C_I2CONSET_AA ? " AA" : "");
     }
 #endif
-    LPC_I2C0->CONCLR = I2C_I2CONCLR_SIC;
+    LPC_I2C->CONCLR = I2C_I2CONCLR_SIC;
     return status;
 }
 
