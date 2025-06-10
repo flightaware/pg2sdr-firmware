@@ -73,9 +73,6 @@ typedef volatile struct ALIGN(64) {
 #define NUM_DTDS 7
 #define DTD_BUFFER_SIZE 10240
 
-/* Set up USB PHY and PLL0USB clock. May be called multiple times, idempotent */
-void lpcsdr_usb_clock_init(void);
-
 /* initialize the full USB stack. Returns LPC_OK if all is OK. */
 ErrorCode_t lpcsdr_usb_init(void);
 

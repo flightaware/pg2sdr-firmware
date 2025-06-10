@@ -199,14 +199,12 @@ ErrorCode_t lpcsdr_spifi_init(void)
     };
     Chip_SCU_SetPinMuxing(pinmux, sizeof(pinmux) / sizeof(pinmux[0]));
 
-    // use PLL0USB (480MHz) to feed IDIVD, configured for divide-by-16 to give a SPIFI clock of 30MHz;
-    // ensure that PLL0USB is running first
-    lpcsdr_usb_clock_init();
+    /* For simplicity, just run the SPIFI interface directly off the crystal at 12MHz -- we
+     * don't really need speed here.
+     */
+    Chip_Clock_SetBaseClock(CLK_BASE_SPIFI, CLKIN_CRYSTAL, true, false);
 
-    Chip_Clock_SetDivider(CLK_IDIV_D, CLKIN_USBPLL, 16);
-    Chip_Clock_SetBaseClock(CLK_BASE_SPIFI, CLKIN_IDIVD, true, false);
-
-    // reset and configure SPIFI controller
+    /* reset and configure SPIFI controller */
     spifi_HW_ResetController(LPC_SPIFI); // cancel anything outstanding
     LPC_SPIFI->MEMCMD = 0;
     LPC_SPIFI->DATINTM = 0;

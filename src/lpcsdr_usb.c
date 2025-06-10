@@ -679,29 +679,13 @@ void lpcsdr_usb_status(ep0_in_board_status_t *status)
     }
 }
 
-
-/* Set up the USB PLL and PHY. Can be called multiple times, only does
- * something the first time. This exists so we can get USB0PLL programmed
- * (for use by SPIFI) before needing to fully set up USB.
- */
-void lpcsdr_usb_clock_init(void)
-{
-    static bool once = false;
-
-    if (once)
-        return;
-    once = true;
-
-    /* enable clocks and USB PHY/pads */
-    Chip_USB0_Init();
-}
-
 ErrorCode_t lpcsdr_usb_init(void)
 {
     static_assert(sizeof(USB_DTD_T) == 32, "wrong USB_DTD_T size");
     static_assert(sizeof(USB_DQH_T) == 64, "wrong USB_DQH_T size");
 
-    lpcsdr_usb_clock_init();
+    /* enable clocks and USB PHY/pads */
+    Chip_USB0_Init();
 
     /* initialize USB ROM stack */
     g_pUsbApi = (const USBD_API_T *) LPC_ROM_API->usbdApiBase;
