@@ -381,6 +381,9 @@ static bool process_ep0_in(const ipc_message_t *message)
             result->flags |= STATUS_SW2_PRESSED;
         if (rf_power)
             result->flags |= STATUS_RF_POWER_ON;
+#ifdef HW_IS_LPCSDR
+        result->flags |= STATUS_IS_LPCSDR;
+#endif
 
         result->usb_samples_per_block = HSADC_BUFFER_SIZE/2;
         result->usb_bytes_per_block = USB_BLOCK_SIZE;
