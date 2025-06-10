@@ -72,6 +72,8 @@ class StatusFlags(BitFlag):
     TUNER_I2C_ERROR = 128
     TUNER_PLL_LOCK = 256
     PLL0AUDIO_RUN = 512
+    IS_LPCSDR = 1024
+    IS_AIRSPY = 2048
 
 class BlockStatusFlags(BitFlag):
     ADC_OVERRUN = 1
@@ -137,6 +139,8 @@ class BoardStatus:
     clock_idiv_c: int = typed('I')
     clock_idiv_d: int = typed('I')
     clock_idiv_e: int = typed('I')
+
+    tuner_xtal: int = typed('I')
     
     def __post_init__(self):
         self.flags = StatusFlags(self.flags)
