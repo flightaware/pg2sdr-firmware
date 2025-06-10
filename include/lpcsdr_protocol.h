@@ -51,6 +51,7 @@ typedef struct {
 #define STATUS_TUNER_PLL_LOCK   256  /* Tuner PLL has lock */
 #define STATUS_PLL0AUDIO_RUN    512  /* PLL0AUDIO PLL (HSADC clock) is programmed and running */
 #define STATUS_IS_LPCSDR       1024  /* firmware built for lpcsdr hardware */
+#define STATUS_IS_AIRSPY       2048  /* firmware built for airspy hardware */
 typedef struct {
     /* Flags from STATUS_xxx */
     uint32_t flags;

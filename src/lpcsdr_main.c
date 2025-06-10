@@ -23,6 +23,7 @@
 #include "lpcsdr_uart.h"
 #include "lpcsdr_panic.h"
 #include "lpcsdr_m4clock.h"
+#include "lpcsdr_hardware.h"
 #include <string.h>
 
 static bool bulk_test_mode = false;
@@ -383,6 +384,9 @@ static bool process_ep0_in(const ipc_message_t *message)
             result->flags |= STATUS_RF_POWER_ON;
 #ifdef HW_IS_LPCSDR
         result->flags |= STATUS_IS_LPCSDR;
+#endif
+#ifdef HW_IS_AIRSPY
+        result->flags |= STATUS_IS_AIRSPY;
 #endif
 
         result->usb_samples_per_block = HSADC_BUFFER_SIZE/2;

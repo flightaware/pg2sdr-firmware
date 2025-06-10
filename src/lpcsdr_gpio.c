@@ -32,6 +32,12 @@ static const led_pair_t led_pairs[] = {
             .a = { .valid = true, .pingrp = 1, .pinnum = 17, .gpioport = 0, .gpiopin = 12 },    /* P1_17, GPIO0[12], DS2A (DS2, green LED) */
             .b = { .valid = true, .pingrp = 1, .pinnum = 20, .gpioport = 0, .gpiopin = 15 }, }, /* P1_20, GPIO0[15], DS2B (DS2, red LED) */
 #endif
+
+#ifdef HW_IS_AIRSPY
+    [0] = { .bicolor = false,
+            .a = { .valid = true, .pingrp = 1, .pinnum = 17, .gpioport = 0, .gpiopin = 12 },
+            .b = { .valid = false }, },
+#endif
 };
 #define NUM_LEDS (sizeof(led_pairs) / sizeof(led_pairs[0]))
 
