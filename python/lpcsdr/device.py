@@ -240,6 +240,7 @@ class Device(object):
         self.dev = dev
         dev.set_configuration()
         self.comms_check()
+        self.board_status()
 
     def close(self):
         del self.dev
@@ -303,7 +304,8 @@ class Device(object):
         return self._in_bytes(req=InReq.TUNER_READ, value=first_reg, index=cache_mode, length=length)
 
     def board_status(self, measure_clocks=False) -> BoardStatus:
-        return self._in(req=InReq.BOARD_STATUS, value=(1 if measure_clocks else 0), index=0, klass=BoardStatus)
+        self.last_board_status = self._in(req=InReq.BOARD_STATUS, value=(1 if measure_clocks else 0), index=0, klass=BoardStatus)
+        return self.last_board_status
 
     def tuner_lock(self, vco_current: int, timeout_ms: int) -> bool:
         message = self._in(req=InReq.TUNER_LOCK, value=vco_current, index=timeout_ms, klass=TunerLock)
@@ -403,6 +405,4 @@ def find():
             print(f"LPCSDR device didn't re-enumerate after firmware download", file=sys.stderr)
             return None
 
-    dev = Device(usbdev)
-    dev.comms_check()
-    return dev
+    return Device(usbdev)
