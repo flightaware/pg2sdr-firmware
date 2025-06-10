@@ -30,7 +30,7 @@ def show_status(status, file):
         print(f'', file=file)
 
     if lpcsdr.device.StatusFlags.RF_POWER_ON in status.flags:
-        lpcsdr.tuner.print_regs(status.tuner_regs)
+        lpcsdr.tuner.print_status(status.tuner_xtal, status.tuner_regs)
 
     print(f'USB:', file=file)
     print(f'  Free buffers:   {status.usb_free_buffers}', file=file)

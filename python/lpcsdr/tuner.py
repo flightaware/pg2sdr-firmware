@@ -463,8 +463,8 @@ class PLLParameters(NamedTuple):
     freq: float
 
 
-def find_parameters(requested:float, xtal:float = 28.8e6):
-    if xtal > 24e6:
+def find_parameters(requested:float, xtal:float):
+    if xtal >= 24e6:
         # Turn on the /2 divider on the PLL reference input
         refdiv = True
         pll_ref = xtal / 2
@@ -649,8 +649,9 @@ def set_if_bandpass_cs(cs:Changeset, lo:float, hi:float, not_above=None):
 set_if_bandpass = wrap_change(set_if_bandpass_cs)
 
 
-def print_regs(regs: bytes, file=sys.stdout):
+def print_status(xtal: int, regs: bytes, file=sys.stdout):
     print('Tuner:', file=file)
+    print(f'  Xtal: {format_frequency(xtal)}', file=file)
     for i, value in enumerate(regs):
         reg = TunerRegs[i](value)
         print(f'  R{i:<2d} (0x{value:02X})  ', end='', file=file)
@@ -662,7 +663,7 @@ def print_regs(regs: bytes, file=sys.stdout):
 
 
 def vco_scan(dev:Device):
-    xtal = 28.8e6
+    xtal = dev.last_board_status.tuner_xtal
     refdiv = 1
     pll_ref = xtal / 2
     seldiv = 2
@@ -735,7 +736,7 @@ def main():
 
     if args.pll:
         print(f'tuning PLL to {format_frequency(args.pll)}')
-        params = find_parameters(requested=args.pll)
+        params = find_parameters(requested=args.pll, xtal=dev.last_board_status.tuner_xtal)
         print(f'programming PLL with settings: {params}')
         start_pll(dev, params)
 
@@ -775,7 +776,7 @@ def main():
 
     if args.status:
         regs = dev.tuner_read(0, 32, lpcsdr.device.TunerCacheMode.REFRESH_CACHE)
-        print_regs(regs, file=sys.stdout)
+        print_status(dev.last_board_status.tuner_xtal, regs, file=sys.stdout)
 
     return 0
 
