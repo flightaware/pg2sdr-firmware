@@ -40,16 +40,17 @@ typedef struct {
 } ep0_in_flash_unique_id_t;
 
 /* Various status flags */
-/* #define STATUS_FAST_CPU      1 */ /* CPU is running at fast speed */
-#define STATUS_SW1_USBBOOT   2  /* SW1 is closed (boot-from-USB mode) */
-#define STATUS_SW2_PRESSED   4  /* SW2 is depressed */
-#define STATUS_RF_POWER_ON   8  /* RF power is on */
-#define STATUS_HSADC_RUN    16  /* HSADC conversion is running */
-#define STATUS_DMA_RUN      32  /* DMA is running */
-#define STATUS_EP1_ENABLED  64  /* USB EP1 is enabled (not stalled) */
-#define STATUS_TUNER_I2C_ERROR 128  /* Saw an I2C error while talking to the tuner */
-#define STATUS_TUNER_PLL_LOCK 256   /* Tuner PLL has lock */
-#define STATUS_PLL0AUDIO_RUN 512   /* PLL0AUDIO PLL (HSADC clock) is programmed and running */
+/* #define STATUS_FAST_CPU          1 */ /* CPU is running at fast speed */
+#define STATUS_SW1_USBBOOT        2  /* SW1 is closed (boot-from-USB mode) */
+#define STATUS_SW2_PRESSED        4  /* SW2 is depressed */
+#define STATUS_RF_POWER_ON        8  /* RF power is on */
+#define STATUS_HSADC_RUN         16  /* HSADC conversion is running */
+#define STATUS_DMA_RUN           32  /* DMA is running */
+#define STATUS_EP1_ENABLED       64  /* USB EP1 is enabled (not stalled) */
+#define STATUS_TUNER_I2C_ERROR  128  /* Saw an I2C error while talking to the tuner */
+#define STATUS_TUNER_PLL_LOCK   256  /* Tuner PLL has lock */
+#define STATUS_PLL0AUDIO_RUN    512  /* PLL0AUDIO PLL (HSADC clock) is programmed and running */
+#define STATUS_IS_LPCSDR       1024  /* firmware built for lpcsdr hardware */
 typedef struct {
     /* Flags from STATUS_xxx */
     uint32_t flags;
@@ -112,6 +113,8 @@ typedef struct {
     uint32_t clock_idiv_c;
     uint32_t clock_idiv_d;
     uint32_t clock_idiv_e;
+
+    uint32_t tuner_xtal; /* R860T crystal frequency */
 } ep0_in_board_status_t;
 
 
