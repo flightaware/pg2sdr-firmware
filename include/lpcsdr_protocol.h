@@ -1,7 +1,12 @@
 #ifndef LPCSDR_PROTOCOL_H
 #define LPCSDR_PROTOCOL_H
 
-#include "lpc_types.h"
+/* This header will be compiled by both the host and the firmware,
+ * so avoid hardware-specific inclusions here
+ */
+
+#include <stdbool.h>
+#include <stdint.h>
 
 /* --- Control endpoint EP0 --- */
 
@@ -156,20 +161,20 @@ typedef struct {
 /* status bits for ep1_header_t.status */
 
 /* ADC FIFO overrun, data was dropped */
-#define BLOCK_STATUS_ADC_OVERRUN _BIT(0)
+#define BLOCK_STATUS_ADC_OVERRUN       1
 /* DMA error seen */
-#define BLOCK_STATUS_DMA_ERROR _BIT(1)
+#define BLOCK_STATUS_DMA_ERROR         2
 /* Packing overrun, main loop did not copy/pack data in time before the buffer was reused by ADC DMA */
-#define BLOCK_STATUS_PACKING_OVERRUN _BIT(2)
+#define BLOCK_STATUS_PACKING_OVERRUN   4
 /* Host overrun, data not transferred over USB fast enough */
-#define BLOCK_STATUS_USB_OVERRUN _BIT(3)
+#define BLOCK_STATUS_USB_OVERRUN       8
 
 /* ADC range overflow happened */
-#define BLOCK_STATUS_ADC_OVF _BIT(8)
+#define BLOCK_STATUS_ADC_OVF         256
 /* ADC range underflow happened */
-#define BLOCK_STATUS_ADC_UNF _BIT(9)
+#define BLOCK_STATUS_ADC_UNF         512
 /* Tuner frequency is changing */
-#define BLOCK_STATUS_FREQ_CHANGE _BIT(10)
+#define BLOCK_STATUS_FREQ_CHANGE    1024
 
 
 #endif /* LPCSDR_PROTOCOL_H */
