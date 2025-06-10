@@ -1,4 +1,5 @@
 #include "lpcsdr_gpio.h"
+#include "lpcsdr_hardware.h"
 
 #include "chip.h"
 #include "stopwatch.h"
@@ -20,6 +21,7 @@ typedef struct {
 
 /* See UM10503 ch. 16 table 187 for pin numbering */
 static const led_pair_t led_pairs[] = {
+#ifdef HW_IS_LPCSDR
     [0] = { .bicolor = false,
             .a = { .valid = true, .pingrp = 1, .pinnum = 1,  .gpioport = 0, .gpiopin = 8  },    /* P1_1, GPIO0[8] (2.2k pullup), D2 (yellow LED) */
             .b = { .valid = false }, },
@@ -29,6 +31,7 @@ static const led_pair_t led_pairs[] = {
     [2] = { .bicolor = true,
             .a = { .valid = true, .pingrp = 1, .pinnum = 17, .gpioport = 0, .gpiopin = 12 },    /* P1_17, GPIO0[12], DS2A (DS2, green LED) */
             .b = { .valid = true, .pingrp = 1, .pinnum = 20, .gpioport = 0, .gpiopin = 15 }, }, /* P1_20, GPIO0[15], DS2B (DS2, red LED) */
+#endif
 };
 #define NUM_LEDS (sizeof(led_pairs) / sizeof(led_pairs[0]))
 
@@ -61,14 +64,16 @@ void lpcsdr_gpio_init(void)
     Chip_SCU_PinMuxSet(2, 8, SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC4);
     Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, 5, 7);
 
+    /* RFEN pin / GPIO */
+    Chip_SCU_PinMuxSet(HW_RFEN_PINGRP, HW_RFEN_PINNUM, SCU_MODE_INACT | SCU_MODE_FUNC0);
+    Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, HW_RFEN_GPIO_PORT, HW_RFEN_GPIO_PIN);
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT, HW_RFEN_GPIO_PORT, HW_RFEN_GPIO_PIN, false);
+
+#ifdef HW_IS_LPCSDR
     /* SW2 on P2_13 / GPIO1[13], floating or direct connection to GND, no external pullup so use the internal pullup */
     Chip_SCU_PinMuxSet(2, 13, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0);
     Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, 1, 13);
-
-    /* RF_EN output on P2_12 / GPIO1[12], external pulldown */
-    Chip_SCU_PinMuxSet(2, 12, SCU_MODE_INACT | SCU_MODE_FUNC0);
-    Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 1, 12);
-    Chip_GPIO_SetPinState(LPC_GPIO_PORT, 1, 12, false);
+#endif
 
     /* test pattern, cycle all the LEDS */
     for (unsigned i = 0; i < NUM_LEDS; ++i) {
@@ -121,10 +126,14 @@ bool lpcsdr_read_sw1(void)
 
 bool lpcsdr_read_sw2(void)
 {
+#if defined(HW_IS_LPCSDR)
     return Chip_GPIO_GetPinState(LPC_GPIO_PORT, 1, 13);
+#else
+    return true;
+#endif
 }
 
 void lpcsdr_set_rfen(bool onoff)
 {
-    Chip_GPIO_SetPinState(LPC_GPIO_PORT, 1, 12, onoff);
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT, HW_RFEN_GPIO_PORT, HW_RFEN_GPIO_PIN, onoff);
 }
