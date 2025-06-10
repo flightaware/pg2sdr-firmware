@@ -24,7 +24,7 @@ def read_blocks(dev: Device, nsamples: int, progress_fn:Optional[Callable[[int,i
        If progress_fn is not None, periodically call it with the current and total byte counts
        while the read is in progress."""
 
-    status = dev.last_board_status
+    status = dev.board_status(measure_clocks=False)
     
     blocks = math.ceil(nsamples / status.usb_samples_per_block)
     total = blocks * status.usb_bytes_per_block
