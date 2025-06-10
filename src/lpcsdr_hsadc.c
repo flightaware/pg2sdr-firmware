@@ -229,6 +229,9 @@ void lpcsdr_hsadc_init()
     /* Enable register clock, reset ADC */
     Chip_Clock_EnableOpts(CLK_MX_ADCHS, true, true, 1);
     Chip_RGU_TriggerReset(RGU_ADCHS_RST);
+
+    /* Disable IDIVE until we're first asked to configure the clock */
+    Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
 }
 
 bool lpcsdr_hsadc_conversion_start()
