@@ -2,8 +2,11 @@
 #include "lpcsdr_common.h"
 #include "lpcsdr_panic.h"
 #include "lpcsdr_m4clock.h"
+#include "lpcsdr_hardware.h"
 #include "chip.h"
 #include <stdarg.h>
+
+#ifdef HW_HAS_UART
 
 #define NANOPRINTF_IMPLEMENTATION
 #define NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS 1
@@ -137,3 +140,27 @@ void debug_printf(const char *format, ...)
     }
     lpcsdr_uart_write(buf, n);
 }
+
+#else /* ! HW_HAS_UART */
+
+void lpcsdr_uart_init(void)
+{
+    /* nothing */
+}
+
+void lpcsdr_uart_write(const char *data, unsigned len)
+{
+    /* nothing */
+}
+
+void lpcsdr_uart_flush(void)
+{
+    /* nothing */
+}
+
+void debug_printf(const char *format, ...)
+{
+    /* nothing */
+}
+
+#endif /* HW_HAS_UART */
