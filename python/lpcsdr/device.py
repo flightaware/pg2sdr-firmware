@@ -361,16 +361,20 @@ class Device(object):
 
 
 def locate_firmware():
-    candidates = []
     env = os.environ.get('LPCSDR_FIRMWARE', None)
     if env is not None:
-        candidates.append(env)
+        if not os.path.exists(env):
+            print(f'LPCSDR_FIRMWARE was set to "{env}", but that path does not exist', file=sys.stderr)
+            return None
+        return env
 
     # use realpath here, because e.g. soapy-scan symlinks lpcsdr -> lpcsdr_firmware/python/lpcsdr
     firmware_python_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
     firmware_base_dir = os.path.join(firmware_python_dir, '..')
-    candidates.append(os.path.realpath(os.path.join(firmware_base_dir, 'Debug', 'lpcsdr.bin')))
-    candidates.append(os.path.realpath(os.path.join(firmware_base_dir, 'images', 'lpcsdr.bin')))
+    candidates = [
+        os.path.realpath(os.path.join(firmware_base_dir, 'Debug', 'lpcsdr.bin')),
+        os.path.realpath(os.path.join(firmware_base_dir, 'images', 'lpcsdr.bin')),
+    ]
 
     for path in candidates:
         if os.path.exists(path):
