@@ -292,11 +292,9 @@ class TunerFields:
     pass
 
 for regnum, regclass in enumerate(TunerRegs):
-    for member in regclass:
-        if member.name.startswith('reserved'):
-            name = f'r{regnum}_{member.name}'
-        else:
-            name = member.name
+    for name, member in regclass.__members__.items():
+        if name.startswith('reserved'):
+            name = f'r{regnum}_{name}'
         assert not hasattr(TunerFields, name)
         setattr(TunerFields, name, (regnum, member))
 
