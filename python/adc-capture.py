@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--samples', help='capture this many samples', type=int, required=True)
     parser.add_argument('--rate', help='set sampling rate, start ADC before capture, stop ADC after capture', type=frequency_value)
     parser.add_argument('--format', help='Set output format to s16 (signed 16-bit) or tsv (text)', choices=['s16', 'tsv'], default='s16')
+    parser.add_argument('--skip', help='Skip this many sample blocks before recording data', type=int, default=8)
     parser.add_argument('filename', help='set output filename')
 
     args = parser.parse_args()
@@ -37,7 +38,7 @@ def main():
         print(f'Reading data: {100*current/total:.0f}%  \r', end='', flush=True, file=sys.stderr)
         if current >= total:
             print(file=sys.stderr)
-    raw_blocks = lpcsdr.bulk.read_blocks(dev, args.samples, show_progress)
+    raw_blocks = lpcsdr.bulk.read_blocks(dev, args.samples + args.skip * status.usb_samples_per_block, show_progress)
 
     if args.rate:
         print('Stopping ADC', file=sys.stderr)
@@ -52,8 +53,8 @@ def main():
 
         last_seq = first_seq = None
         for index, adc_block in enumerate(lpcsdr.bulk.unpack_blocks(raw_blocks)):
-            # ignore first 8 blocks, to purge out any old data in the device buffers
-            if index < 8:
+            # ignore initial blocks, to purge out any old data in the device buffers
+            if index < args.skip:
                 continue
 
             if first_seq is None:
