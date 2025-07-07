@@ -46,7 +46,7 @@ def read_blocks(dev: Device, nsamples: int, progress_fn:Optional[Callable[[int,i
         progress_fn(captured, total)
     return results
 
-def unpack_blocks(raw: Sequence[Sequence[int]]) -> Generator[ADCBlock]:
+def unpack_blocks(raw: Sequence[Sequence[int]], unpack_samples:bool=True) -> Generator[ADCBlock]:
     """Given raw data as a list-of-arrays (as read by read_blocks),
     unpack the sample data and yield a sequence of unpacked ADCBlocks"""
 
@@ -74,7 +74,7 @@ def unpack_blocks(raw: Sequence[Sequence[int]]) -> Generator[ADCBlock]:
     if BHS.size + (samples_per_block * 12 // 8) > bytes_per_block:
         raise ValueError(f'header samples_per_block={samples_per_block} does not fit in header bytes_per_block={bytes_per_block}')
 
-    unpacked = np.empty(samples_per_block, dtype=np.uint16)  # temporary processing space
+    unpacked = np.zeros(samples_per_block, dtype=np.uint16)  # temporary processing space
 
     while True:
         # accumulate more raw data into 'data' from 'raw'
@@ -95,27 +95,28 @@ def unpack_blocks(raw: Sequence[Sequence[int]]) -> Generator[ADCBlock]:
         if block_header.samples != samples_per_block:
             raise ValueError('wrong sample count in block header at offset {offset}')
 
-        # reinterpret bytes as little-endian uint32
-        packed = block[BHS.size:BHS.size+samples_per_block*12//8].view(dtype='<u4')
+        if unpack_samples:
+            # reinterpret bytes as little-endian uint32
+            packed = block[BHS.size:BHS.size+samples_per_block*12//8].view(dtype='<u4')
 
-        # use slices with 12-byte (3*uint32) stride to chop up the block into chunks of 12 bytes
-        # that we can operate on simultaneously (so the loop across the block can run inside the numpy
-        # implementation, not in interpreted python)
-        p1 = packed[0::3]  # 1st uint32 of each 12-byte chunk
-        p2 = packed[1::3]  # 2nd uint32 of each 12-byte chunk
-        p3 = packed[2::3]  # 3rd uint32 of each 12-byte chunk
+            # use slices with 12-byte (3*uint32) stride to chop up the block into chunks of 12 bytes
+            # that we can operate on simultaneously (so the loop across the block can run inside the numpy
+            # implementation, not in interpreted python)
+            p1 = packed[0::3]  # 1st uint32 of each 12-byte chunk
+            p2 = packed[1::3]  # 2nd uint32 of each 12-byte chunk
+            p3 = packed[2::3]  # 3rd uint32 of each 12-byte chunk
 
-        # build 8 uint16 samples (with 12 bits of data per sample) from each 12-byte chunk
-        unpacked[0::8] = (p1 & 0x00000FFF)
-        unpacked[1::8] = (p1 & 0x0FFF0000) >> 16
-        unpacked[2::8] = (p2 & 0x00000FFF)
-        unpacked[3::8] = (p2 & 0x0FFF0000) >> 16
-        unpacked[4::8] = (p3 & 0x00000FFF)
-        unpacked[5::8] = (p3 & 0x0FFF0000) >> 16
-        unpacked[6::8] = ((p1 & 0x0000F000) >> 4) | ((p2 & 0x0000F000) >> 8) | ((p3 & 0x0000F000) >> 12)
-        unpacked[7::8] = ((p1 & 0xF0000000) >> 20) | ((p2 & 0xF0000000) >> 24) | ((p3 & 0xF0000000) >> 28)
-        # sign-extend to 16 bits
-        unpacked = (unpacked & 0x7FF) - (unpacked & 0x800)
+            # build 8 uint16 samples (with 12 bits of data per sample) from each 12-byte chunk
+            unpacked[0::8] = (p1 & 0x00000FFF)
+            unpacked[1::8] = (p1 & 0x0FFF0000) >> 16
+            unpacked[2::8] = (p2 & 0x00000FFF)
+            unpacked[3::8] = (p2 & 0x0FFF0000) >> 16
+            unpacked[4::8] = (p3 & 0x00000FFF)
+            unpacked[5::8] = (p3 & 0x0FFF0000) >> 16
+            unpacked[6::8] = ((p1 & 0x0000F000) >> 4) | ((p2 & 0x0000F000) >> 8) | ((p3 & 0x0000F000) >> 12)
+            unpacked[7::8] = ((p1 & 0xF0000000) >> 20) | ((p2 & 0xF0000000) >> 24) | ((p3 & 0xF0000000) >> 28)
+            # sign-extend to 16 bits
+            unpacked = (unpacked & 0x7FF) - (unpacked & 0x800)
 
         # convert uint16->int16, copy to result list
         yield ADCBlock(block_header.sequence,
