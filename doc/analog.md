@@ -203,7 +203,7 @@ rate, so that's not an interesting case.
 For some lower sampling rate $f_s$, the spur will appear at:
 
 $$
-f_{spur}(f_s) =
+\mathrm{spur}(f_s) =
 \begin{cases}
   \mathrm{12MHz} \bmod f_s & {\mathrm{12MHz} \bmod f_s} < {F_s/2} \\
   f_s - {\mathrm{12MHz} \bmod f_s} & \mathrm{otherwise}
@@ -212,7 +212,7 @@ $$
 
 For example, at a sampling rate of $f_s = 5\mathrm{MHz}$:
 
- * $`f_{spur}(f_s)
+ * $`\mathrm{spur}(f_s)
    = \mathrm{12MHz} \bmod f_s
    = \mathrm{12MHz} \bmod \mathrm{5MHz}
    = \mathrm{2MHz}`$
@@ -220,7 +220,7 @@ For example, at a sampling rate of $f_s = 5\mathrm{MHz}$:
 
 At a sampling rate of $f_s = 7.5\mathrm{MHz}$:
 
- * $`f_{spur}(f_s)
+ * $`\mathrm{spur}(f_s)
    = \mathrm{12MHz} \bmod f_s
    = \mathrm{12MHz} \bmod \mathrm{7.5MHz}
    = \mathrm{4.5MHz}`$
