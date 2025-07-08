@@ -87,12 +87,12 @@ For example, if there was some RF input at 1089MHz - the low edge of our
 input signal - then the corresponding mixer output is at
 $f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1089MHz} = \mathrm{6MHz}$.
 If there was some RF input at 1091MHz, the corresponding mixer output is at
-$f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1091MHz} = \mathrm{4MHz}.
+$f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1091MHz} = \mathrm{4MHz}$.
 
 So our signal of interest now lies between 4MHz..6MHz, and the low and high
 ends of the frequency range have been mirrored.
 
-This is the *intermediate frequency (IF) signal* and it is this frequency range
+This is the *intermediate frequency* (IF) signal and it is this signal
 that we will (after some more filtering) digitize with the ADC.
 
 ## Tuner mixer gain
@@ -279,7 +279,7 @@ To avoid this, we could instead:
    client is expecting it to be
 
 More generally, by doubling the sampling rate, we capture twice the bandwidth.
-As the spur will only appear at once frequency, it can, at worst, only
+As the spur will only appear at one frequency, it can, at worst, only
 affect signals in one half of that doubled bandwidth, and so we can arrange
 for our actual signal to appear in the other half.
 
