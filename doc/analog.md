@@ -1,11 +1,12 @@
 # Analog receive path
 
-Here's what the analog side of the LPCSDR hardware:
+Here's a high-level view of the analog side of the LPCSDR hardware:
 
 ![High-level diagram of components of the LPCSDR analog receive path](diagrams/analog-receive.png)
 
 The following sections walk through the analog receive path, starting from the
-antenna inputand working towards the ADC that converts data into a digital form.
+antenna input and working towards the ADC that converts data into a digital
+form.
 
 This explanation uses a 1090MHz signal to illustrate, but the same
 general process applies to any sort of signal handled by the LPCSDR.
@@ -79,16 +80,17 @@ input signal, where $f_{mixer} = f_{LO} - f_{RF}$. That is, it will produce a
 
 ![Frequency diagrams showing the RF input at 1089-1091MHz shifted and mirrored so it lies between 4MHz and 6MHz](diagrams/analog-mixer-out.png)
 
-Because we chose $f_{LO}$ = 1095MHz, our input signal at 1089MHz - 1091MHz will
+Because we chose $f_{LO}$ = 1095MHz, our input signal at 1089MHz..1091MHz will
 end up centered at 5MHz, with frequencies around that center frequency mirrored.
 
 For example, if there was some RF input at 1089MHz - the low edge of our
 input signal - then the corresponding mixer output is at
-(1095MHz - 1089MHz) = 6MHz - the high edge of the output signal. If there was
-some RF input at 1091MHz, the corresponding mixer output is at
-(1095MHz - 1091MHz) = 4MHz.
+$f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1089MHz} = \mathrm{6MHz}$.
+If there was some RF input at 1091MHz, the corresponding mixer output is at
+$f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1091MHz} = \mathrm{4MHz}.
 
-So our signal of interest now lies between 4MHz and 6MHz.
+So our signal of interest now lies between 4MHz..6MHz, and the low and high
+ends of the frequency range have been mirrored.
 
 This is the *intermediate frequency (IF) signal* and it is this frequency range
 that we will (after some more filtering) digitize with the ADC.
@@ -106,18 +108,18 @@ to the mixer output. This filter lets us select just the part of the output
 that has the signal that we want, and attenuate any other nearby signals that
 may have made it this far. The filter passes only signals with frequencies
 between a configurable low and high cutoff. In our example, we are only
-interested in the part of the I2C signal between about 4MHz and 6MHz, so
-we might set the bandpass range to (for example) 3MHz-7MHz:
+interested in the part of the I2C signal between 4MHz..6MHz, so
+we might set the bandpass range to (for example) 3MHz..7MHz:
 
-![Frequency diagram showing a bandpass filter response that passes 3MHz-7MHz](diagrams/analog-if-bandpass-filter.png)
+![Frequency diagram showing a bandpass filter response that passes 3MHz..7MHz](diagrams/analog-if-bandpass-filter.png)
 
 Let's say that our RF input has actually also picked up some signal at 1030MHz,
 which is the frequency used for Mode S interrogations sent by SSRs:
 
 ![Frequency diagram showing RF input with signals at 1030MHz and 1090MHz](diagrams/analog-rf-with-1030MHz.png)
 
-With $f_{LO} = \mathrm{1095MHz}$, the signal at 1030MHz will appear in the mixer
-output at $f_{mixer} = (\mathrm{1095MHz} - \mathrm{1030MHz}) = \mathrm{65MHz}$,
+With $f_{LO} = \mathrm{1095MHz}$, the signal at $f_{RF} = \mathrm{1030MHz}$ will appear in the mixer
+output at $f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1030MHz} = \mathrm{65MHz}$,
 in addition to the signal we actually wanted at 5MHz:
 
 ![Frequency diagram showing mixer output with signals at 5MHz and 65MHz](diagrams/analog-if-with-65MHz.png)
@@ -125,10 +127,10 @@ in addition to the signal we actually wanted at 5MHz:
 Without further filtering, this 65MHz signal will interfere when we later try
 to digitize the signal, as it is above the Nyquist frequency for our ADC
 sampling rate and will be aliased on top of the signal we actually care about.
-Applying the tuner IF filter with a bandpass range of 3MHz-7MHz, this extraneous
+Applying the tuner IF filter with a bandpass range of 3MHz..7MHz, this extraneous
 65MHz input can be removed:
 
-![Frequency diagram showing mixer output with a signal at 5MHz, a dotted signal at 65MHz, and a bandpass filter at 3MHz-7MHz](diagrams/analog-if-filter-65MHz.png)
+![Frequency diagram showing mixer output with a signal at 5MHz, a dotted signal at 65MHz, and a bandpass filter at 3MHz..7MHz](diagrams/analog-if-filter-65MHz.png)
 
 ## Final tuner amplifier
 
@@ -159,7 +161,7 @@ the range -2048 .. +2047).
 
 To usefully convert the IF signal, we need to sample it at a rate that is
 at least twice the highest frequency component of the input signal (the
-[Nyquist rate](https://en.wikipedia.org/wiki/Nyquist_rate). Any higher
+[Nyquist rate](https://en.wikipedia.org/wiki/Nyquist_rate)). Any higher
 frequency components present in the input will end up being aliased, as if
 they were actually at a lower frequency, and we want to minimize this because
 it will interfere with the signal we're actually trying to hear. With an
@@ -178,8 +180,9 @@ comfortably greater than the minimum sampling rate required.
 
 The sampling rate is controlled by a separate clock that is sent to the ADCHS
 internally within the LPC chip. We generate this clock by configuring one of
-the LPC's internal PLLs to generate the sampling rate we want, using a
-12MHz crystal as the reference frequency and scaling that to the rate we need.
+the LPC's internal PLLs (PLL0AUDIO) to generate the sampling rate we want,
+using an external 12MHz crystal as the reference frequency and scaling that
+to the rate we need.
 
 ## 12MHz spurs in conversion
 
@@ -200,7 +203,7 @@ rate, so that's not an interesting case.
 For some lower sampling rate $f_s$, the spur will appear at:
 
 $$
-\mathrm{spur}(x) =
+f_{spur}(f_s) =
 \begin{cases}
   \mathrm{12MHz} \bmod f_s & {\mathrm{12MHz} \bmod f_s} < {F_s/2} \\
   f_s - {\mathrm{12MHz} \bmod f_s} & \mathrm{otherwise}
@@ -209,14 +212,16 @@ $$
 
 For example, at a sampling rate of $f_s = 5\mathrm{MHz}$:
 
- * $`\mathrm{12MHz} \bmod f_s
+ * $`f_{spur}(f_s)
+   = \mathrm{12MHz} \bmod f_s
    = \mathrm{12MHz} \bmod \mathrm{5MHz}
    = \mathrm{2MHz}`$
  * $\mathrm{2MHz} < {f_s/2}$, so the spur appears at 2MHz
 
 At a sampling rate of $f_s = 7.5\mathrm{MHz}$:
 
- * $`\mathrm{12MHz} \bmod f_s
+ * $`f_{spur}(f_s)
+   = \mathrm{12MHz} \bmod f_s
    = \mathrm{12MHz} \bmod \mathrm{7.5MHz}
    = \mathrm{4.5MHz}`$
  * $\mathrm{4.5MHz} > {f_s/2}$, so the spur appears at
@@ -228,7 +233,7 @@ If that spur lies somewhere within our signal of interest, we're going to
 have a problem.
 
 In our earlier example, $f_s = 20MHz$, so $\mathrm{spur}(x) = \mathrm{8MHz}$,
-luckily not within our signal of interest at 4MHz-6MHz. The digital side will
+luckily not within our signal of interest at 4MHz..6MHz. The digital side will
 need to deal with that 8MHz signal somehow, but it can be safely filtered out
 without impacting the main signal.
 
@@ -240,7 +245,7 @@ There are two ways to ensure that the spur never lands on our signal:
 
 Some sampling rates put the spur right at the edge of the captured spectrum,
 where there will be no useful signal. These rates are where
-$f_s = \mathrm{24MHz} / N$, N = 2,3,...:
+$f_s = \mathrm{24MHz} / N, N = 2,3,...$ :
 
  * 12MHz (spur at 0)
  * 8MHz (spur at 4MHz)
@@ -258,7 +263,7 @@ the captured spectrum, which may be acceptable.
 
 Let's say we want to capture 3.5MHz worth of spectrum at 1090MHz - 1093.5MHz,
 using a sampling rate of 7MHz. We tune the tuner LO to 1093.5MHz, producing
-an IF signal between 3.5MHz - 0Hz.
+an IF signal between 3.5MHz..0Hz.
 
 The 12MHz spur will appear at 2MHz, right in the middle of our signal.
 
@@ -267,8 +272,8 @@ To avoid this, we could instead:
  * Use a sampling rate of 14MHz, capturing an IF signal between 0 - 7MHz
  * This sampling rate also produces a spur at 2MHz
  * Tune the LO to 1097MHz. Our IF now represents the spectrum from
-   1097MHz - 1090MHz. Our signal at 1090MHz - 1093.5MHz now appears between
-   7MHz to 3.5MHz, avoiding the spur at 2MHz
+   1097MHz..1090MHz. Our signal at 1090MHz..1093.5MHz now appears between
+   7MHz..3.5MHz, avoiding the spur at 2MHz
  * On the digital side, we can do some filtering and frequency shifting to
    remove the 2MHz spur and shift the received signal back to where the
    client is expecting it to be
