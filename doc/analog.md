@@ -1,5 +1,12 @@
 # Analog receive path
 
+This document discusses the analog side of the LPCSDR hardware. The analog
+side is the parts of the hardware that are dealing with signals as physical,
+continuously-varying, voltages. At the end of the analog path, we sample and
+measure that physical signal voltage using an ADC, and processing continues
+on the digital side where signals are represented as a series of discrete
+sample values with limited precision.
+
 Here's a high-level view of the analog side of the LPCSDR hardware:
 
 ![High-level diagram of components of the LPCSDR analog receive path](diagrams/analog-receive.png)
