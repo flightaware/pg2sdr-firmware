@@ -87,14 +87,19 @@ input signal, where $f_{mixer} = f_{LO} - f_{RF}$. That is, it will produce a
 
 ![Frequency diagrams showing the RF input at 1089-1091MHz shifted and mirrored so it lies between 4MHz and 6MHz](diagrams/analog-mixer-out.png)
 
-Because we chose $f_{LO}$ = 1095MHz, our input signal at 1089MHz..1091MHz will
-end up centered at 5MHz, with frequencies around that center frequency mirrored.
+Because we chose $f_{LO} = \mathrm{1095MHz}$, our input signal at
+1089MHz..1091MHz will end up centered at 5MHz, with frequencies around that
+center frequency mirrored.
 
 For example, if there was some RF input at 1089MHz - the low edge of our
 input signal - then the corresponding mixer output is at
-$f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1089MHz} = \mathrm{6MHz}$.
+$`f_{mixer} = f_{LO} - f_{RF}
+  = \mathrm{1095MHz} - \mathrm{1089MHz}
+  = \mathrm{6MHz}`$.
 If there was some RF input at 1091MHz, the corresponding mixer output is at
-$f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1091MHz} = \mathrm{4MHz}$.
+$`f_{mixer} = f_{LO} - f_{RF}
+  = \mathrm{1095MHz} - \mathrm{1091MHz}
+  = \mathrm{4MHz}`$.
 
 So our signal of interest now lies between 4MHz..6MHz, and the low and high
 ends of the frequency range have been mirrored.
@@ -118,15 +123,18 @@ between a configurable low and high cutoff. In our example, we are only
 interested in the part of the I2C signal between 4MHz..6MHz, so
 we might set the bandpass range to (for example) 3MHz..7MHz:
 
-![Frequency diagram showing a bandpass filter response that passes 3MHz..7MHz](diagrams/analog-if-bandpass-filter.png)
+![Frequency diagram showing a bandpass filter response that passes 3MHz..7MHz](diagrams/analog-if-filter-bandpass.png)
 
 Let's say that our RF input has actually also picked up some signal at 1030MHz,
 which is the frequency used for Mode S interrogations sent by SSRs:
 
 ![Frequency diagram showing RF input with signals at 1030MHz and 1090MHz](diagrams/analog-rf-with-1030MHz.png)
 
-With $f_{LO} = \mathrm{1095MHz}$, the signal at $f_{RF} = \mathrm{1030MHz}$ will appear in the mixer
-output at $f_{mixer} = f_{LO} - f_{RF} = \mathrm{1095MHz} - \mathrm{1030MHz} = \mathrm{65MHz}$,
+With $f_{LO} = \mathrm{1095MHz}$, the signal at
+$f_{RF} = \mathrm{1030MHz}$ will appear in the mixer output at
+$`f_{mixer} = f_{LO} - f_{RF}
+  = \mathrm{1095MHz} - \mathrm{1030MHz}
+  = \mathrm{65MHz}`$,
 in addition to the signal we actually wanted at 5MHz:
 
 ![Frequency diagram showing mixer output with signals at 5MHz and 65MHz](diagrams/analog-if-with-65MHz.png)
@@ -134,8 +142,8 @@ in addition to the signal we actually wanted at 5MHz:
 Without further filtering, this 65MHz signal will interfere when we later try
 to digitize the signal, as it is above the Nyquist frequency for our ADC
 sampling rate and will be aliased on top of the signal we actually care about.
-Applying the tuner IF filter with a bandpass range of 3MHz..7MHz, this extraneous
-65MHz input can be removed:
+Applying the tuner IF filter with a bandpass range of 3MHz..7MHz, this
+extraneous 65MHz input can be removed:
 
 ![Frequency diagram showing mixer output with a signal at 5MHz, a dotted signal at 65MHz, and a bandpass filter at 3MHz..7MHz](diagrams/analog-if-filter-65MHz.png)
 
