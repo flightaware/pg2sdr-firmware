@@ -190,7 +190,7 @@ of _at least_ 7MHz*2 = 14MHz to capture all the detail of that 7MHz component.
 
 In practice, we actually aim for a sampling rate that is exactly 4x the center
 frequency of the signal we're measuring, because that makes later (digital)
-processing much easier. In this case, that would be 5MHz * 2 = 20MHz,
+processing much easier. In this case, that would be 5MHz * 4 = 20MHz,
 comfortably greater than the minimum sampling rate required.
 
 ![Frequency diagram showing a filtered IF input signal at 5MHz, a sampling rate at 20MHz, and a Nyquist frequency of 10MHz](diagrams/analog-adc-input.png)
