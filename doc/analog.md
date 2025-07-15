@@ -222,7 +222,7 @@ For some lower sampling rate $f_s$, the spur will appear at:
 $$
 \mathrm{spur}(f_s) =
 \begin{cases}
-  \mathrm{12MHz} \bmod f_s & {\mathrm{12MHz} \bmod f_s} < {F_s/2} \\
+  \mathrm{12MHz} \bmod f_s & \text{if } {\mathrm{12MHz} \bmod f_s} < {F_s/2} \\
   f_s - {\mathrm{12MHz} \bmod f_s} & \mathrm{otherwise}
 \end{cases}
 $$
