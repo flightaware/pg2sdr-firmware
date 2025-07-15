@@ -145,7 +145,7 @@ sampling rate and will be aliased on top of the signal we actually care about.
 Applying the tuner IF filter with a bandpass range of 3MHz..7MHz, this
 extraneous 65MHz input can be removed:
 
-![Frequency diagram showing mixer output with a signal at 5MHz, a dotted signal at 65MHz, and a bandpass filter at 3MHz..7MHz](diagrams/analog-if-filter-65MHz.png)
+![Frequency diagram showing mixer output with a signal at 5MHz, a weak signal at 65MHz, and a bandpass filter at 3MHz..7MHz](diagrams/analog-if-filter-65MHz.png)
 
 ## Final tuner amplifier
 
@@ -192,6 +192,8 @@ In practice, we actually aim for a sampling rate that is exactly 4x the center
 frequency of the signal we're measuring, because that makes later (digital)
 processing much easier. In this case, that would be 5MHz * 2 = 20MHz,
 comfortably greater than the minimum sampling rate required.
+
+![Frequency diagram showing a filtered IF input signal at 5MHz, a sampling rate at 20MHz, and a Nyquist frequency of 10MHz](diagrams/analog-adc-input.png)
 
 The sampling rate is controlled by a separate clock that is sent to the ADCHS
 internally within the LPC chip. We generate this clock by configuring one of
