@@ -153,8 +153,8 @@ def main():
             return 1
 
     if args.reset and not args.dryrun:
-        switches = dev.switch_state()
-        if switches & 1:
+        status = dev.board_status()
+        if lpcsdr.device.StatusFlags.SW1_USBBOOT in status.flags:
             print('ignoring --reset as the boot-mode switch is set to boot from USB')
         else:
             print('Resetting device..')
