@@ -530,4 +530,24 @@ todo
 
 todo
 
+# LED Definitions
+
+D2 - RF Power
+* Off - RF Power off
+* On - RF Power on
+
+DS1 - DMA Transfer
+* Off = No data being transferred
+* Green = No Data Dropped
+* Yellow = >0 and < 50% data dropped
+* Red = >50% data dropped
+
+DS2 - Tuner Status
+* Off = Tuner powered off or not configured
+* Green = Tuner PLL Configured and has a lock
+* Yellow = Tuner PLL Configured but does not have a lock
+* Red = I2C Error
+
+
+
 
