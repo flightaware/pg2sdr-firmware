@@ -127,7 +127,7 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
 
     /* Fill in USB block header */
     ep1_header_t *header = (ep1_header_t*) dTD->buffer;
-    header->magic = 0xDEADBEEF;
+    header->magic = BLOCK_MAGIC;
     header->block_len = USB_BLOCK_SIZE;
     header->samples = HSADC_BUFFER_SIZE / 2;
     header->sequence = start_seq;

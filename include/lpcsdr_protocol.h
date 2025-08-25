@@ -155,12 +155,14 @@ typedef struct {
 /* header we're going to put on each USB buffer that we send */
 
 typedef struct {
-    uint32_t magic;       /* 0xDEADBEEF */
+    uint32_t magic;       /* BLOCK_MAGIC */
     uint32_t block_len;   /* Total length of this (and every) block, in bytes, multiple of 512 */
     uint32_t samples;     /* Number of samples in this (and every) block, multiple of 8 */
     uint32_t sequence;    /* Block sequence for this block. Non-sequential sequence numbers indicate a discontinuity */
     uint32_t status;      /* Status bits for this block */
 } ep1_header_t;
+
+#define BLOCK_MAGIC 0xDEADBEEF
 
 /* status bits for ep1_header_t.status */
 
