@@ -141,6 +141,7 @@ class BoardStatus:
     clock_idiv_e: int = typed('I')
 
     tuner_xtal: int = typed('I')
+    serial_number: int = typed('Q')
     
     def __post_init__(self):
         self.flags = StatusFlags(self.flags)

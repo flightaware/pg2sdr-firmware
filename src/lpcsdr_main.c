@@ -417,6 +417,7 @@ static bool process_ep0_in(const ipc_message_t *message)
             result->clock_idiv_e = measure_frequency(CLKIN_IDIVE);
         }
 
+        result->serial_number = serial_number;
         return true;
     }
 

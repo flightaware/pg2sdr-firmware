@@ -116,6 +116,8 @@ typedef struct {
     uint32_t clock_idiv_e;
 
     uint32_t tuner_xtal; /* R860T crystal frequency */
+
+    uint64_t serial_number; /* unique 64-bit ID from flash chip */
 } ep0_in_board_status_t;
 
 

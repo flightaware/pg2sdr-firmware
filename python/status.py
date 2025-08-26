@@ -9,7 +9,8 @@ import lpcsdr.tuner
 from lpcsdr.util import *
 
 def show_status(status, file):
-    print(f'Flags: {flag_string(status.flags)}', file=file)
+    print(f'Serial: {status.serial_number:016X}', file=file)
+    print(f'Flags:  {flag_string(status.flags)}', file=file)
     print(f'', file=file)
 
     lpcsdr.adc_status.print_status(status, file=file)
