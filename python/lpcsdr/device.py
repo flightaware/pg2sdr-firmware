@@ -242,7 +242,14 @@ changeset"""
 class Device(object):
     def __init__(self, dev):
         self.dev = dev
-        dev.set_configuration()
+
+        try:
+            cfg = dev.get_active_configuration()
+        except usb.core.USBError:
+            cfg = None
+        if cfg is None or cfg.bConfigurationValue != 1:
+            dev.set_configuration(1)
+
         self.comms_check()
         self.board_status()
 
