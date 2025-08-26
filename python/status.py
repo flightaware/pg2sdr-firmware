@@ -60,12 +60,19 @@ def show_status(status, file):
         
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Show lpcsdr board status')
+    parser.add_argument('--clocks', help="Measure clock frequencies (may cause data loss if streaming)", action='store_true')
+
+    args = parser.parse_args()
+
     dev = lpcsdr.device.find()
     if not dev:
         print('no lpcsdr found')
         return
 
-    show_status(dev.board_status(measure_clocks=True), file=sys.stderr)
+    show_status(dev.board_status(measure_clocks=args.clocks), file=sys.stderr)
 
 if __name__ == '__main__':
     main()
