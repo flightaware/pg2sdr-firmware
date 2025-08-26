@@ -59,7 +59,7 @@ uint16_t lpcsdr_spifi_read_manufacturer_device_id()
     return id;
 }
 
-/* Read unique chip ID (8 bytes) into `buffer` */
+/* Read unique chip ID (8 bytes) */
 uint64_t lpcsdr_spifi_read_unique_id()
 {
     uint64_t id;

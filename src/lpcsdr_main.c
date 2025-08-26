@@ -28,6 +28,7 @@
 
 static bool bulk_test_mode = false;
 static bool rf_power = false;
+static uint64_t serial_number = 0;
 
 #define USB_BLOCK_SIZE ALIGN_TO(sizeof(ep1_header_t) + (HSADC_BUFFER_SIZE * 3 / 4), 512)
 
@@ -837,11 +838,12 @@ int main(void) {
     lpcsdr_diagnose_reset();
     lpcsdr_gpio_init();
     lpcsdr_spifi_init();
+    serial_number = lpcsdr_spifi_read_unique_id();
     lpcsdr_dma_init();
     lpcsdr_hsadc_init();
     lpcsdr_tuner_init();
     lpcsdr_ipc_init();
-    lpcsdr_usb_init();
+    lpcsdr_usb_init(serial_number);
 
     disable_unused_clocks();
 

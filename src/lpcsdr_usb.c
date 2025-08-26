@@ -135,11 +135,13 @@ static const ALIGNED(4) USB_DEVICE_QUALIFIER_DESCRIPTOR usb_device_qualifier_des
  * not const as we will want to update the serial# later
  */
 static ALIGNED(4) uint8_t usb_string_desc[] = {
+        /* byte offset: 0 */
         /* [0] = lang ID */
         2 + 2,                      /* bLength */
         USB_STRING_DESCRIPTOR_TYPE, /* bDescriptorType */
         WBVAL(0x0409),              /* en_US */
 
+        /* byte offset: 4 */
         /* [1] = manufacturer */
         2 + 2*11,                   /* bLength */
         USB_STRING_DESCRIPTOR_TYPE, /* bDescriptorType */
@@ -155,6 +157,7 @@ static ALIGNED(4) uint8_t usb_string_desc[] = {
         'r', 0,
         'e', 0,
 
+        /* byte offset: 28 */
         /* [2] = product */
         2 + 2*6,                    /* bLength */
         USB_STRING_DESCRIPTOR_TYPE, /* bDescriptorType */
@@ -165,9 +168,19 @@ static ALIGNED(4) uint8_t usb_string_desc[] = {
         'D', 0,
         'R', 0,
 
-        /* [3] = serial (later: mutate this) */
-        2 + 2*8,                    /* bLength */
+        /* byte offset: 42 */
+        /* [3] = serial (nb: this is a placeholder value that is mutated later) */
+        2 + 2*16,                    /* bLength */
         USB_STRING_DESCRIPTOR_TYPE, /* bDescriptorType */
+        /* byte offset: 44 (see "serial_number_start", below) */
+        '0', 0,
+        '0', 0,
+        '0', 0,
+        '0', 0,
+        '0', 0,
+        '0', 0,
+        '0', 0,
+        '0', 0,
         '0', 0,
         '0', 0,
         '0', 0,
@@ -178,7 +191,8 @@ static ALIGNED(4) uint8_t usb_string_desc[] = {
         '0', 0,
 };
 
-
+/* This is pretty gross, but simple. Update this if usb_string_desc changes at all!! */
+static const unsigned serial_number_start = 44;
 
 /* workaround for USBROM.2 errata */
 static USB_EP_HANDLER_T errata_usbrom2_orig_handler;
@@ -679,10 +693,22 @@ void lpcsdr_usb_status(ep0_in_board_status_t *status)
     }
 }
 
-ErrorCode_t lpcsdr_usb_init(void)
+static uint8_t hexdigits[16] = {
+        '0', '1', '2', '3', '4', '5', '6', '7',
+        '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+};
+
+ErrorCode_t lpcsdr_usb_init(uint64_t serial_number)
 {
     static_assert(sizeof(USB_DTD_T) == 32, "wrong USB_DTD_T size");
     static_assert(sizeof(USB_DQH_T) == 64, "wrong USB_DQH_T size");
+
+    /* stash the serial number in the USB serial number string descriptor */
+    for (int i = 15; i >= 0; --i) {
+        unsigned nibble = serial_number & 0x0F;
+        serial_number >>= 4;
+        usb_string_desc[serial_number_start + i * 2] = hexdigits[nibble];
+    }
 
     /* enable clocks and USB PHY/pads */
     Chip_USB0_Init();
