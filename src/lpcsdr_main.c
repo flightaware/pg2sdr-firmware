@@ -596,16 +596,16 @@ static bool process_ep0_out(const ipc_message_t *message)
 
     case EP0_OUT_SET_RF_POWER:
         debug_printf("> SET_RF_POWER(%u)\r\n", valueAndIndex);
-        switch (valueAndIndex) {
-        case 0: /* RF power off */
+        switch ((rf_power_mode_t) valueAndIndex) {
+        case RF_POWER_OFF:
             set_rf_power_off();
             return true;
 
-        case 1: /* RF power on */
+        case RF_POWER_ON:
             set_rf_power_on();
             return true;
 
-        case 2: /* RF power toggle (tuner reset) */
+        case RF_POWER_RESET: /* RF power toggle (tuner reset) */
             set_rf_power_off();
             StopWatch_DelayMs(5); /* wait a while to let VDD3_RF discharge */
             set_rf_power_on();

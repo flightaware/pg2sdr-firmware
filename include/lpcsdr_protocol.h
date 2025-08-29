@@ -152,6 +152,13 @@ typedef struct {
     uint32_t idiv_divisor;  /* IDIV_E divisor (0 = don't use IDIV_E) */
 } ep0_out_start_transfer_t;
 
+/* possible modes for EP0_OUT_SET_RF_POWER */
+typedef enum {
+    RF_POWER_OFF = 0,
+    RF_POWER_ON = 1,
+    RF_POWER_RESET = 2
+} rf_power_mode_t;
+
 /* ---  Bulk endpoint EP1   --- */
 
 /* header we're going to put on each USB buffer that we send */
