@@ -498,19 +498,19 @@ def find_parameters(requested:float, xtal:float):
 
     # Avoid fractions that are close to 0.0 / 0.5 / 1.0
     # as they tend to generate more spurs
-    if sdm_numerator < 32:
+    if sdm_numerator < 8:
         # close to 0, switch to integer mode
         sdm_numerator = 0
-    elif sdm_numerator > (2**18 - 32):
+    elif sdm_numerator > (2**18 - 8):
         # close to 1, switch to integer mode
         sdm_numerator = 0
         pll_feedback_int += 1
-    elif sdm_numerator > (2**17 - 32) and sdm_numerator <= 2**17:
+    elif sdm_numerator > (2**17 - 8) and sdm_numerator <= 2**17:
         # close to 0.5 and <=0.5, decrease it a little
-        sdm_numerator = 2**17 - 32
-    elif sdm_numerator > 2**17 and sdm_numerator < (2**17 + 32):
+        sdm_numerator = 2**17 - 8
+    elif sdm_numerator > 2**17 and sdm_numerator < (2**17 + 8):
         # close to 0.5 and >0.5, increase it a little
-        sdm_numerator = 2**17 + 32
+        sdm_numerator = 2**17 + 8
 
     actual_vco = pll_ref * 2 * (pll_feedback_int + sdm_numerator / 2**18)
     actual_out = actual_vco / seldiv
