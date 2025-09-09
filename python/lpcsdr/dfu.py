@@ -66,8 +66,9 @@ def download_firmware(dev, path, verbose=False):
             raise IOError(f'DFU_GETSTATUS: {status}')
     except usb.core.USBError as e:
         # LPC starts the new firmware immediately on the final GETSTATUS following
-        # a zero-length DFU_DNLOAD, so expect a pipe error on that GETSTATUS
-        if e.errno != errno.EPIPE:
+        # a zero-length DFU_DNLOAD, so expect a pipe error or device-disconnected
+        # on that GETSTATUS
+        if e.errno != errno.EPIPE and e.errno != errno.ENODEV:
             raise
         return
 
