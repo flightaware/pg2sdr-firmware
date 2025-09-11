@@ -2,3 +2,5 @@
 #
 # LPCSDR, temporary IDs
 SUBSYSTEM=="usb", ATTRS{idVendor}=="dead", ATTRS{idProduct}=="beef", GROUP="plugdev", MODE="0660"
+# LPC4370 in bootloader mode
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="000c", GROUP="plugdev", MODE="0660"
