@@ -155,8 +155,44 @@ def compute_rtlsdr_curve(measurements):
     # assuming that there's actually not much continuous
     # power arriving and so AGC will set LNA/VGA to 15.
     yield m_map[Gains(15,15,11)]
-        
-def write_csv(path, rows):
+
+def compute_generic_table(measurements, match, offset):
+    extracted = {}
+    for m in measurements:
+        if m.threshold_percent <= 0.1 and m.gains in match:
+            gain = match[m.gains]
+            assert gain not in extracted
+            extracted[gain] = (m.signal - m.input_dbm)
+
+    for gain in range(16):
+        gain_db = extracted[gain]
+        yield gain_db - extracted[0] + offset
+
+def compute_lna_table(measurements):
+    return compute_generic_table(measurements, { Gains(x,0,0): x for x in range(16) }, 0)
+
+def compute_mix_table(measurements):
+    return compute_generic_table(measurements, { Gains(0,x,0): x for x in range(16) }, 0)
+
+def compute_vga_table(measurements):
+    # attribute the base gain to step 0 of the VGA stage
+    for m in measurements:
+        if m.gains == (0,0,0):
+            offset = m.signal - m.input_dbm
+            break
+    else:
+        raise RuntimeError("can't find a measurement for (0,0,0)")
+    return compute_generic_table(measurements, { Gains(0,0,x): x for x in range(16) }, offset)
+
+def write_csv_table(path, table, heading):
+    print(f"writing {path}", file=sys.stderr)
+    with open(path, 'w') as out:
+        writer = csv.writer(out)
+        writer.writerow((heading, "gain_db"))
+        for gain, gain_db in enumerate(table):
+            writer.writerow(( gain, f"{gain_db:.2f}" ))
+
+def write_csv_measurements(path, rows):
     print(f"writing {path}", file=sys.stderr)
     with open(path, 'w') as out:
         writer = csv.writer(out)
@@ -184,6 +220,51 @@ def write_csv(path, rows):
                               f"{max_signal:.2f}",
                               f"{dynamic_range:.2f}" ))
 
+def make_c_array(iterable, max_per_line, format_fn, *args, **kwargs):
+    lines = []
+    line = []
+    for x in iterable:
+        line.append(format_fn(x, *args, **kwargs))
+        if len(line) >= max_per_line:
+            lines.append('    ' + ', '.join(line) + ',')
+            line = []
+
+    if line:
+        lines.append('    ' + ', '.join(line) + ',')
+    return '\n'.join(lines)
+
+def make_c_gain_entry(entry):
+    return f"{{ {entry.signal - entry.input_dbm:5.2f}, {entry.gains.lna:2d}, {entry.gains.mix:2d}, {entry.gains.vga:2d} }}"
+
+def write_c_tables(path, lna_table, mix_table, vga_table, gain_curve):
+    # Emit generated code for liblpcsdr with the given tables
+
+    print(f"writing {path}", file=sys.stderr)
+    with open(path, 'w') as out:
+        print(f"""
+/* Generated code, don't edit */
+
+#include "internal.h"
+
+const double lpcsdr__default_lna_table[16] = {{
+{make_c_array(lna_table, 4, format, '5.2f')}
+}};
+
+const double lpcsdr__default_mix_table[16] = {{
+{make_c_array(mix_table, 4, format, '5.2f')}
+}};
+
+const double lpcsdr__default_vga_table[16] = {{
+{make_c_array(vga_table, 4, format, '5.2f')}
+}};
+
+const size_t lpcsdr__default_gain_table_size = {len(gain_curve)};
+const lpcsdr_gain_table_t *lpcsdr__default_gain_table = {{
+{make_c_array(gain_curve, 1, make_c_gain_entry)}
+}};
+""", file=out)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Compute a sensitivity gain curve from gain measurements')
     
@@ -193,6 +274,11 @@ def main():
     parser.add_argument('--curve', help="Write sensitivity gain curve to this CSV file")
     parser.add_argument('--rtlsdr', help="Write a rtlsdr-style gain curve to this CSV file")
     parser.add_argument('--adjusted', help="Write adjusted-for-dbm-map measurements to this CSV file")
+    parser.add_argument('--lna-table', help="Write LNA gain step estimates to this CSV file")
+    parser.add_argument('--mix-table', help="Write MIX gain step estimates to this CSV file")
+    parser.add_argument('--vga-table', help="Write VGA gain step estimates to this CSV file")
+
+    parser.add_argument('--c-tables', help="Write generated C source code defining the standard gain tables to this file")
 
     args = parser.parse_args()
 
@@ -203,13 +289,29 @@ def main():
         measurements = list(apply_dbm_map(read_measurements(f), dbm_map))
 
     if args.adjusted:
-        write_csv(args.adjusted, sorted(measurements, key=lambda m: (m.signal - m.input_dbm)))
+        write_csv_measurements(args.adjusted, sorted(measurements, key=lambda m: (m.signal - m.input_dbm)))
 
     if args.curve:
-        write_csv(args.curve, compute_gain_curve(measurements))
+        write_csv_measurements(args.curve, compute_gain_curve(measurements))
 
     if args.rtlsdr:
-        write_csv(args.rtlsdr, compute_rtlsdr_curve(measurements))
+        write_csv_measurements(args.rtlsdr, compute_rtlsdr_curve(measurements))
+
+    if args.lna_table:
+        write_csv_table(args.lna_table, compute_lna_table(measurements), 'lna')
+
+    if args.mix_table:
+        write_csv_table(args.mix_table, compute_mix_table(measurements), 'mix')
+
+    if args.vga_table:
+        write_csv_table(args.vga_table, compute_vga_table(measurements), 'vga')
+
+    if args.c_tables:
+        write_c_tables(args.c_tables,
+                       compute_lna_table(measurements),
+                       compute_mix_table(measurements),
+                       compute_vga_table(measurements),
+                       list(compute_gain_curve(measurements)))
 
 if __name__ == '__main__':
     main()
