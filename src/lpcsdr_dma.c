@@ -239,6 +239,8 @@ void DMA_IRQHandler(void)
     LPC_GPDMA->INTERRCLR = interrstat;
     if (interrstat & 1)
         hsadc_dma_err();
+
+    ++lpcsdr_interrupts.dma;
 }
 
 void lpcsdr_dma_status(ep0_in_board_status_t *status)

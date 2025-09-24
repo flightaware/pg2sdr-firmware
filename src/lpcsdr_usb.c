@@ -234,6 +234,7 @@ void USB0_IRQHandler(void)
 {
     /* use the ROM API's interrupt handler */
     USBD_API->hw->ISR(usb_handle);
+    ++lpcsdr_interrupts.usb0;
 }
 
 /* Pointers to the dTDs and corresponding data buffers */

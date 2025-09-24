@@ -109,17 +109,18 @@ void UART0_IRQHandler(void)
 {
     uint32_t iir = LPC_USART0->IIR;
 
-    if ((iir & UART_IIR_INTSTAT_PEND) != 0) /* interrupt pending flag, active-low */
-        return; /* nothing pending? weird. */
+    if ((iir & UART_IIR_INTSTAT_PEND) == 0) { /* interrupt pending flag, active-low */
+        switch (iir & UART_IIR_INTID_MASK) {
+        case UART_IIR_INTID_THRE:
+            handle_thre_interrupt();
+            break;
 
-    switch (iir & UART_IIR_INTID_MASK) {
-    case UART_IIR_INTID_THRE:
-        handle_thre_interrupt();
-        break;
-
-    default:
-        lpcsdr_unexpected_interrupt();
+        default:
+            lpcsdr_unexpected_interrupt();
+        }
     }
+
+    ++lpcsdr_interrupts.usart0;
 }
 
 void debug_printf(const char *format, ...)

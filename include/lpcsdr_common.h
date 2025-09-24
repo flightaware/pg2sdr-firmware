@@ -115,4 +115,16 @@ __attribute__ ((always_inline)) static inline uint32_t test_set_clear_bits(uint3
 /* We don't have C11 headers but we do have a C11 compiler, so do this definition ourselves */
 #define static_assert _Static_assert
 
+/* Interrupt counters */
+typedef struct {
+    volatile uint32_t systick;
+    volatile uint32_t dma;
+    volatile uint32_t usart0;
+    volatile uint32_t usb0;
+    volatile uint32_t wwdt;
+    volatile uint32_t m0app;
+    volatile uint32_t m4;
+} lpcsdr_interrupts_t;
+extern lpcsdr_interrupts_t lpcsdr_interrupts;
+
 #endif

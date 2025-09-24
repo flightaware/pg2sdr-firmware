@@ -26,6 +26,8 @@
 #include "lpcsdr_hardware.h"
 #include <string.h>
 
+lpcsdr_interrupts_t lpcsdr_interrupts;
+
 static bool bulk_test_mode = false;
 static bool rf_power = false;
 static uint64_t serial_number = 0;

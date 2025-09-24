@@ -62,6 +62,8 @@ void SysTick_Handler(void)
         idle_cycles = 0;
         min_idle_cycles = SYSTICK_INTERVAL;
     }
+
+    ++lpcsdr_interrupts.systick;
 }
 
 void lpcsdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)

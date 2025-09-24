@@ -61,6 +61,7 @@ void M0APP_IRQHandler(void)
 {
     m4_wakeup_requested = true;
     Chip_CREG_ClearM0AppEvent();
+    ++lpcsdr_interrupts.m0app;
 }
 
 bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
@@ -99,6 +100,7 @@ void WDT_IRQHandler(void)
 {
     m4_wakeup_requested = true;
     Chip_WWDT_ClearStatusFlag(LPC_WWDT, WWDT_WDMOD_WDINT);
+    ++lpcsdr_interrupts.wwdt;
 }
 
 void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
@@ -137,6 +139,7 @@ void M4_IRQHandler(void)
 {
     m0_wakeup_requested = true;
     Chip_CREG_ClearM4Event();
+    ++lpcsdr_interrupts.m4;
 }
 
 bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
