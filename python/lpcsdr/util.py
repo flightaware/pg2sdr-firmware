@@ -76,7 +76,10 @@ omitted (i.e. TestFlag.B would be omiited in the example above)
     # and the Ubuntu VMs have 3.10
     result = {}
     remainder = flags
-    for flag in type(flags):  # make sure to use the metaclass __iter__
+
+    # Use __members__ to get all members, because in
+    # newer Python, Flag.__iter__ only returns non-alias members
+    for flag in type(flags).__members__.values():
         if all_members or (flag & remainder) or flag.width > 1:
             bits = flag & remainder
             result[flag] = bits
