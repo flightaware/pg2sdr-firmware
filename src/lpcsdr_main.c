@@ -429,6 +429,9 @@ static bool process_ep0_in(const ipc_message_t *message)
         result->intr_m0app = lpcsdr_interrupts.m0app;
         result->intr_m4 = lpcsdr_interrupts.m4;
 
+        result->reset_reason = lpcsdr_reset_reason;
+        result->reset_code = lpcsdr_reset_code;
+
         return true;
     }
 

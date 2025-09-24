@@ -4,11 +4,11 @@
 #include "lpcsdr_uart.h"
 #include "morse.h"
 
-/* Reset codes used by lpcsdr_reset.
- *
- * Reset codes, stored in the RTC "regfile" memory. The RTC regfile persists
- * over reset, but not over a full power cycle. The values have no particular
- * meaning other than being unique values that are unlikely to be randomly set.
+/* Reset codes (RESET_* in lpcsdr_protocol.h) are stored in the RTC "regfile" memory.
+ * The RTC regfile persists over reset, but not over a full power cycle, so we can
+ * use that to distinguish a power-on-reset (where RTC memory has a random value)
+ * from other reset causes. The values have no particular meaning other than being
+ * unique values that are unlikely to be randomly set.
  */
 
 /* Power-on-reset. All unknown codes get mapped to this. */
@@ -86,8 +86,8 @@ void lpcsdr_reset()
 /* Reason for the most recent reset (updated when lpcsdr_diagnose_reset is called,
  * early in startup)
  */
-static uint32_t reset_reason = RESET_POR;
-static uint32_t reset_code;
+uint32_t lpcsdr_reset_reason = RESET_POR;
+uint32_t lpcsdr_reset_code;
 
 void lpcsdr_diagnose_reset()
 {
@@ -107,19 +107,19 @@ void lpcsdr_diagnose_reset()
     if ( (r0 == RESET_FIRMWARE && r1 == 0) ||
          (r0 == RESET_UNEXPECTED && r1 == 0) ||
          r0 == RESET_PANIC) {
-        reset_reason = r0;
-        reset_code = r1;
+        lpcsdr_reset_reason = r0;
+        lpcsdr_reset_code = r1;
     } else {
         /* Power-on-reset leaves semi-random garbage in the
          * RTC regs, so assume that any values we don't recognize
          * are due to that.
          */
-        reset_reason = RESET_POR;
-        reset_code = 0;
+        lpcsdr_reset_reason = RESET_POR;
+        lpcsdr_reset_code = 0;
     }
 
     debug_printf("Reset cause: ");
-    switch (reset_reason) {
+    switch (lpcsdr_reset_reason) {
     case RESET_FIRMWARE:
         debug_printf("user reset\r\n");
         break;
@@ -127,7 +127,7 @@ void lpcsdr_diagnose_reset()
         debug_printf("watchdog or hard fault\r\n");
         break;
     case RESET_PANIC:
-        debug_printf("firmware panic %08X\r\n", reset_code);
+        debug_printf("firmware panic %08X\r\n", lpcsdr_reset_code);
         break;
     case RESET_POR:
         debug_printf("power-on reset\r\n");

@@ -39,7 +39,7 @@ typedef struct {
     uint64_t unique_id;
 } ep0_in_flash_unique_id_t;
 
-/* Various status flags */
+/* Various status flags for ep0_in_board_status_t.flags */
 /* #define STATUS_FAST_CPU          1 */ /* CPU is running at fast speed */
 #define STATUS_SW1_USBBOOT        2  /* SW1 is closed (boot-from-USB mode) */
 #define STATUS_SW2_PRESSED        4  /* SW2 is depressed */
@@ -52,6 +52,13 @@ typedef struct {
 #define STATUS_PLL0AUDIO_RUN    512  /* PLL0AUDIO PLL (HSADC clock) is programmed and running */
 #define STATUS_IS_LPCSDR       1024  /* firmware built for lpcsdr hardware */
 #define STATUS_IS_AIRSPY       2048  /* firmware built for airspy hardware */
+
+/* Reset reasons stored in ep0_in_board_status_t.reset_reason */
+#define RESET_POR 0                  /* Power-on-reset. All unknown codes get mapped to this. */
+#define RESET_UNEXPECTED 0x554EAAB1  /* Unexpected reset without firmware intervention (watchdog timer or hard fault) */
+#define RESET_FIRMWARE 0x4649B9B6    /* Firmware was asked to reset itself */
+#define RESET_PANIC 0x5041AFBE       /* Firmware panic causing a reset, reset code stores the panic blink code */
+
 typedef struct {
     /* Flags from STATUS_xxx */
     uint32_t flags;
@@ -127,6 +134,10 @@ typedef struct {
     uint32_t intr_wwdt;
     uint32_t intr_m0app;
     uint32_t intr_m4;
+
+    /* details of last reset */
+    uint32_t reset_reason;  /* RESET_xxx */
+    uint32_t reset_code;    /* for RESET_PANIC, the blink code passed to lpcsdr_panic() */
 } ep0_in_board_status_t;
 
 

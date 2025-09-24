@@ -29,4 +29,7 @@ void lpcsdr_panic(uint32_t pattern) __attribute__(( noreturn ));
  */
 void lpcsdr_diagnose_reset();
 
+extern uint32_t lpcsdr_reset_reason;
+extern uint32_t lpcsdr_reset_code;
+
 #endif
