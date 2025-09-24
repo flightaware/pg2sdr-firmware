@@ -510,6 +510,16 @@ static bool ep0_busy;
  */
 static bool ep0_clobber;
 
+/* Disable NAK TX interrupt notification for EP0. I don't know why the USB ROM
+ * enables this, but it causes interrupt storm problems if the host controller
+ * is aggressive about polling for control transfers and we take a while to
+ * handle the transfer.
+ */
+static void disable_ep0_nak_interrupt()
+{
+    LPC_USB0->ENDPTNAKEN &= ~(1<<16);
+}
+
 /* Called from the main loop to stall EP0 in response to a control transfer */
 void lpcsdr_usb_ep0_stall()
 {
@@ -575,6 +585,7 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
 
     if (ctrl->SetupPacket.bmRequestType.BM.Dir == REQUEST_DEVICE_TO_HOST) {
         /* device->host, respond with IN data */
+        disable_ep0_nak_interrupt();
         if (!lpcsdr_ipc_send_m4(M4_USB_EP0_IN,
                 ctrl->SetupPacket.bRequest,
                 (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
@@ -595,6 +606,7 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
 
         if (!ctrl->SetupPacket.wLength) {
             // No data phase, submit for processing immediately
+            disable_ep0_nak_interrupt();
             if (!lpcsdr_ipc_send_m4(M4_USB_EP0_OUT,
                     ctrl->SetupPacket.bRequest,
                     (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
@@ -629,6 +641,7 @@ static ErrorCode_t ep0_out_handler(USBD_HANDLE_T handle)
         return LPC_OK;
     }
 
+    disable_ep0_nak_interrupt();
     if (!lpcsdr_ipc_send_m4(M4_USB_EP0_OUT,
             ctrl->SetupPacket.bRequest,
             (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
