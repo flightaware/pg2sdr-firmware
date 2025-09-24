@@ -181,3 +181,9 @@ void lpcsdr_unexpected_interrupt(void)
     uint32_t pattern = MORSE_I | (morse_hexbyte(isr) << 8);  // blink 'I', then two hex digits with the unexpected interrupt index
     lpcsdr_panic(pattern);
 }
+
+void lpcsdr_assertion_failed(const char *file, unsigned line, const char *assertion)
+{
+    debug_printf("%s:%d: assertion failed: %s\r\n", file, line, assertion);
+    lpcsdr_panic(MORSE_A);
+}

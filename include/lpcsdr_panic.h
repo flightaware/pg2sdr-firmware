@@ -29,6 +29,12 @@ void lpcsdr_panic(uint32_t pattern) __attribute__(( noreturn ));
  */
 void lpcsdr_diagnose_reset();
 
+void lpcsdr_assertion_failed(const char *file, unsigned line, const char *assertion) __attribute__(( noreturn ));
+
+#define panic_assert(_x) do {                                    \
+    if (!(_x)) lpcsdr_assertion_failed(__FILE__, __LINE__, #_x); \
+} while(0)
+
 extern uint32_t lpcsdr_reset_reason;
 extern uint32_t lpcsdr_reset_code;
 
