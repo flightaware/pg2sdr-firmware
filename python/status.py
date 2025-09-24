@@ -58,7 +58,16 @@ def show_status(status, file):
         print(f'  IDIV_D:    {format_frequency(status.clock_idiv_d)}', file=file)
         print(f'  IDIV_E:    {format_frequency(status.clock_idiv_e)}', file=file)
         print(f'', file=file)
-        
+    if status.intr_systick:
+        print(f'Interrupt counters:')
+        print(f'  SysTick: {status.intr_systick}')
+        print(f'  DMA:     {status.intr_dma}')
+        print(f'  USART0:  {status.intr_usart0}')
+        print(f'  USB0:    {status.intr_usb0}')
+        print(f'  WWDT:    {status.intr_wwdt}')
+        print(f'  M0APP:   {status.intr_m0app}')
+        print(f'  M4:      {status.intr_m4}')
+        print(f'', file=file)
 
 def main():
     import argparse

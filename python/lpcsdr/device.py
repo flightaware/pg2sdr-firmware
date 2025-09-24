@@ -141,7 +141,16 @@ class BoardStatus:
     clock_idiv_e: int = typed('I')
 
     tuner_xtal: int = typed('I')
+
     serial_number: int = typed('Q')
+
+    intr_systick: int = typed('I')
+    intr_dma: int = typed('I')
+    intr_usart0: int = typed('I')
+    intr_usb0: int = typed('I')
+    intr_wwdt: int = typed('I')
+    intr_m0app: int = typed('I')
+    intr_m4: int = typed('I')
     
     def __post_init__(self):
         self.flags = StatusFlags(self.flags)
