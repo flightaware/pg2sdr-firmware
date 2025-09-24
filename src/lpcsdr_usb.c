@@ -238,8 +238,7 @@ void USB0_IRQHandler(void)
 }
 
 /* Pointers to the dTDs and corresponding data buffers */
-USB_DTD_T *usb_dtds[NUM_DTDS];
-uint8_t *usb_buffers[NUM_DTDS];
+static USB_DTD_T *usb_dtds[NUM_DTDS];
 
 static volatile USB_DTD_T *dtd_active_head = NULL; /* active dTD list, head */
 static volatile USB_DTD_T *dtd_active_tail = NULL; /* active dTD list, tail */
