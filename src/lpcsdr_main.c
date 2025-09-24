@@ -420,6 +420,15 @@ static bool process_ep0_in(const ipc_message_t *message)
         }
 
         result->serial_number = serial_number;
+
+        result->intr_systick = lpcsdr_interrupts.systick;
+        result->intr_dma = lpcsdr_interrupts.dma;
+        result->intr_usart0 = lpcsdr_interrupts.usart0;
+        result->intr_usb0 = lpcsdr_interrupts.usb0;
+        result->intr_wwdt = lpcsdr_interrupts.wwdt;
+        result->intr_m0app = lpcsdr_interrupts.m0app;
+        result->intr_m4 = lpcsdr_interrupts.m4;
+
         return true;
     }
 

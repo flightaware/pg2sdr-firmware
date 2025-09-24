@@ -118,6 +118,15 @@ typedef struct {
     uint32_t tuner_xtal; /* R860T crystal frequency */
 
     uint64_t serial_number; /* unique 64-bit ID from flash chip */
+
+    /* interrupt counters */
+    uint32_t intr_systick;
+    uint32_t intr_dma;
+    uint32_t intr_usart0;
+    uint32_t intr_usb0;
+    uint32_t intr_wwdt;
+    uint32_t intr_m0app;
+    uint32_t intr_m4;
 } ep0_in_board_status_t;
 
 
