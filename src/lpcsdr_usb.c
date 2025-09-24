@@ -750,22 +750,20 @@ ErrorCode_t lpcsdr_usb_init(uint64_t serial_number)
 
     /* todo: break this out into a reasonable allocator */
     uint32_t usb_pool = USB_MEM_BASE + usb_param.mem_size;
+    uint32_t usb_pool_end = USB_MEM_BASE + USB_MEM_SIZE;
 
     /* Allocate space for transfer dTDs and their associated buffers */
     for (unsigned i = 0; i < NUM_DTDS; ++i) {
         usb_pool = ALIGN_TO(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
-
+        panic_assert(usb_pool + sizeof(USB_DTD_T) <= usb_pool_end);
         usb_dtds[i] = (USB_DTD_T*) usb_pool;
         memset((void*) usb_dtds[i], 0, sizeof(USB_DTD_T));
         usb_pool += sizeof(USB_DTD_T);
 
         usb_pool = ALIGN_TO(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
+        panic_assert(usb_pool + DTD_BUFFER_SIZE <= usb_pool_end);
         usb_dtds[i]->buffer = (uint8_t*) usb_pool;
         usb_pool += DTD_BUFFER_SIZE;
-    }
-
-    while (usb_pool > USB_MEM_BASE + USB_MEM_SIZE) {
-        /* if we get here, things are broken! */
     }
 
     /* Put everything on the freelist */
