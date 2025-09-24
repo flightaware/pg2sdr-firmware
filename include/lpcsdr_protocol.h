@@ -179,6 +179,13 @@ typedef enum {
     RF_POWER_RESET = 2
 } rf_power_mode_t;
 
+/* possible modes for EP0_IN_TUNER_READ */
+typedef enum {
+    CACHE_NORMAL = 0,
+    CACHE_BYPASS = 1,
+    CACHE_REFRESH = 2
+} tuner_cache_mode_t;
+
 /* ---  Bulk endpoint EP1   --- */
 
 /* header we're going to put on each USB buffer that we send */

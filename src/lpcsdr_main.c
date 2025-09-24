@@ -450,17 +450,17 @@ static bool process_ep0_in(const ipc_message_t *message)
             return false;
         }
 
-        switch (index) {
-        case 0: /* use cache */
+        switch ((tuner_cache_mode_t) index) {
+        case CACHE_NORMAL: /* use cache */
             return lpcsdr_tuner_read_regs(value, buf, length);
 
-        case 1: /* bypass cache */
+        case CACHE_BYPASS: /* bypass cache */
             if (!lpcsdr_tuner_read_regs_direct(buf, value + length))
                 return false;
             memmove(buf, buf + value, length);
             return true;
 
-        case 2: /* refresh cache */
+        case CACHE_REFRESH: /* refresh cache */
             if (!lpcsdr_tuner_shadow_from_chip())
                 return false;
             return lpcsdr_tuner_read_regs(value, buf, length);
