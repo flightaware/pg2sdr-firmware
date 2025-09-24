@@ -81,22 +81,16 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
       return;
     }
 
+    if (!first_time_init) {
+        Chip_SetupCoreClock(CLKIN_CRYSTAL, new_freq, false);
+    }
+
+    current_freq = new_freq;
+    SystemCoreClockUpdate();
+    StopWatch_Init();
+    lpcsdr_tuner_clock_update();
+
     WITH_DISABLED_INTERRUPTS {
-        /* Temporary fix for interrupt storm causing START_TRANSFER to timeout:
-         * disable interrupts entirely while we reconfigure the CPU clock, so
-         * the delay loops in Chip_SetupCoreClock are not greatly lengthened by
-         * handling a lot of USB NAK interrupts
-         */
-        if (!first_time_init) {
-            Chip_SetupCoreClock(CLKIN_CRYSTAL, new_freq, false);
-        }
-
-        current_freq = new_freq;
-        SystemCoreClockUpdate();
-        StopWatch_Init();
-        lpcsdr_tuner_clock_update();
-
-        /* this is the only bit that actually _needs_ interrupts to be disabled */
         systick_count = 0;
         systick_max_count = current_freq / SYSTICK_INTERVAL;  /* update once a second */
         idle_cycles_last = idle_cycles = 0;
