@@ -58,6 +58,7 @@ def show_status(status, file):
         print(f'  IDIV_D:    {format_frequency(status.clock_idiv_d)}', file=file)
         print(f'  IDIV_E:    {format_frequency(status.clock_idiv_e)}', file=file)
         print(f'', file=file)
+
     if status.intr_systick:
         print(f'Interrupt counters:')
         print(f'  SysTick: {status.intr_systick}')
@@ -68,6 +69,21 @@ def show_status(status, file):
         print(f'  M0APP:   {status.intr_m0app}')
         print(f'  M4:      {status.intr_m4}')
         print(f'', file=file)
+
+    reasons = {
+        lpcsdr.device.ResetReason.POR: 'Power-on reset',
+        lpcsdr.device.ResetReason.UNEXPECTED: 'Unexpected reset (watchdog etc)',
+        lpcsdr.device.ResetReason.FIRMWARE: 'Firmware was asked to reset',
+        lpcsdr.device.ResetReason.PANIC: 'Firmware panic'
+    }
+    if status.reset_reason in reasons:
+        print(f'Last reset cause: {status.reset_reason.name} ({reasons[status.reset_reason]})')
+    else:
+        print(f'Last reset cause: unrecognized (0x{status.reset_reason:08x})')
+
+    if status.reset_code:
+        print(f'Reset code: {status.reset_code}')
+
 
 def main():
     import argparse

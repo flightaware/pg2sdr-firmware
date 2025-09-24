@@ -2,7 +2,7 @@
 
 import usb.core
 import usb.util
-from enum import IntEnum, IntFlag
+from enum import Enum, IntEnum, IntFlag
 from typing import ClassVar
 import dataclasses
 import struct
@@ -84,6 +84,12 @@ class BlockStatusFlags(BitFlag):
     ADC_UNF = 512
     FREQ_CHANGE = 1024
 
+class ResetReason(IntEnum):
+    POR = 0
+    UNEXPECTED = 0x554EAAB1
+    FIRMWARE = 0x4649B9B6
+    PANIC = 0x5041AFBE
+
 @ctrl
 class BoardStatus:
     flags: StatusFlags = typed('I')
@@ -151,9 +157,16 @@ class BoardStatus:
     intr_wwdt: int = typed('I')
     intr_m0app: int = typed('I')
     intr_m4: int = typed('I')
+
+    reset_reason: int = typed('I')
+    reset_code: int = typed('I')
     
     def __post_init__(self):
         self.flags = StatusFlags(self.flags)
+        try:
+            self.reset_reason = ResetReason(self.reset_reason)
+        except ValueError:
+            pass
 
 @ctrl
 class TunerLock:
