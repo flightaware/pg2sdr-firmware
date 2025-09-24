@@ -126,7 +126,7 @@ bool lpcsdr_usb_is_ready(void);
  */
 
 /* Shared control-transfer buffer */
-extern uint8_t lpcsdr_usb_control_buffer[256];
+extern uint8_t lpcsdr_usb_control_buffer[512];
 
 /* Respond to an IN control transfer, providing some data */
 void lpcsdr_usb_ep0_data_in(const uint8_t *buf, uint32_t length);
