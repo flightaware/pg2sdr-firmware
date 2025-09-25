@@ -153,9 +153,9 @@ def measure(lpcsdr_dev, args, quick=False):
     return (signal_power, noise_power, adc_min, adc_max, threshold_percent)
 
 def setup(lpcsdr_dev, synth_dev, args):
-    # Tuner on, tune LO to freq + Fs/4 (lower sideband), widest tuner filters
+    # Tuner on, tune LO to freq + Fs/4 (lower sideband), tuner filter as wide as possible without exceeding the Nyquist frequency
     lpcsdr.tuner.init_tuner(lpcsdr_dev)
-    lpcsdr.tuner.set_if_lpf(lpcsdr_dev, 20e6)
+    lpcsdr.tuner.set_if_lpf(lpcsdr_dev, 20e6, args.sample_rate / 2.0)
     lpcsdr.tuner.set_if_hpf(lpcsdr_dev, 0)
     pll_config = lpcsdr.tuner.find_parameters(args.frequency + args.sample_rate / 4.0, lpcsdr_dev.last_board_status.tuner_xtal)
     lpcsdr.tuner.configure_pll(lpcsdr_dev, pll_config)
