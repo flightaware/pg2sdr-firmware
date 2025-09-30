@@ -39,9 +39,9 @@ def get_power_spectrum(lpcsdr_dev, args, quick=False):
         scale = args.scale
     total_samples = spb * math.ceil(scale / ffts_per_block)
 
-    window = scipy.signal.windows.blackman(samples)         # Window we will apply before FFT
-    cpg_gain = 10**(7.54/10)                                # Coherent processing gain for a Blackman window = 7.54dB
-    enbw_gain = 10**(2.38/10)                               # Equivalent noise bandwidth correction for a Blackman window = 2.38dB
+    window = scipy.signal.windows.blackman(samples)                   # Window we will apply before FFT
+    cpg_gain = 1.0 / (np.sum(window) / len(window))                   # Coherent power gain correction (Blackman window = 7.54dB)
+    enbw_gain = len(window) * np.sum(window**2) / np.sum(window)**2   # Equivalent noise bandwidth correction for a Blackman window = 2.38dB
 
     freqs = scipy.fft.rfftfreq(samples) * args.sample_rate  # Center frequencies of each FFT bin
 
