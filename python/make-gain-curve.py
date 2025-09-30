@@ -220,51 +220,6 @@ def write_csv_measurements(path, rows):
                               f"{max_signal:.2f}",
                               f"{dynamic_range:.2f}" ))
 
-def make_c_array(iterable, max_per_line, format_fn, *args, **kwargs):
-    lines = []
-    line = []
-    for x in iterable:
-        line.append(format_fn(x, *args, **kwargs))
-        if len(line) >= max_per_line:
-            lines.append('    ' + ', '.join(line) + ',')
-            line = []
-
-    if line:
-        lines.append('    ' + ', '.join(line) + ',')
-    return '\n'.join(lines)
-
-def make_c_gain_entry(entry):
-    return f"{{ {entry.signal - entry.input_dbm:5.2f}, {entry.gains.lna:2d}, {entry.gains.mix:2d}, {entry.gains.vga:2d} }}"
-
-def write_c_tables(path, lna_table, mix_table, vga_table, gain_curve):
-    # Emit generated code for liblpcsdr with the given tables
-
-    print(f"writing {path}", file=sys.stderr)
-    with open(path, 'w') as out:
-        print(f"""
-/* Generated code, don't edit */
-
-#include "internal.h"
-
-const double lpcsdr__default_lna_table[16] = {{
-{make_c_array(lna_table, 4, format, '5.2f')}
-}};
-
-const double lpcsdr__default_mix_table[16] = {{
-{make_c_array(mix_table, 4, format, '5.2f')}
-}};
-
-const double lpcsdr__default_vga_table[16] = {{
-{make_c_array(vga_table, 4, format, '5.2f')}
-}};
-
-const size_t lpcsdr__default_gain_table_size = {len(gain_curve)};
-const lpcsdr_gain_table_t *lpcsdr__default_gain_table = {{
-{make_c_array(gain_curve, 1, make_c_gain_entry)}
-}};
-""", file=out)
-
-
 def main():
     parser = argparse.ArgumentParser(description='Compute a sensitivity gain curve from gain measurements')
     
@@ -277,8 +232,6 @@ def main():
     parser.add_argument('--lna-table', help="Write LNA gain step estimates to this CSV file")
     parser.add_argument('--mix-table', help="Write MIX gain step estimates to this CSV file")
     parser.add_argument('--vga-table', help="Write VGA gain step estimates to this CSV file")
-
-    parser.add_argument('--c-tables', help="Write generated C source code defining the standard gain tables to this file")
 
     args = parser.parse_args()
 
@@ -306,12 +259,6 @@ def main():
     if args.vga_table:
         write_csv_table(args.vga_table, compute_vga_table(measurements), 'vga')
 
-    if args.c_tables:
-        write_c_tables(args.c_tables,
-                       compute_lna_table(measurements),
-                       compute_mix_table(measurements),
-                       compute_vga_table(measurements),
-                       list(compute_gain_curve(measurements)))
 
 if __name__ == '__main__':
     main()

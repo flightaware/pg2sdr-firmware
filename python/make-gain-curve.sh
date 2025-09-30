@@ -69,8 +69,7 @@ fi
     --curve sensitivity-curve.csv \
     --lna-table lna.csv \
     --mix-table mix.csv \
-    --vga-table vga.csv \
-    --c-tables gain-tables.gen.c
+    --vga-table vga.csv
 
 gnuplot - <<"EOF"
 set datafile separator ","
