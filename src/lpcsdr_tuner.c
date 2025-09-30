@@ -659,11 +659,6 @@ int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
 {
     uint32_t start_ticks = StopWatch_Start();
 
-    /* ensure reg_shadow is valid */
-    if (!shadow_is_valid && !lpcsdr_tuner_shadow_from_chip()) {
-        return -1;
-    }
-
     /* update vco_current (reg 18, bits 7..5) to the requested vco_current
      *    and vco_mode (reg 19, bit 6) to auto-mode
      * (if necessary)
