@@ -354,6 +354,7 @@ class Device(object):
     def start_transfer(self, n_div, m_div, p_div, idiv_div):
         self._out(req=OutReq.START_TRANSFER, value=0, index=0,
                   data=StartTransfer(n_div, m_div, p_div, idiv_div))
+        self.dev.clear_halt(0x81)
 
     def stop_transfer(self):
         self._out_bytes(req=OutReq.STOP_TRANSFER, value=0, index=0, data=b'')
