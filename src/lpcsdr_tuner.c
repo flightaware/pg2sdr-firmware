@@ -455,13 +455,17 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
         return true;
     }
 
+    if (first < 5 || count > 27) {
+        return false;
+    }
+
     // build the write command, first byte is the start reg
     // In theory we could do scatter-gather if we re-implemented the tx state machine,
     // but it doesn't seem worth doing that, so just use a temporary buffer
     // sized for the largest possible write (regs 5 .. 31 inclusive)
-    if (first < 5 || count > 27) {
-        return false;
-    }
+    uint8_t buf[28];
+    buf[0] = first;
+    memcpy(buf + 1, regs, count);
 
     int status;
     for (uint32_t retry = 0; retry < I2C_RETRIES; ++retry) {
@@ -469,10 +473,6 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
             StopWatch_DelayUs(I2C_RETRY_DELAY_US);
             debug_printf("tuner: retry failed I2C write (#%u)\r\n", retry);
         }
-
-        uint8_t buf[28];
-        buf[0] = first;
-        memcpy(buf + 1, regs, count);
 
         status = i2c_write(R860T_I2C_ADDR, buf, count+1);
         if (status != I2C_STATUS_DONE)
