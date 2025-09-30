@@ -623,29 +623,50 @@ def set_vga_gain_cs(cs:Changeset, gain:int):
 set_vga_gain = wrap_change(set_vga_gain_cs)
 
 
-def set_if_lpf_cs(cs:Changeset, cutoff:float, not_above:Optional[float]=None):
-    lpf = lpf_settings_for(cutoff, not_above)
+def set_if_lpf_settings_cs(cs:Changeset, lpf:LPFSettings):
     write_field(cs, TunerFields.iffilt_q, lpf.lpf_q)
     write_field(cs, TunerFields.iffilt_fine_lpf, lpf.lpf_fine)
     write_field(cs, TunerFields.iffilt_narrow, lpf.lpf_narrow)
     write_field(cs, TunerFields.iffilt_coarse_lpf, lpf.lpf_coarse)
+set_if_lpf_settings = wrap_change(set_if_lpf_settings_cs)
+
+
+def set_if_hpf_settings_cs(cs:Changeset, hpf:HPFSettings):
+    write_field(cs, TunerFields.iffilt_hpf_corner, hpf.hpf_corner)
+set_if_hpf_settings = wrap_change(set_if_hpf_settings_cs)
+
+
+def set_if_bandpass_settings_cs(cs:Changeset, hpf:HPFSettings, lpf:LPFSettings):
+    set_if_hpf_settings_cs(cs,hpf)
+    set_if_lpf_settings_cs(cs,lpf)
+set_if_bandpass_settings = wrap_change(set_if_bandpass_settings_cs)
+
+
+def set_if_lpf_cs(cs:Changeset, cutoff:float, not_above:Optional[float]=None):
+    lpf = lpf_settings_for(cutoff, not_above)
+    set_if_lpf_settings_cs(cs, lpf)
     return lpf.cutoff
 set_if_lpf = wrap_change(set_if_lpf_cs)
 
 
 def set_if_hpf_cs(cs:Changeset, cutoff:float):
     hpf = hpf_settings_for(cutoff)
-    write_field(cs, TunerFields.iffilt_hpf_corner, hpf.hpf_corner)
+    set_if_hpf_settings_cs(cs, hpf)
     return hpf.cutoff
 set_if_hpf = wrap_change(set_if_hpf_cs)
 
 
 def set_if_bandpass_cs(cs:Changeset, lo:float, hi:float, not_above=None):
-    hpf = set_if_hpf_cs(cs, min(lo,hi))
-    lpf = set_if_lpf_cs(cs, max(lo,hi), not_above)
+    hpf = hpf_settings_for(min(lo,hi))
+    lpf = lpf_settings_for(max(lo,hi), not_above)
+    set_if_bandpass_settings_cs(cs, hpf, lpf)
     return (hpf, lpf)
 set_if_bandpass = wrap_change(set_if_bandpass_cs)
 
+
+def set_sideband_cs(cs:Changeset, upper_sideband:bool):
+    write_field(cs, TunerFields.img_r, 1 if upper_sideband else 0)
+set_sideband = wrap_change(set_sideband_cs)
 
 def print_status(xtal: int, regs: bytes, file=sys.stdout):
     print('Tuner:', file=file)
