@@ -113,7 +113,7 @@ class PLLNPDiv(BitFlag):
     """Contents of the PLL0AUDIO_NP_DIV register (UM10503 12.6.4.4)"""
     PDEC = bitrange(0,6)
     # bits 7-11 reserved
-    NDEC = (0xFF)<<12
+    NDEC = bitrange(12,21)
     # bits 22-31 reserved
 
 
