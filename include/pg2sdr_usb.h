@@ -1,8 +1,8 @@
 #ifndef PG2SDR_USB_H
 #define PG2SDR_USB_H
 
-#include "lpcsdr_common.h"
-#include "lpcsdr_protocol.h"
+#include "pg2sdr_common.h"
+#include "pg2sdr_protocol.h"
 #include "error.h"
 
 /* Endpoint transfer descriptor and queue head structure; see UM10503 section 24.9 */

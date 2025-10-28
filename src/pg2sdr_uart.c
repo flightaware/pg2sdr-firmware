@@ -1,8 +1,8 @@
-#include "lpcsdr_uart.h"
-#include "lpcsdr_common.h"
-#include "lpcsdr_panic.h"
-#include "lpcsdr_m4clock.h"
-#include "lpcsdr_hardware.h"
+#include "pg2sdr_uart.h"
+#include "pg2sdr_common.h"
+#include "pg2sdr_panic.h"
+#include "pg2sdr_m4clock.h"
+#include "pg2sdr_hardware.h"
 #include "chip.h"
 #include <stdarg.h>
 

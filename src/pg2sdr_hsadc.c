@@ -1,5 +1,5 @@
-#include "lpcsdr_hsadc.h"
-#include "lpcsdr_uart.h"
+#include "pg2sdr_hsadc.h"
+#include "pg2sdr_uart.h"
 
 #include "chip.h"
 #include "stopwatch.h"

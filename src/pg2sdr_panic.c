@@ -1,7 +1,7 @@
 #include "lpc_types.h"
 #include "chip.h"
 
-#include "lpcsdr_uart.h"
+#include "pg2sdr_uart.h"
 #include "morse.h"
 
 /* Reset codes (RESET_* in pg2sdr_protocol.h) are stored in the RTC "regfile" memory.

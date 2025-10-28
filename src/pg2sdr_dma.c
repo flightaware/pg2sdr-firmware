@@ -1,8 +1,8 @@
-#include "lpcsdr_common.h"
-#include "lpcsdr_dma.h"
-#include "lpcsdr_usb.h"
-#include "lpcsdr_gpio.h"
-#include "lpcsdr_protocol.h"
+#include "pg2sdr_common.h"
+#include "pg2sdr_dma.h"
+#include "pg2sdr_usb.h"
+#include "pg2sdr_gpio.h"
+#include "pg2sdr_protocol.h"
 
 #include "chip.h"
 

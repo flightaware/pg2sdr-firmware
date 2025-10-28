@@ -1,8 +1,8 @@
 #ifndef PG2SDR_DMA_H
 #define PG2SDR_DMA_H
 
-#include "lpcsdr_common.h"
-#include "lpcsdr_protocol.h"
+#include "pg2sdr_common.h"
+#include "pg2sdr_protocol.h"
 
 /* Bounce buffers for ADCHS, in AHB SRAM */
 

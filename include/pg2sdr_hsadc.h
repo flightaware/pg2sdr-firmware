@@ -2,7 +2,7 @@
 #define PG2SDR_HSADC_H
 
 #include "lpc_types.h"
-#include "lpcsdr_protocol.h"
+#include "pg2sdr_protocol.h"
 
 void pg2sdr_hsadc_init(void);
 

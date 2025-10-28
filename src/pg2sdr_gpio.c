@@ -1,5 +1,5 @@
-#include "lpcsdr_gpio.h"
-#include "lpcsdr_hardware.h"
+#include "pg2sdr_gpio.h"
+#include "pg2sdr_hardware.h"
 
 #include "chip.h"
 #include "stopwatch.h"

@@ -1,5 +1,5 @@
-#include "lpcsdr_m4clock.h"
-#include "lpcsdr_tuner.h"
+#include "pg2sdr_m4clock.h"
+#include "pg2sdr_tuner.h"
 
 #include "chip.h"
 #include "stopwatch.h"

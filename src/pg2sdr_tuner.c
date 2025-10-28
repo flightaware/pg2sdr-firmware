@@ -1,7 +1,7 @@
-#include "lpcsdr_tuner.h"
-#include "lpcsdr_gpio.h"
-#include "lpcsdr_uart.h"
-#include "lpcsdr_hardware.h"
+#include "pg2sdr_tuner.h"
+#include "pg2sdr_gpio.h"
+#include "pg2sdr_uart.h"
+#include "pg2sdr_hardware.h"
 
 #include "chip.h"
 #include "stopwatch.h"

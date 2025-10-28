@@ -1,7 +1,7 @@
-#include "lpcsdr_spifi.h"
+#include "pg2sdr_spifi.h"
 
 #include "chip.h"
-#include "lpcsdr_usb.h"
+#include "pg2sdr_usb.h"
 #include "stopwatch.h"
 
 /* generic SPI read, no polling.

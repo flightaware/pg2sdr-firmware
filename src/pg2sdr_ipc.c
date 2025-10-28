@@ -1,10 +1,10 @@
-#include "lpcsdr_ipc.h"
+#include "pg2sdr_ipc.h"
 
 #include <string.h>
 #include "chip.h"
 
-#include "lpcsdr_common.h"
-#include "lpcsdr_m4clock.h"
+#include "pg2sdr_common.h"
+#include "pg2sdr_m4clock.h"
 
 void pg2sdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
 {
