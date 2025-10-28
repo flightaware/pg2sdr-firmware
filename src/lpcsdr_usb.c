@@ -157,14 +157,23 @@ static ALIGNED(4) uint8_t usb_string_desc[] = {
         'e', 0,
 
         /* [2] = product */
-        2 + 2*6,                    /* bLength */
+        2 + 2*15,                   /* bLength */
         USB_STRING_DESCRIPTOR_TYPE, /* bDescriptorType */
-        'L', 0,
         'P', 0,
-        'C', 0,
+        'r', 0,
+        'o', 0,
+        ' ', 0,
         'S', 0,
-        'D', 0,
-        'R', 0,
+        't', 0,
+        'i', 0,
+        'c', 0,
+        'k', 0,
+        ' ', 0,
+        'G', 0,
+        'e', 0,
+        'n', 0,
+        ' ', 0,
+        '2', 0,
 
         /* [3] = serial (nb: this is a placeholder value that is mutated later) */
         2 + 2*16,                    /* bLength */
