@@ -1,5 +1,5 @@
-#ifndef LPCSDR_IPC_H
-#define LPCSDR_IPC_H
+#ifndef PG2SDR_IPC_H
+#define PG2SDR_IPC_H
 
 #include "lpc_types.h"
 
@@ -55,19 +55,19 @@ extern volatile bool m0_wakeup_requested;
 typedef void (*ipc_message_handler_t)(const ipc_message_t *);
 
 /* Do core-specific IPC initialization (mailbox init on the M4 only, interrupt setup on both cores) */
-void lpcsdr_ipc_init(void);
+void pg2sdr_ipc_init(void);
 
 /* Consume messages from `mailbox`, and pass each to `handler` for
  * processing. Should only be called from the main loop, and shouldn't
  * be called on the same mailbox from more than one core.
  */
-void lpcsdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler);
+void pg2sdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler);
 
 /* Return true if the given mailbox has pending messages */
-bool lpcsdr_ipc_pending(ipc_mailbox_t *mailbox);
+bool pg2sdr_ipc_pending(ipc_mailbox_t *mailbox);
 
 /* Main loop: run forever, processing messages addressed to this core via `handler` */
-void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler) __attribute__(( noreturn ));
+void pg2sdr_ipc_handle_messages_forever(ipc_message_handler_t handler) __attribute__(( noreturn ));
 
 /* Shared mailboxes at well-known addresses. There is a separate
  * mailbox for each pair of sending+receiving cores.
@@ -83,11 +83,11 @@ void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler) __attribu
 /* Send a message to the M4 main loop. Returns true if successfully queued, false if the queue is full.
  * Does not wait for delivery to complete. Safe to call from interrupt handlers and from the main loop.
  */
-bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2);
+bool pg2sdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2);
 
 /* Send a message to the M0 main loop. Returns true if successfully queued, false if the queue is full;
  * does not wait for delivery to complete. Safe to call from interrupt handlers and from the main loop.
  */
-bool lpcsdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2);
+bool pg2sdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2);
 
-#endif /* LPCSDR_IPC_H */
+#endif /* PG2SDR_IPC_H */

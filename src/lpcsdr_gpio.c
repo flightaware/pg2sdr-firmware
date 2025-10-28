@@ -21,7 +21,7 @@ typedef struct {
 
 /* See UM10503 ch. 16 table 187 for pin numbering */
 static const led_pair_t led_pairs[] = {
-#ifdef HW_IS_LPCSDR
+#ifdef HW_IS_PG2SDR
     [0] = { .bicolor = false,
             .a = { .valid = true, .pingrp = 1, .pinnum = 1,  .gpioport = 0, .gpiopin = 8  },    /* P1_1, GPIO0[8] (2.2k pullup), D2 (yellow LED) */
             .b = { .valid = false }, },
@@ -56,7 +56,7 @@ static void led_pin_set(const led_pin_t *led, bool onoff)
         Chip_GPIO_SetPinState(LPC_GPIO_PORT, led->gpioport, led->gpiopin, onoff);
 }
 
-void lpcsdr_gpio_init(void)
+void pg2sdr_gpio_init(void)
 {
     Chip_GPIO_Init(LPC_GPIO_PORT);
 
@@ -75,7 +75,7 @@ void lpcsdr_gpio_init(void)
     Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, HW_RFEN_GPIO_PORT, HW_RFEN_GPIO_PIN);
     Chip_GPIO_SetPinState(LPC_GPIO_PORT, HW_RFEN_GPIO_PORT, HW_RFEN_GPIO_PIN, false);
 
-#ifdef HW_IS_LPCSDR
+#ifdef HW_IS_PG2SDR
     /* SW2 on P2_13 / GPIO1[13], floating or direct connection to GND, no external pullup so use the internal pullup */
     Chip_SCU_PinMuxSet(2, 13, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0);
     Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, 1, 13);
@@ -83,13 +83,13 @@ void lpcsdr_gpio_init(void)
 
     /* test pattern, cycle all the LEDS */
     for (unsigned i = 0; i < NUM_LEDS; ++i) {
-        lpcsdr_led_set(i, C_ON);
+        pg2sdr_led_set(i, C_ON);
         StopWatch_DelayMs(250);
-        lpcsdr_led_set(i, C_OFF);
+        pg2sdr_led_set(i, C_OFF);
     }
 }
 
-void lpcsdr_led_set(unsigned led_id, Color c)
+void pg2sdr_led_set(unsigned led_id, Color c)
 {
     if (led_id >= NUM_LEDS)
         return;
@@ -125,21 +125,21 @@ void lpcsdr_led_set(unsigned led_id, Color c)
     }
 }
 
-bool lpcsdr_read_sw1(void)
+bool pg2sdr_read_sw1(void)
 {
     return Chip_GPIO_GetPinState(LPC_GPIO_PORT, 5, 7);
 }
 
-bool lpcsdr_read_sw2(void)
+bool pg2sdr_read_sw2(void)
 {
-#if defined(HW_IS_LPCSDR)
+#if defined(HW_IS_PG2SDR)
     return Chip_GPIO_GetPinState(LPC_GPIO_PORT, 1, 13);
 #else
     return true;
 #endif
 }
 
-void lpcsdr_set_rfen(bool onoff)
+void pg2sdr_set_rfen(bool onoff)
 {
     Chip_GPIO_SetPinState(LPC_GPIO_PORT, HW_RFEN_GPIO_PORT, HW_RFEN_GPIO_PIN, onoff);
 }

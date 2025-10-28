@@ -47,7 +47,7 @@ static void spifi_generic_write(uint32_t command, uint32_t address, const uint8_
 }
 
 /* Read manufacturer and device ID (2 bytes) */
-uint16_t lpcsdr_spifi_read_manufacturer_device_id()
+uint16_t pg2sdr_spifi_read_manufacturer_device_id()
 {
     uint16_t id;
     spifi_generic_read(SPIFI_CMD_OPCODE(0x90) |                           // Read Manufacturer / Device ID (90h)
@@ -60,7 +60,7 @@ uint16_t lpcsdr_spifi_read_manufacturer_device_id()
 }
 
 /* Read unique chip ID (8 bytes) */
-uint64_t lpcsdr_spifi_read_unique_id()
+uint64_t pg2sdr_spifi_read_unique_id()
 {
     uint64_t id;
     spifi_generic_read(SPIFI_CMD_OPCODE(0x4B) |                           // Read Unique ID Number (4Bh)
@@ -73,7 +73,7 @@ uint64_t lpcsdr_spifi_read_unique_id()
 }
 
 /* Read `length` bytes at `address` into `buffer` */
-void lpcsdr_spifi_read_data(uint32_t address, uint8_t *buffer, uint32_t length)
+void pg2sdr_spifi_read_data(uint32_t address, uint8_t *buffer, uint32_t length)
 {
     spifi_generic_read(SPIFI_CMD_OPCODE(0x03) |                           // Read Data (03h)
                        SPIFI_CMD_FRAMEFORM(SPIFI_FRAMEFORM_OP_3ADDRESS) | // Opcode and 3 address bytes
@@ -84,7 +84,7 @@ void lpcsdr_spifi_read_data(uint32_t address, uint8_t *buffer, uint32_t length)
 }
 
 /* Read `length` bytes at `address` into `buffer`, using quad I/O */
-void lpcsdr_spifi_fast_read_quad(uint32_t address, uint8_t *buffer, uint32_t length)
+void pg2sdr_spifi_fast_read_quad(uint32_t address, uint8_t *buffer, uint32_t length)
 {
     spifi_generic_read(SPIFI_CMD_OPCODE(0xEB) |                              // Fast Read Quad I/O (EBh)
                        SPIFI_CMD_FRAMEFORM(SPIFI_FRAMEFORM_OP_4ADDRESS) |    // Opcode, 3 address bytes, M7:0 = FF
@@ -131,7 +131,7 @@ static ErrorCode_t spifi_wait_for_completion(uint32_t timeout_ms)
  *
  * Programming a page can take up to 3ms.
  */
-ErrorCode_t lpcsdr_spifi_page_program(uint32_t address, const uint8_t *buffer, uint32_t length)
+ErrorCode_t pg2sdr_spifi_page_program(uint32_t address, const uint8_t *buffer, uint32_t length)
 {
     if (address > 0x00FFFFFF || (address + length) > 0x01000000)
         return ERR_FAILED;
@@ -161,7 +161,7 @@ ErrorCode_t lpcsdr_spifi_page_program(uint32_t address, const uint8_t *buffer, u
  *
  * Erasing a sector can take up to 300ms.
  */
-ErrorCode_t lpcsdr_spifi_sector_erase(uint32_t address)
+ErrorCode_t pg2sdr_spifi_sector_erase(uint32_t address)
 {
     // sectors are 4k aligned
     if (address & 0x0FFF)
@@ -184,7 +184,7 @@ ErrorCode_t lpcsdr_spifi_sector_erase(uint32_t address)
     return spifi_wait_for_completion(300); // datasheet max sector erase time = 300ms
 }
 
-ErrorCode_t lpcsdr_spifi_init(void)
+ErrorCode_t pg2sdr_spifi_init(void)
 {
     // warning: this assumes we are _not_ executing code over SPIFI!
 

@@ -25,13 +25,13 @@ static uint32_t systick_count;
 /* total idle CPU cycles in last & current measurement period */
 static volatile uint32_t idle_cycles_last;
 static uint32_t idle_cycles;
-static volatile uint32_t idle_cycles_accumulator; /* updated by lpcsdr_m4clock_wfi() */
+static volatile uint32_t idle_cycles_accumulator; /* updated by pg2sdr_m4clock_wfi() */
 
 /* min idle CPU cycles in last & current measurement period */
 static volatile uint32_t min_idle_cycles_last;
 static uint32_t min_idle_cycles;
 
-void lpcsdr_m4clock_init()
+void pg2sdr_m4clock_init()
 {
     /* switch the M4 clock to use the crystal immediately */
     Chip_SetupCoreClock(CLKIN_CRYSTAL, MIN_M4_FREQ, false);
@@ -39,7 +39,7 @@ void lpcsdr_m4clock_init()
     Chip_Clock_SetBaseClock(CLK_BASE_APB3, CLKIN_MAINPLL, true, false);
 
     /* reset internal state, initialize timers */
-    lpcsdr_m4clock_set_freq(current_freq, true);
+    pg2sdr_m4clock_set_freq(current_freq, true);
 
     /* start systick */
     SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk;   /* use processor clock source, do generate interrupts */
@@ -63,10 +63,10 @@ void SysTick_Handler(void)
         min_idle_cycles = SYSTICK_INTERVAL;
     }
 
-    ++lpcsdr_interrupts.systick;
+    ++pg2sdr_interrupts.systick;
 }
 
-void lpcsdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
+void pg2sdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
 {
     if (new_freq < MIN_M4_FREQ)
         new_freq = MIN_M4_FREQ;
@@ -88,7 +88,7 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
     current_freq = new_freq;
     SystemCoreClockUpdate();
     StopWatch_Init();
-    lpcsdr_tuner_clock_update();
+    pg2sdr_tuner_clock_update();
 
     WITH_DISABLED_INTERRUPTS {
         systick_count = 0;
@@ -99,7 +99,7 @@ void lpcsdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
     }
 }
 
-void lpcsdr_m4clock_status(ep0_in_board_status_t *status)
+void pg2sdr_m4clock_status(ep0_in_board_status_t *status)
 {
     status->m4_freq = current_freq;
     status->m4_mean_idle = idle_cycles_last;
@@ -108,7 +108,7 @@ void lpcsdr_m4clock_status(ep0_in_board_status_t *status)
     status->m4_min_idle_scale = SYSTICK_INTERVAL;
 }
 
-void lpcsdr_m4clock_wfi()
+void pg2sdr_m4clock_wfi()
 {
     /* called with interrupts disabled! */
     uint32_t start_systick = SysTick->VAL;

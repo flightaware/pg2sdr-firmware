@@ -1,5 +1,5 @@
-#ifndef LPCSDR_DMA_H
-#define LPCSDR_DMA_H
+#ifndef PG2SDR_DMA_H
+#define PG2SDR_DMA_H
 
 #include "lpcsdr_common.h"
 #include "lpcsdr_protocol.h"
@@ -7,7 +7,7 @@
 /* Bounce buffers for ADCHS, in AHB SRAM */
 
 /* constraints on this:
- *    packed sample data for one buffer has to fit into a USB buffer, leaving space for a 20-byte header (see lpcsdr_usb.h)
+ *    packed sample data for one buffer has to fit into a USB buffer, leaving space for a 20-byte header (see pg2sdr_usb.h)
  *      (4 bytes in the HSADC buffer becomes 3 bytes in the USB buffer)
  *    HSADC_NUM_BUFFERS must be even (we allocate half the buffers in one AHB SRAM bank and half in the other bank, to reduce contention when
  *      the M4 main loop is reading a buffer and packing samples while the ADC DMA channel writes to the next buffer)
@@ -38,32 +38,32 @@ typedef struct ALIGN(16) _dma_lli {
 } dma_lli_t;
 
 /* initialize common DMA stuff */
-void lpcsdr_dma_init(void);
+void pg2sdr_dma_init(void);
 
 /* start DMA from HSADC to internal DMA buffer space */
-void lpcsdr_dma_hsadc_start(void);
+void pg2sdr_dma_hsadc_start(void);
 
 /* stop DMA from HSADC to internal DMA buffer space */
-void lpcsdr_dma_hsadc_stop(void);
+void pg2sdr_dma_hsadc_stop(void);
 
 /* callback to be implemented by main code, to indicate that DMA to a HSADC buffer has finished.
- * this code should return promptly, and asynchronously call `lpcsdr_dma_hsadc_copy_complete` when
+ * this code should return promptly, and asynchronously call `pg2sdr_dma_hsadc_copy_complete` when
  * it is done with the buffer.
  *
  * returns true if the buffer was accepted, false to reject the buffer (caller should clean up)
  */
-bool lpcsdr_dma_hsadc_buffer_ready(dma_lli_t *completed, uint32_t status_flags);
+bool pg2sdr_dma_hsadc_buffer_ready(dma_lli_t *completed, uint32_t status_flags);
 
-/* For a buffer previously given to `lpcsdr_dma_hsadc_buffer_ready`,
+/* For a buffer previously given to `pg2sdr_dma_hsadc_buffer_ready`,
  * indicate that the callback is done with the buffer.
  *
  * Returns the old buffer status.
  */
-static inline uint32_t lpcsdr_dma_hsadc_copy_complete(dma_lli_t *buffer, bool completed)
+static inline uint32_t pg2sdr_dma_hsadc_copy_complete(dma_lli_t *buffer, bool completed)
 {
     return test_set_clear_bits(/* set */ (completed ? 0 : LLI_STATUS_DROPPED), /* clear */ LLI_STATUS_COPYING, &buffer->status);
 }
 
-void lpcsdr_dma_status(ep0_in_board_status_t *status);
+void pg2sdr_dma_status(ep0_in_board_status_t *status);
 
 #endif

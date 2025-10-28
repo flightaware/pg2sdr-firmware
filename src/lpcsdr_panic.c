@@ -4,7 +4,7 @@
 #include "lpcsdr_uart.h"
 #include "morse.h"
 
-/* Reset codes (RESET_* in lpcsdr_protocol.h) are stored in the RTC "regfile" memory.
+/* Reset codes (RESET_* in pg2sdr_protocol.h) are stored in the RTC "regfile" memory.
  * The RTC regfile persists over reset, but not over a full power cycle, so we can
  * use that to distinguish a power-on-reset (where RTC memory has a random value)
  * from other reset causes. The values have no particular meaning other than being
@@ -42,14 +42,14 @@ static inline void panic_delay(uint32_t cycles)
     LPC_WWDT->FEED = 0x55;
 }
 
-void lpcsdr_hard_reset()
+void pg2sdr_hard_reset()
 {
     LPC_RGU->RESET_CTRL[0] = 1; // CORE_RST=1, reset the whole chip
     while (true)
         __WFI();
 }
 
-void lpcsdr_panic(uint32_t pattern)
+void pg2sdr_panic(uint32_t pattern)
 {
     /* record the source of the upcoming reset */
     LPC_REGFILE->REGFILE[0] = RESET_PANIC;
@@ -73,23 +73,23 @@ void lpcsdr_panic(uint32_t pattern)
         panic_delay(DIT*4);     // inter-word spacing = 7 dit periods total
     }
 
-    lpcsdr_hard_reset();
+    pg2sdr_hard_reset();
 }
 
-void lpcsdr_reset()
+void pg2sdr_reset()
 {
     LPC_REGFILE->REGFILE[0] = RESET_FIRMWARE;
     LPC_REGFILE->REGFILE[1] = 0;
-    lpcsdr_hard_reset();
+    pg2sdr_hard_reset();
 }
 
-/* Reason for the most recent reset (updated when lpcsdr_diagnose_reset is called,
+/* Reason for the most recent reset (updated when pg2sdr_diagnose_reset is called,
  * early in startup)
  */
-uint32_t lpcsdr_reset_reason = RESET_POR;
-uint32_t lpcsdr_reset_code;
+uint32_t pg2sdr_reset_reason = RESET_POR;
+uint32_t pg2sdr_reset_code;
 
-void lpcsdr_diagnose_reset()
+void pg2sdr_diagnose_reset()
 {
     /* record current reason, update reason to UNEXPECTED
      * so that's what is left if we unexpectedly reset.
@@ -107,19 +107,19 @@ void lpcsdr_diagnose_reset()
     if ( (r0 == RESET_FIRMWARE && r1 == 0) ||
          (r0 == RESET_UNEXPECTED && r1 == 0) ||
          r0 == RESET_PANIC) {
-        lpcsdr_reset_reason = r0;
-        lpcsdr_reset_code = r1;
+        pg2sdr_reset_reason = r0;
+        pg2sdr_reset_code = r1;
     } else {
         /* Power-on-reset leaves semi-random garbage in the
          * RTC regs, so assume that any values we don't recognize
          * are due to that.
          */
-        lpcsdr_reset_reason = RESET_POR;
-        lpcsdr_reset_code = 0;
+        pg2sdr_reset_reason = RESET_POR;
+        pg2sdr_reset_code = 0;
     }
 
     debug_printf("Reset cause: ");
-    switch (lpcsdr_reset_reason) {
+    switch (pg2sdr_reset_reason) {
     case RESET_FIRMWARE:
         debug_printf("user reset\r\n");
         break;
@@ -127,7 +127,7 @@ void lpcsdr_diagnose_reset()
         debug_printf("watchdog or hard fault\r\n");
         break;
     case RESET_PANIC:
-        debug_printf("firmware panic %08X\r\n", lpcsdr_reset_code);
+        debug_printf("firmware panic %08X\r\n", pg2sdr_reset_code);
         break;
     case RESET_POR:
         debug_printf("power-on reset\r\n");
@@ -140,50 +140,50 @@ void lpcsdr_diagnose_reset()
 
 void NMI_Handler(void)
 {
-    lpcsdr_panic(MORSE_N);
+    pg2sdr_panic(MORSE_N);
 }
 void HardFault_Handler(void)
 {
     /* Hardfault means things have gone _really_ wrong. Just try to reset immediately. */
-    lpcsdr_hard_reset();
+    pg2sdr_hard_reset();
 }
 void MemManage_Handler(void)
 {
-    lpcsdr_panic(MORSE_M);
+    pg2sdr_panic(MORSE_M);
 }
 void BusFault_Handler(void)
 {
-    lpcsdr_panic(MORSE_B);
+    pg2sdr_panic(MORSE_B);
 }
 void UsageFault_Handler(void)
 {
-    lpcsdr_panic(MORSE_U);
+    pg2sdr_panic(MORSE_U);
 }
 void SVC_Handler(void)
 {
-    lpcsdr_panic(MORSE_S);
+    pg2sdr_panic(MORSE_S);
 }
 void DebugMon_Handler(void)
 {
-    lpcsdr_panic(MORSE_D);
+    pg2sdr_panic(MORSE_D);
 }
 void PendSV_Handler(void)
 {
-    lpcsdr_panic(MORSE_P);
+    pg2sdr_panic(MORSE_P);
 }
 
 /* We can't directly override IntDefaultHandler because of how cr_startup does symbol aliasing;
- * instead, we do the minimum change necessary in cr_startup to have its IntDefaultHandler call `lpcsdr_unexpected_interrupt` instead
+ * instead, we do the minimum change necessary in cr_startup to have its IntDefaultHandler call `pg2sdr_unexpected_interrupt` instead
  */
-void lpcsdr_unexpected_interrupt(void)
+void pg2sdr_unexpected_interrupt(void)
 {
     uint32_t isr = __get_IPSR() & 255;                       // index of unexpected interrupt
     uint32_t pattern = MORSE_I | (morse_hexbyte(isr) << 8);  // blink 'I', then two hex digits with the unexpected interrupt index
-    lpcsdr_panic(pattern);
+    pg2sdr_panic(pattern);
 }
 
-void lpcsdr_assertion_failed(const char *file, unsigned line, const char *assertion)
+void pg2sdr_assertion_failed(const char *file, unsigned line, const char *assertion)
 {
     debug_printf("%s:%d: assertion failed: %s\r\n", file, line, assertion);
-    lpcsdr_panic(MORSE_A);
+    pg2sdr_panic(MORSE_A);
 }

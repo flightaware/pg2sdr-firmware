@@ -22,7 +22,7 @@ uint32_t hsadc_next_sequence; /* Buffer sequence number included in transferred 
 
 static uint32_t pending_dma_status; /* flags awaiting notification to the packing layer */
 
-void lpcsdr_dma_init(void)
+void pg2sdr_dma_init(void)
 {
     static_assert( HSADC_BUFFER_SIZE % 4 == 0 ); /* DMA buffer size must be a whole number of 32-bit words */
     static_assert( HSADC_NUM_BUFFERS % 2 == 0 ); /* Need an even number of DMA buffers so we can alternate allocation between SRAM banks */
@@ -52,8 +52,8 @@ void lpcsdr_dma_init(void)
     NVIC_EnableIRQ(DMA_IRQn);
 }
 
-void lpcsdr_dma_hsadc_start(void) {
-    lpcsdr_dma_hsadc_stop();
+void pg2sdr_dma_hsadc_start(void) {
+    pg2sdr_dma_hsadc_stop();
 
     /* Create a loop of transfer descriptor LLIs, pointing to buffers
      * that alternate between AHB_SRAM_BANK_0 and AHB_SRAM_BANK_1.
@@ -116,7 +116,7 @@ void lpcsdr_dma_hsadc_start(void) {
         GPDMA_DMACCxConfig_ITC;                // enable terminal count interrupts
 }
 
-void lpcsdr_dma_hsadc_stop(void)
+void pg2sdr_dma_hsadc_stop(void)
 {
     /* halt channel 0 if active */
     LPC_GPDMA->CH[0].CONFIG = 0; /* disable channel, mask interrupts */
@@ -126,7 +126,7 @@ void lpcsdr_dma_hsadc_stop(void)
     LPC_GPDMA->INTTCCLEAR = 0x01;
     LPC_GPDMA->INTERRCLR = 0x01;
     /* we're no longer transferring data, LED should be off */
-    lpcsdr_led_set(1, C_OFF);
+    pg2sdr_led_set(1, C_OFF);
 }
 
 static void hsadc_dma_err(void)
@@ -179,7 +179,7 @@ static void hsadc_dma_tc(void)
             }
 
             completed->status = LLI_STATUS_COPYING; /* not clobbered, not dropped */
-            if (lpcsdr_dma_hsadc_buffer_ready(completed, pending_dma_status)) {
+            if (pg2sdr_dma_hsadc_buffer_ready(completed, pending_dma_status)) {
                 /* main loop will copy data out, and then clear the COPYING bit.
                  * we have successfully notified the main loop of all pending
                  * dma status bits.
@@ -213,13 +213,13 @@ static void hsadc_dma_tc(void)
         if (!(hsadc_next_sequence & 255)) {
             if (!recent_drops) {
                 /* no recent data dropped */
-                lpcsdr_led_set(1, C_GREEN);
+                pg2sdr_led_set(1, C_GREEN);
             } else if (recent_drops > 128) {
                 /* >50% recent data dropped */
-                lpcsdr_led_set(1, C_RED);
+                pg2sdr_led_set(1, C_RED);
             } else {
                 /* >0 but <50% dropped */
-                lpcsdr_led_set(1, C_YELLOW);
+                pg2sdr_led_set(1, C_YELLOW);
             }
             recent_drops = 0;
         }
@@ -240,10 +240,10 @@ void DMA_IRQHandler(void)
     if (interrstat & 1)
         hsadc_dma_err();
 
-    ++lpcsdr_interrupts.dma;
+    ++pg2sdr_interrupts.dma;
 }
 
-void lpcsdr_dma_status(ep0_in_board_status_t *status)
+void pg2sdr_dma_status(ep0_in_board_status_t *status)
 {
     if ((LPC_GPDMA->CONFIG & GPDMA_DMACConfig_E) != 0 &&
         (LPC_GPDMA->CH[0].CONFIG & GPDMA_DMACCxConfig_E) != 0)

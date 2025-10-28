@@ -6,7 +6,7 @@
 #include "lpcsdr_common.h"
 #include "lpcsdr_m4clock.h"
 
-void lpcsdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
+void pg2sdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
 {
     // nb: no mutual exclusion on the reader side, it's assumed there
     // is only a single reader
@@ -18,7 +18,7 @@ void lpcsdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
     }
 }
 
-bool lpcsdr_ipc_pending(ipc_mailbox_t *mailbox)
+bool pg2sdr_ipc_pending(ipc_mailbox_t *mailbox)
 {
     return (mailbox->head != mailbox->tail);
 }
@@ -48,7 +48,7 @@ static bool ipc_send(ipc_mailbox_t *mailbox, uint32_t message, uint32_t value0, 
 
 volatile bool m4_wakeup_requested;
 
-void lpcsdr_ipc_init()
+void pg2sdr_ipc_init()
 {
     memset(m4_to_m4_mailbox, 0, sizeof(ipc_mailbox_t));
     memset(m4_to_m0_mailbox, 0, sizeof(ipc_mailbox_t));
@@ -61,10 +61,10 @@ void M0APP_IRQHandler(void)
 {
     m4_wakeup_requested = true;
     Chip_CREG_ClearM0AppEvent();
-    ++lpcsdr_interrupts.m0app;
+    ++pg2sdr_interrupts.m0app;
 }
 
-bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
+bool pg2sdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
 {
     if (!IS_M4_MESSAGE(message))
         return false;
@@ -77,7 +77,7 @@ bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t
     return result;
 }
 
-bool lpcsdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
+bool pg2sdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
 {
     if (!IS_M0_MESSAGE(message))
         return false;
@@ -100,10 +100,10 @@ void WDT_IRQHandler(void)
 {
     m4_wakeup_requested = true;
     Chip_WWDT_ClearStatusFlag(LPC_WWDT, WWDT_WDMOD_WDINT);
-    ++lpcsdr_interrupts.wwdt;
+    ++pg2sdr_interrupts.wwdt;
 }
 
-void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
+void pg2sdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
 {
     /* Initialize watchdog, require feeding every 5 seconds */
     Chip_Clock_Enable(CLK_MX_WWDT);
@@ -114,11 +114,11 @@ void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
     NVIC_EnableIRQ(WWDT_IRQn);
 
     while (true) {
-        lpcsdr_ipc_receive(m4_to_m4_mailbox, handler);
-        lpcsdr_ipc_receive(m0_to_m4_mailbox, handler);
+        pg2sdr_ipc_receive(m4_to_m4_mailbox, handler);
+        pg2sdr_ipc_receive(m0_to_m4_mailbox, handler);
         __disable_irq();
         if (!m4_wakeup_requested) {
-            lpcsdr_m4clock_wfi();
+            pg2sdr_m4clock_wfi();
         }
         m4_wakeup_requested = false;
         Chip_WWDT_Feed(LPC_WWDT);
@@ -130,7 +130,7 @@ void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
 
 volatile bool m0_wakeup_requested;
 
-void lpcsdr_ipc_init()
+void pg2sdr_ipc_init()
 {
     NVIC_EnableIRQ(M4_IRQn);
 }
@@ -139,10 +139,10 @@ void M4_IRQHandler(void)
 {
     m0_wakeup_requested = true;
     Chip_CREG_ClearM4Event();
-    ++lpcsdr_interrupts.m4;
+    ++pg2sdr_interrupts.m4;
 }
 
-bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
+bool pg2sdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
 {
     if (!IS_M4_MESSAGE(message))
         return false;
@@ -157,7 +157,7 @@ bool lpcsdr_ipc_send_m4(m4_ipc_message_type_t message, uint32_t value0, uint32_t
     return result;
 }
 
-bool lpcsdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
+bool pg2sdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t value1, uint32_t value2)
 {
     if (!IS_M0_MESSAGE(message))
         return false;
@@ -170,7 +170,7 @@ bool lpcsdr_ipc_send_m0(m0_ipc_message_type_t message, uint32_t value0, uint32_t
     return result;
 }
 
-void lpcsdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
+void pg2sdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
 {
     while (true) {
         ipc_receive(m4_to_m0_mailbox, handler);

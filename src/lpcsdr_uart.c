@@ -40,7 +40,7 @@ static void handle_thre_interrupt(void)
     }
 }
 
-void lpcsdr_uart_init(void)
+void pg2sdr_uart_init(void)
 {
     RingBuffer_Init(&ring, ring_buff, 1, RING_SIZE);
 
@@ -58,7 +58,7 @@ void lpcsdr_uart_init(void)
     NVIC_EnableIRQ(USART0_IRQn);
 }
 
-void lpcsdr_uart_write(const char *data, unsigned len)
+void pg2sdr_uart_write(const char *data, unsigned len)
 {
     if (!len)
         return;
@@ -73,7 +73,7 @@ void lpcsdr_uart_write(const char *data, unsigned len)
     }
 }
 
-void lpcsdr_uart_flush()
+void pg2sdr_uart_flush()
 {
     if (interrupts_disabled()) {
         /* Can't safely wait here, just immediately return */
@@ -116,11 +116,11 @@ void UART0_IRQHandler(void)
             break;
 
         default:
-            lpcsdr_unexpected_interrupt();
+            pg2sdr_unexpected_interrupt();
         }
     }
 
-    ++lpcsdr_interrupts.usart0;
+    ++pg2sdr_interrupts.usart0;
 }
 
 void debug_printf(const char *format, ...)
@@ -139,22 +139,22 @@ void debug_printf(const char *format, ...)
         n = sizeof(buf);
         buf[n-1] = '!'; /* truncation indicator */
     }
-    lpcsdr_uart_write(buf, n);
+    pg2sdr_uart_write(buf, n);
 }
 
 #else /* ! HW_HAS_UART */
 
-void lpcsdr_uart_init(void)
+void pg2sdr_uart_init(void)
 {
     /* nothing */
 }
 
-void lpcsdr_uart_write(const char *data, unsigned len)
+void pg2sdr_uart_write(const char *data, unsigned len)
 {
     /* nothing */
 }
 
-void lpcsdr_uart_flush(void)
+void pg2sdr_uart_flush(void)
 {
     /* nothing */
 }

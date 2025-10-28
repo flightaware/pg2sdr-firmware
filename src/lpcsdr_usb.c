@@ -229,7 +229,7 @@ void USB0_IRQHandler(void)
 {
     /* use the ROM API's interrupt handler */
     USBD_API->hw->ISR(usb_handle);
-    ++lpcsdr_interrupts.usb0;
+    ++pg2sdr_interrupts.usb0;
 }
 
 /* Pointers to the dTDs and corresponding data buffers */
@@ -303,11 +303,11 @@ static void reset_dtd_lists_interrupts_disabled()
 }
 
 /* remove a free dTD from the freelist and return it, or NULL if none are available */
-USB_DTD_T *lpcsdr_usb_get_dtd()
+USB_DTD_T *pg2sdr_usb_get_dtd()
 {
     USB_DTD_T *head;
     WITH_DISABLED_INTERRUPTS {
-        if (!lpcsdr_usb_is_ready()) {
+        if (!pg2sdr_usb_is_ready()) {
             head = NULL;
         } else {
             head = dtd_free_head;
@@ -332,10 +332,10 @@ static void free_dtd_interrupts_disabled(USB_DTD_T *dtd)
     dtd_free_head = dtd;
 
     if (was_empty) /* tell main loop when space becomes available */
-        lpcsdr_usb_space_available();
+        pg2sdr_usb_space_available();
 }
 
-void lpcsdr_usb_free_dtd(USB_DTD_T *dtd)
+void pg2sdr_usb_free_dtd(USB_DTD_T *dtd)
 {
     WITH_DISABLED_INTERRUPTS {
         free_dtd_interrupts_disabled(dtd);
@@ -363,7 +363,7 @@ static bool queue_dtd_interrupts_disabled(unsigned ep, USB_DTD_T *dtd, uint32_t 
         return false;
     }
 
-    if (!lpcsdr_usb_is_ready() || !ep1_enabled) {
+    if (!pg2sdr_usb_is_ready() || !ep1_enabled) {
         /* EP1 not configured yet */
         free_dtd_interrupts_disabled(dtd);
         return false;
@@ -424,7 +424,7 @@ static bool queue_dtd_interrupts_disabled(unsigned ep, USB_DTD_T *dtd, uint32_t 
     return true;
 }
 
-bool lpcsdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t bytes)
+bool pg2sdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t bytes)
 {
     bool result;
     WITH_DISABLED_INTERRUPTS {
@@ -434,7 +434,7 @@ bool lpcsdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t bytes)
 }
 
 /* Flush pending data on EP1, set stall */
-void lpcsdr_usb_ep1_disable(void)
+void pg2sdr_usb_ep1_disable(void)
 {
     WITH_DISABLED_INTERRUPTS {
         ep1_enabled = false;
@@ -445,7 +445,7 @@ void lpcsdr_usb_ep1_disable(void)
 }
 
 /* (re-)enable EP1, clear stall  */
-void lpcsdr_usb_ep1_enable(void)
+void pg2sdr_usb_ep1_enable(void)
 {
     WITH_DISABLED_INTERRUPTS {
         USBD_API->hw->ClrStallEP(usb_handle, /* EP 1 IN */ 0x81);
@@ -470,8 +470,8 @@ static void retire_completed_dtds()
 /* Callback on USB reset */
 static ErrorCode_t reset_handler(USBD_HANDLE_T handle)
 {
-    lpcsdr_usb_state_changed();
-    lpcsdr_usb_ep1_disable();
+    pg2sdr_usb_state_changed();
+    pg2sdr_usb_ep1_disable();
     return LPC_OK;
 }
 
@@ -480,8 +480,8 @@ static ErrorCode_t reset_handler(USBD_HANDLE_T handle)
  */
 static ErrorCode_t configure_handler(USBD_HANDLE_T handle)
 {
-    lpcsdr_usb_state_changed();
-    lpcsdr_usb_ep1_disable();
+    pg2sdr_usb_state_changed();
+    pg2sdr_usb_ep1_disable();
     return LPC_OK;
 }
 
@@ -499,7 +499,7 @@ static ErrorCode_t ep1_in_handler(USBD_HANDLE_T handle, void *data, uint32_t eve
 }
 
 /* Shared buffer for control transfer data */
-uint8_t ALIGNED(4) lpcsdr_usb_control_buffer[512];
+uint8_t ALIGNED(4) pg2sdr_usb_control_buffer[512];
 
 /* True if a control transfer is currently being processed by the main loop */
 static bool ep0_busy;
@@ -521,7 +521,7 @@ static void disable_ep0_nak_interrupt()
 }
 
 /* Called from the main loop to stall EP0 in response to a control transfer */
-void lpcsdr_usb_ep0_stall()
+void pg2sdr_usb_ep0_stall()
 {
     WITH_DISABLED_INTERRUPTS {
         if (ep0_clobber) {
@@ -534,7 +534,7 @@ void lpcsdr_usb_ep0_stall()
 }
 
 /* Called from the main loop to provide EP0 IN data in response to a control transfer */
-void lpcsdr_usb_ep0_data_in(const uint8_t *data, uint32_t length)
+void pg2sdr_usb_ep0_data_in(const uint8_t *data, uint32_t length)
 {
     USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) usb_handle;
 
@@ -557,7 +557,7 @@ void lpcsdr_usb_ep0_data_in(const uint8_t *data, uint32_t length)
 }
 
 /* Called from the main loop to complete an EP0 OUT control transfer successfully */
-void lpcsdr_usb_ep0_out_ack(void)
+void pg2sdr_usb_ep0_out_ack(void)
 {
     USB_CORE_CTRL_T *ctrl = (USB_CORE_CTRL_T *) usb_handle;
 
@@ -586,7 +586,7 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
     if (ctrl->SetupPacket.bmRequestType.BM.Dir == REQUEST_DEVICE_TO_HOST) {
         /* device->host, respond with IN data */
         disable_ep0_nak_interrupt();
-        if (!lpcsdr_ipc_send_m4(M4_USB_EP0_IN,
+        if (!pg2sdr_ipc_send_m4(M4_USB_EP0_IN,
                 ctrl->SetupPacket.bRequest,
                 (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
                 ctrl->SetupPacket.wLength)) {
@@ -599,7 +599,7 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
         return LPC_OK;
     } else {
         /* host->device, prepare to read OUT data */
-        if (ctrl->SetupPacket.wLength > sizeof(lpcsdr_usb_control_buffer)) {
+        if (ctrl->SetupPacket.wLength > sizeof(pg2sdr_usb_control_buffer)) {
             USBD_API->core->StallEp0(handle);
             return LPC_OK;
         }
@@ -607,7 +607,7 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
         if (!ctrl->SetupPacket.wLength) {
             // No data phase, submit for processing immediately
             disable_ep0_nak_interrupt();
-            if (!lpcsdr_ipc_send_m4(M4_USB_EP0_OUT,
+            if (!pg2sdr_ipc_send_m4(M4_USB_EP0_OUT,
                     ctrl->SetupPacket.bRequest,
                     (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
                     ctrl->SetupPacket.wLength)) {
@@ -621,7 +621,7 @@ static ErrorCode_t ep0_setup_handler(USBD_HANDLE_T handle)
         }
 
         // Set up data phase, wait for data
-        ctrl->EP0Data.pData = lpcsdr_usb_control_buffer;
+        ctrl->EP0Data.pData = pg2sdr_usb_control_buffer;
         ctrl->EP0Data.Count = ctrl->SetupPacket.wLength;
         /* We will get a USB_EVT_OUT event later, when the data is ready */
         return LPC_OK;
@@ -642,7 +642,7 @@ static ErrorCode_t ep0_out_handler(USBD_HANDLE_T handle)
     }
 
     disable_ep0_nak_interrupt();
-    if (!lpcsdr_ipc_send_m4(M4_USB_EP0_OUT,
+    if (!pg2sdr_ipc_send_m4(M4_USB_EP0_OUT,
             ctrl->SetupPacket.bRequest,
             (ctrl->SetupPacket.wValue.W | (ctrl->SetupPacket.wIndex.W << 16)),
             ctrl->SetupPacket.wLength)) {
@@ -678,14 +678,14 @@ static ErrorCode_t ep0_handler(USBD_HANDLE_T handle, void *data, uint32_t event)
 }
 
 /* returns true if we're ready to use USB (connected, configured, in highspeed mode) */
-bool lpcsdr_usb_is_ready(void)
+bool pg2sdr_usb_is_ready(void)
 {
     USB_CORE_CTRL_T *core = (USB_CORE_CTRL_T*) usb_handle;
     return (core->config_value != 0 && core->device_speed == USB_HIGH_SPEED);
 }
 
 /* Fill in the USB-related bits of *status */
-void lpcsdr_usb_status(ep0_in_board_status_t *status)
+void pg2sdr_usb_status(ep0_in_board_status_t *status)
 {
     WITH_DISABLED_INTERRUPTS {
         if (ep1_enabled)
@@ -726,7 +726,7 @@ static void write_serial(uint8_t *pDesc, uint64_t serial)
     }
 }
 
-ErrorCode_t lpcsdr_usb_init(uint64_t serial_number)
+ErrorCode_t pg2sdr_usb_init(uint64_t serial_number)
 {
     static_assert(sizeof(USB_DTD_T) == 32, "wrong USB_DTD_T size");
     static_assert(sizeof(USB_DQH_T) == 64, "wrong USB_DQH_T size");

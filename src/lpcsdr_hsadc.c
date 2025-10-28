@@ -81,7 +81,7 @@ static uint32_t compute_ndec(uint32_t nsel)
 static uint32_t hsadc_frequency;  /* programmed frequency of PLL0AUDIO, 0 if inactive */
 static bool hsadc_running;        /* true if HSADC block has been triggered & is running */
 
-bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (0 = bypass divider */
+bool pg2sdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (0 = bypass divider */
                               uint32_t m_divisor,     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part */
                               uint32_t p_divisor,     /* PLL0AUDIO post-divisor (0 = bypass divider */
                               uint32_t idiv_divisor)
@@ -201,7 +201,7 @@ bool lpcsdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (
     return true;
 }
 
-void lpcsdr_hsadc_clock_stop(void)
+void pg2sdr_hsadc_clock_stop(void)
 {
     if (!hsadc_frequency) {
         /* ADC clock not configured yet, bail out  */
@@ -210,7 +210,7 @@ void lpcsdr_hsadc_clock_stop(void)
 
     if (hsadc_running) {
       /* best to stop the ADC first before messing with the branch clock */
-      lpcsdr_hsadc_conversion_stop();
+      pg2sdr_hsadc_conversion_stop();
     }
 
     /* Disable ADC branch clock */
@@ -224,7 +224,7 @@ void lpcsdr_hsadc_clock_stop(void)
     hsadc_frequency = 0;
 }
 
-void lpcsdr_hsadc_init()
+void pg2sdr_hsadc_init()
 {
 #ifdef HW_HAS_CLKOUT
     /* Enable CLK0/CLK2 for ADC clock measurement */
@@ -241,7 +241,7 @@ void lpcsdr_hsadc_init()
     Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
 }
 
-bool lpcsdr_hsadc_conversion_start()
+bool pg2sdr_hsadc_conversion_start()
 {
     if (!hsadc_frequency) {
         /* ADC clock not configured yet, bail out  */
@@ -345,7 +345,7 @@ bool lpcsdr_hsadc_conversion_start()
     return true;
 }
 
-void lpcsdr_hsadc_conversion_stop()
+void pg2sdr_hsadc_conversion_stop()
 {
     if (!hsadc_running) {
         /* not running, nothing to do */
@@ -357,7 +357,7 @@ void lpcsdr_hsadc_conversion_stop()
     hsadc_running = false;
 }
 
-void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
+void pg2sdr_hsadc_status(ep0_in_board_status_t *status)
 {
     status->hsadc_frequency = hsadc_frequency;
     if (hsadc_frequency) {
@@ -386,7 +386,7 @@ void lpcsdr_hsadc_status(ep0_in_board_status_t *status)
     }
 }
 
-void lpcsdr_hsadc_set_config(bool dcinpos, bool dcinneg, bool twos)
+void pg2sdr_hsadc_set_config(bool dcinpos, bool dcinneg, bool twos)
 {
     config_dcinpos = dcinpos;
     config_dcinneg = dcinneg;
@@ -405,7 +405,7 @@ void lpcsdr_hsadc_set_config(bool dcinpos, bool dcinneg, bool twos)
     }
 }
 
-uint32_t lpcsdr_hsadc_get_sampling_rate()
+uint32_t pg2sdr_hsadc_get_sampling_rate()
 {
     return hsadc_frequency;
 }

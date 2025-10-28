@@ -1,5 +1,5 @@
-#ifndef LPCSDR_PROTOCOL_H
-#define LPCSDR_PROTOCOL_H
+#ifndef PG2SDR_PROTOCOL_H
+#define PG2SDR_PROTOCOL_H
 
 /* This header will be compiled by both the host and the firmware,
  * so avoid hardware-specific inclusions here
@@ -50,7 +50,7 @@ typedef struct {
 #define STATUS_TUNER_I2C_ERROR  128  /* Saw an I2C error while talking to the tuner */
 #define STATUS_TUNER_PLL_LOCK   256  /* Tuner PLL has lock */
 #define STATUS_PLL0AUDIO_RUN    512  /* PLL0AUDIO PLL (HSADC clock) is programmed and running */
-#define STATUS_IS_LPCSDR       1024  /* firmware built for lpcsdr hardware */
+#define STATUS_IS_PG2SDR       1024  /* firmware built for pg2sdr hardware */
 #define STATUS_IS_AIRSPY       2048  /* firmware built for airspy hardware */
 
 /* Reset reasons stored in ep0_in_board_status_t.reset_reason */
@@ -137,7 +137,7 @@ typedef struct {
 
     /* details of last reset */
     uint32_t reset_reason;  /* RESET_xxx */
-    uint32_t reset_code;    /* for RESET_PANIC, the blink code passed to lpcsdr_panic() */
+    uint32_t reset_code;    /* for RESET_PANIC, the blink code passed to pg2sdr_panic() */
 } ep0_in_board_status_t;
 
 
@@ -219,4 +219,4 @@ typedef struct {
 #define BLOCK_STATUS_FREQ_CHANGE    1024
 
 
-#endif /* LPCSDR_PROTOCOL_H */
+#endif /* PG2SDR_PROTOCOL_H */

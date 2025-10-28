@@ -28,7 +28,7 @@
  ****************************************************************************/
 
 /* Clock/crystal frequencies, required by the chip library */
-const uint32_t ExtRateIn = 0;              /* external clock signal (unused on the LPCSDR) */
+const uint32_t ExtRateIn = 0;              /* external clock signal (unused on the PG2SDR) */
 const uint32_t OscRateIn = 12000000;       /* external crystal frequency (Y1, 12MHz) */
 
 /*****************************************************************************

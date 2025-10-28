@@ -26,7 +26,7 @@
 #include "lpcsdr_hardware.h"
 #include <string.h>
 
-lpcsdr_interrupts_t lpcsdr_interrupts;
+pg2sdr_interrupts_t pg2sdr_interrupts;
 
 static bool bulk_test_mode = false;
 static bool rf_power = false;
@@ -35,22 +35,22 @@ static uint64_t serial_number = 0;
 #define USB_BLOCK_SIZE ALIGN_TO(sizeof(ep1_header_t) + (HSADC_BUFFER_SIZE * 3 / 4), 512)
 
 /* callback from USB code to indicate it's got a free buffer available */
-void lpcsdr_usb_space_available(void)
+void pg2sdr_usb_space_available(void)
 {
     if (bulk_test_mode)
-        lpcsdr_ipc_send_m4(M4_QUEUE_TEST_DATA, 0, 0, 0);
+        pg2sdr_ipc_send_m4(M4_QUEUE_TEST_DATA, 0, 0, 0);
 }
 
 /* callback from USB code to indicate the USB connection state changed (USB reset or reconfiguration) */
-void lpcsdr_usb_state_changed(void)
+void pg2sdr_usb_state_changed(void)
 {
     /* no-op for now */
 }
 
 /* callback from DMA code to indicate there's a new HSADC buffer waiting to be copied */
-bool lpcsdr_dma_hsadc_buffer_ready(dma_lli_t *buffer, uint32_t status)
+bool pg2sdr_dma_hsadc_buffer_ready(dma_lli_t *buffer, uint32_t status)
 {
-    return lpcsdr_ipc_send_m4(M4_COPY_HSADC_BUFFER, (uint32_t) buffer, status, 0);
+    return pg2sdr_ipc_send_m4(M4_COPY_HSADC_BUFFER, (uint32_t) buffer, status, 0);
 }
 
 /* Given `count` words of HSADC samples in `src`, with 8 12-bit samples per 4 words,
@@ -114,15 +114,15 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
          * check also happens again after copying/packing is complete.
          */
         pending_usb_status |= BLOCK_STATUS_PACKING_OVERRUN;
-        lpcsdr_dma_hsadc_copy_complete(buffer, false);
+        pg2sdr_dma_hsadc_copy_complete(buffer, false);
         return;
     }
 
-    USB_DTD_T *dTD = lpcsdr_usb_get_dtd();
+    USB_DTD_T *dTD = pg2sdr_usb_get_dtd();
     if (!dTD) {
         /* No available USB buffer, host is not keeping up, drop data */
         pending_usb_status |= BLOCK_STATUS_USB_OVERRUN;
-        lpcsdr_dma_hsadc_copy_complete(buffer, false);
+        pg2sdr_dma_hsadc_copy_complete(buffer, false);
         return;
     }
 
@@ -157,15 +157,15 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
      * so discard the buffer.
      */
     memory_barrier();
-    uint32_t status = lpcsdr_dma_hsadc_copy_complete(buffer, true);
+    uint32_t status = pg2sdr_dma_hsadc_copy_complete(buffer, true);
     if (buffer->sequence == start_seq && !(status & LLI_STATUS_CLOBBERED)) {
         /* we copied everything out successfully with no clobber, send the data */
-        lpcsdr_usb_queue_dtd(dTD, USB_BLOCK_SIZE);
+        pg2sdr_usb_queue_dtd(dTD, USB_BLOCK_SIZE);
         pending_usb_status = 0;
     } else {
         /* clobbered during the copy, drop data and return the dTD to the pool */
         pending_usb_status |= BLOCK_STATUS_PACKING_OVERRUN;
-        lpcsdr_usb_free_dtd(dTD);
+        pg2sdr_usb_free_dtd(dTD);
     }
 }
 
@@ -183,18 +183,18 @@ static void random_fill_word(uint8_t *buffer, unsigned size)
 static void m4_queue_test_data()
 {
     while (bulk_test_mode) {
-        USB_DTD_T *dTD = lpcsdr_usb_get_dtd();
+        USB_DTD_T *dTD = pg2sdr_usb_get_dtd();
         if (!dTD)
             break;
         random_fill_word(dTD->buffer, DTD_BUFFER_SIZE);
-        lpcsdr_usb_queue_dtd(dTD, DTD_BUFFER_SIZE);
+        pg2sdr_usb_queue_dtd(dTD, DTD_BUFFER_SIZE);
     }
 }
 
 static void update_cpu_speed(void)
 {
-    uint32_t hsadc_frequency = lpcsdr_hsadc_get_sampling_rate();
-    lpcsdr_m4clock_set_freq(hsadc_frequency * 5, false);
+    uint32_t hsadc_frequency = pg2sdr_hsadc_get_sampling_rate();
+    pg2sdr_m4clock_set_freq(hsadc_frequency * 5, false);
 }
 
 static void set_rf_power_off(void)
@@ -203,9 +203,9 @@ static void set_rf_power_off(void)
         return;
 
     rf_power = false;
-    lpcsdr_tuner_handle_poweroff();
-    lpcsdr_set_rfen(false);
-    lpcsdr_led_set(0, C_OFF);
+    pg2sdr_tuner_handle_poweroff();
+    pg2sdr_set_rfen(false);
+    pg2sdr_led_set(0, C_OFF);
 }
 
 static void set_rf_power_on(void)
@@ -214,9 +214,9 @@ static void set_rf_power_on(void)
         return;
 
     rf_power = true;
-    lpcsdr_set_rfen(true);
-    lpcsdr_tuner_handle_poweron();
-    lpcsdr_led_set(0, C_ON);
+    pg2sdr_set_rfen(true);
+    pg2sdr_tuner_handle_poweron();
+    pg2sdr_led_set(0, C_ON);
 }
 
 /* Measure the frequency of a clock input using the CGU's FREQ_MON registry.
@@ -315,7 +315,7 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin)
 }
 
 /* Process an EP0 IN control transfer described in `message`;
- * fill lpcsdr_usb_control_buffer with results.
+ * fill pg2sdr_usb_control_buffer with results.
  *
  * For fixed-size responses, it's okay to just fill the buffer with the full
  * response regardless of `length`; the caller will sort out the details.
@@ -332,7 +332,7 @@ static bool process_ep0_in(const ipc_message_t *message)
     uint16_t index = valueAndIndex >> 16;
     uint32_t length = message->values[2];
 
-    uint8_t *buf = lpcsdr_usb_control_buffer;
+    uint8_t *buf = pg2sdr_usb_control_buffer;
 
     switch (request) {
     case EP0_IN_COMMS_CHECK: {
@@ -345,7 +345,7 @@ static bool process_ep0_in(const ipc_message_t *message)
         /* SPI: read manufacturer/device ID */
         debug_printf("< FLASH_DEVICE_ID\r\n");
         ep0_in_flash_device_id_t *result = (ep0_in_flash_device_id_t *)buf;
-        lpcsdr_spifi_read_manufacturer_device_id(&result->device_id);
+        pg2sdr_spifi_read_manufacturer_device_id(&result->device_id);
         return true;
     }
 
@@ -353,7 +353,7 @@ static bool process_ep0_in(const ipc_message_t *message)
         /* SPI: read unique ID */
         debug_printf("< FLASH_UNIQUE_ID\r\n");
         ep0_in_flash_unique_id_t *result = (ep0_in_flash_unique_id_t *)buf;
-        lpcsdr_spifi_read_unique_id(&result->unique_id);
+        pg2sdr_spifi_read_unique_id(&result->unique_id);
         return true;
     }
 
@@ -363,7 +363,7 @@ static bool process_ep0_in(const ipc_message_t *message)
         if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
             return false;
 
-        lpcsdr_spifi_read_data(valueAndIndex, buf, length);
+        pg2sdr_spifi_read_data(valueAndIndex, buf, length);
         return true;
 
     case EP0_IN_FLASH_READ_QUAD:
@@ -372,23 +372,23 @@ static bool process_ep0_in(const ipc_message_t *message)
         if (valueAndIndex > 0x00FFFFFF || valueAndIndex + length > 0x01000000)
             return false;
 
-        lpcsdr_spifi_fast_read_quad(valueAndIndex, buf, length);
+        pg2sdr_spifi_fast_read_quad(valueAndIndex, buf, length);
         return true;
 
     case EP0_IN_BOARD_STATUS: {
         ep0_in_board_status_t *result = (ep0_in_board_status_t *)buf;
 
-        static_assert(sizeof(ep0_in_board_status_t) <= sizeof(lpcsdr_usb_control_buffer));
+        static_assert(sizeof(ep0_in_board_status_t) <= sizeof(pg2sdr_usb_control_buffer));
 
         /* Fill in the state we know of directly */
-        if (lpcsdr_read_sw1())
+        if (pg2sdr_read_sw1())
             result->flags |= STATUS_SW1_USBBOOT;
-        if (!lpcsdr_read_sw2())
+        if (!pg2sdr_read_sw2())
             result->flags |= STATUS_SW2_PRESSED;
         if (rf_power)
             result->flags |= STATUS_RF_POWER_ON;
-#ifdef HW_IS_LPCSDR
-        result->flags |= STATUS_IS_LPCSDR;
+#ifdef HW_IS_PG2SDR
+        result->flags |= STATUS_IS_PG2SDR;
 #endif
 #ifdef HW_IS_AIRSPY
         result->flags |= STATUS_IS_AIRSPY;
@@ -398,11 +398,11 @@ static bool process_ep0_in(const ipc_message_t *message)
         result->usb_bytes_per_block = USB_BLOCK_SIZE;
 
         /* delegate for the rest */
-        lpcsdr_hsadc_status(result);
-        lpcsdr_dma_status(result);
-        lpcsdr_usb_status(result);
-        lpcsdr_tuner_status(result);
-        lpcsdr_m4clock_status(result);
+        pg2sdr_hsadc_status(result);
+        pg2sdr_dma_status(result);
+        pg2sdr_usb_status(result);
+        pg2sdr_tuner_status(result);
+        pg2sdr_m4clock_status(result);
 
         /* measure base clock frequencies (takes about 5ms per clock, so we only do this if requested) */
         if (valueAndIndex != 0) {
@@ -421,16 +421,16 @@ static bool process_ep0_in(const ipc_message_t *message)
 
         result->serial_number = serial_number;
 
-        result->intr_systick = lpcsdr_interrupts.systick;
-        result->intr_dma = lpcsdr_interrupts.dma;
-        result->intr_usart0 = lpcsdr_interrupts.usart0;
-        result->intr_usb0 = lpcsdr_interrupts.usb0;
-        result->intr_wwdt = lpcsdr_interrupts.wwdt;
-        result->intr_m0app = lpcsdr_interrupts.m0app;
-        result->intr_m4 = lpcsdr_interrupts.m4;
+        result->intr_systick = pg2sdr_interrupts.systick;
+        result->intr_dma = pg2sdr_interrupts.dma;
+        result->intr_usart0 = pg2sdr_interrupts.usart0;
+        result->intr_usb0 = pg2sdr_interrupts.usb0;
+        result->intr_wwdt = pg2sdr_interrupts.wwdt;
+        result->intr_m0app = pg2sdr_interrupts.m0app;
+        result->intr_m4 = pg2sdr_interrupts.m4;
 
-        result->reset_reason = lpcsdr_reset_reason;
-        result->reset_code = lpcsdr_reset_code;
+        result->reset_reason = pg2sdr_reset_reason;
+        result->reset_code = pg2sdr_reset_code;
 
         return true;
     }
@@ -452,18 +452,18 @@ static bool process_ep0_in(const ipc_message_t *message)
 
         switch ((tuner_cache_mode_t) index) {
         case CACHE_NORMAL: /* use cache */
-            return lpcsdr_tuner_read_regs(value, buf, length);
+            return pg2sdr_tuner_read_regs(value, buf, length);
 
         case CACHE_BYPASS: /* bypass cache */
-            if (!lpcsdr_tuner_read_regs_direct(buf, value + length))
+            if (!pg2sdr_tuner_read_regs_direct(buf, value + length))
                 return false;
             memmove(buf, buf + value, length);
             return true;
 
         case CACHE_REFRESH: /* refresh cache */
-            if (!lpcsdr_tuner_shadow_from_chip())
+            if (!pg2sdr_tuner_shadow_from_chip())
                 return false;
-            return lpcsdr_tuner_read_regs(value, buf, length);
+            return pg2sdr_tuner_read_regs(value, buf, length);
 
         default: /* bad mode */
             return false;
@@ -483,7 +483,7 @@ static bool process_ep0_in(const ipc_message_t *message)
             return false;
         }
 
-        int lock = lpcsdr_tuner_lock(value, index);
+        int lock = pg2sdr_tuner_lock(value, index);
         if (lock < 0) {
             /* I2C communication error */
             return false;
@@ -510,20 +510,20 @@ static bool process_ep0_in(const ipc_message_t *message)
 static void m4_usb_ep0_in(const ipc_message_t *message)
 {
     uint32_t requested_length = message->values[2];
-    if (requested_length > sizeof lpcsdr_usb_control_buffer) {
-        lpcsdr_usb_ep0_stall();
+    if (requested_length > sizeof pg2sdr_usb_control_buffer) {
+        pg2sdr_usb_ep0_stall();
         return;
     }
 
-    memset(lpcsdr_usb_control_buffer, 0, sizeof lpcsdr_usb_control_buffer);
+    memset(pg2sdr_usb_control_buffer, 0, sizeof pg2sdr_usb_control_buffer);
     if (!process_ep0_in(message)) {
         debug_printf("EP0 in: control transfer stall, type=%02x index=%02x value=%02x length=%u\r\n",
                     message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
-        lpcsdr_usb_ep0_stall();
+        pg2sdr_usb_ep0_stall();
         return;
     }
 
-    lpcsdr_usb_ep0_data_in(lpcsdr_usb_control_buffer, requested_length);
+    pg2sdr_usb_ep0_data_in(pg2sdr_usb_control_buffer, requested_length);
 }
 
 static bool process_ep0_out(const ipc_message_t *message)
@@ -531,7 +531,7 @@ static bool process_ep0_out(const ipc_message_t *message)
     ep0_out_request_t request = (ep0_out_request_t) message->values[0];
     uint32_t valueAndIndex = message->values[1];
     uint32_t length = message->values[2];
-    const uint8_t *buf = lpcsdr_usb_control_buffer;
+    const uint8_t *buf = pg2sdr_usb_control_buffer;
 
     switch (request) {
     case EP0_OUT_COMMS_CHECK: {
@@ -555,7 +555,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         if ((valueAndIndex >> 8) != ((valueAndIndex + length - 1) >> 8))
             return false;
 
-        return (lpcsdr_spifi_page_program(valueAndIndex, buf, length) == LPC_OK);
+        return (pg2sdr_spifi_page_program(valueAndIndex, buf, length) == LPC_OK);
 
     case EP0_OUT_FLASH_ERASE:
         debug_printf("> FLASH_ERASE(0x%06x)\r\n", valueAndIndex);
@@ -563,7 +563,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         if (valueAndIndex > 0x00FFFFFF || (valueAndIndex & 0x0FFF) != 0)
             return false;
 
-        return (lpcsdr_spifi_sector_erase(valueAndIndex) == LPC_OK);
+        return (pg2sdr_spifi_sector_erase(valueAndIndex) == LPC_OK);
 
     case EP0_OUT_START_TRANSFER: {
         /* Set up ADC clock, start transferring data */
@@ -571,8 +571,8 @@ static bool process_ep0_out(const ipc_message_t *message)
             return false;
 
         /* stop DMA and reset EP1 to ensure there's no stale data in the queues */
-        lpcsdr_dma_hsadc_stop();
-        lpcsdr_usb_ep1_disable();
+        pg2sdr_dma_hsadc_stop();
+        pg2sdr_usb_ep1_disable();
 
         ep0_out_start_transfer_t *param = (ep0_out_start_transfer_t *) buf;
         debug_printf("> START_TRANSFER(N=%u,M=%u,P=%u,I=%u)\r\n",
@@ -580,31 +580,31 @@ static bool process_ep0_out(const ipc_message_t *message)
                      param->m_divisor,
                      param->p_divisor,
                      param->idiv_divisor);
-        if (!lpcsdr_hsadc_clock_start(param->n_divisor,
+        if (!pg2sdr_hsadc_clock_start(param->n_divisor,
                                       param->m_divisor,
                                       param->p_divisor,
                                       param->idiv_divisor))
             return false;
 
-        if (!lpcsdr_hsadc_conversion_start()) {
-            lpcsdr_hsadc_clock_stop();
+        if (!pg2sdr_hsadc_conversion_start()) {
+            pg2sdr_hsadc_clock_stop();
             return false;
         }
 
         /* start everything */
         update_cpu_speed();
-        lpcsdr_dma_hsadc_start();
-        lpcsdr_usb_ep1_enable();
+        pg2sdr_dma_hsadc_start();
+        pg2sdr_usb_ep1_enable();
         return true;
     }
 
     case EP0_OUT_STOP_TRANSFER:
         /* Stop ADC conversion & bulk transfer */
         debug_printf("> STOP_TRANSFER\r\n");
-        lpcsdr_dma_hsadc_stop();
-        lpcsdr_usb_ep1_disable();
-        lpcsdr_hsadc_conversion_stop();
-        lpcsdr_hsadc_clock_stop();
+        pg2sdr_dma_hsadc_stop();
+        pg2sdr_usb_ep1_disable();
+        pg2sdr_hsadc_conversion_stop();
+        pg2sdr_hsadc_clock_stop();
         update_cpu_speed();
         return true;
 
@@ -632,7 +632,7 @@ static bool process_ep0_out(const ipc_message_t *message)
     case EP0_OUT_TUNER_WRITE: {
         debug_printf("> TUNER_WRITE(%u..%u)\r\n", valueAndIndex, valueAndIndex+length-1);
         /* write tuner regs starting at valueAndIndex */
-        return lpcsdr_tuner_write_regs(valueAndIndex, buf, length);
+        return pg2sdr_tuner_write_regs(valueAndIndex, buf, length);
     }
 
     case EP0_OUT_TUNER_UPDATE: {
@@ -646,24 +646,24 @@ static bool process_ep0_out(const ipc_message_t *message)
             return false;
         }
 
-        return lpcsdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2);
+        return pg2sdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2);
     }
 
     case EP0_OUT_RESET: {
         /* ack, then delay a bit before the reset to give the host a chance to see the ack */
         debug_printf("> RESET\r\n");
-        lpcsdr_usb_ep0_out_ack();
+        pg2sdr_usb_ep0_out_ack();
         StopWatch_DelayMs(250);
         debug_printf("Resetting now.\r\n");
-        lpcsdr_uart_flush();
-        lpcsdr_reset();
+        pg2sdr_uart_flush();
+        pg2sdr_reset();
         /* not reached */
     }
 
     case EP0_OUT_WATCHDOG_TEST: {
         /* ack first, to give the host a chance to see the ack before we reset */
         debug_printf("> WATCHDOG_TEST\r\n");
-        lpcsdr_usb_ep0_out_ack();
+        pg2sdr_usb_ep0_out_ack();
         for (unsigned i = 0; i < 100; ++i) {
             debug_printf("%u ", i);
             StopWatch_DelayMs(100);
@@ -676,26 +676,26 @@ static bool process_ep0_out(const ipc_message_t *message)
         /* run UART tests */
         debug_printf("> UART_TEST\r\n");
 
-        lpcsdr_uart_write(">123456<", 8);            /* write < FIFO size */
-        lpcsdr_uart_flush();
-        lpcsdr_uart_write(">123456789ABCDE<", 16);   /* write exactly FIFO size */
-        lpcsdr_uart_flush();
-        lpcsdr_uart_write(">123456789ABCDEFG<", 18);   /* write > FIFO size */
-        lpcsdr_uart_flush();
-        lpcsdr_uart_write(">123456789ABCDEF0123456789ABCDE<", 32);   /* write exactly 2x FIFO */
-        lpcsdr_uart_flush();
+        pg2sdr_uart_write(">123456<", 8);            /* write < FIFO size */
+        pg2sdr_uart_flush();
+        pg2sdr_uart_write(">123456789ABCDE<", 16);   /* write exactly FIFO size */
+        pg2sdr_uart_flush();
+        pg2sdr_uart_write(">123456789ABCDEFG<", 18);   /* write > FIFO size */
+        pg2sdr_uart_flush();
+        pg2sdr_uart_write(">123456789ABCDEF0123456789ABCDE<", 32);   /* write exactly 2x FIFO */
+        pg2sdr_uart_flush();
 
-        lpcsdr_uart_write(">1234567", 8); /* 8 + 8 bytes */
-        lpcsdr_uart_write("89ABCDE<", 8);
-        lpcsdr_uart_flush();
+        pg2sdr_uart_write(">1234567", 8); /* 8 + 8 bytes */
+        pg2sdr_uart_write("89ABCDE<", 8);
+        pg2sdr_uart_flush();
 
-        lpcsdr_uart_write(">123456789ABCDEF", 16); /* 16 + 8 bytes */
-        lpcsdr_uart_write("GHIJKLM<", 8);
-        lpcsdr_uart_flush();
+        pg2sdr_uart_write(">123456789ABCDEF", 16); /* 16 + 8 bytes */
+        pg2sdr_uart_write("GHIJKLM<", 8);
+        pg2sdr_uart_flush();
 
-        lpcsdr_uart_write(">123456789ABCDEFGH", 18); /* 18 + 6 bytes */
-        lpcsdr_uart_write("IJKLM<", 6);
-        lpcsdr_uart_flush();
+        pg2sdr_uart_write(">123456789ABCDEFGH", 18); /* 18 + 6 bytes */
+        pg2sdr_uart_write("IJKLM<", 6);
+        pg2sdr_uart_flush();
 
         debug_printf("\r\ndebug_printf tests:\r\n");
         debug_printf("int: %d hex: %02x string: >%s<\r\n", 42, 0xAB, "this is a string");
@@ -711,7 +711,7 @@ static bool process_ep0_out(const ipc_message_t *message)
 
     case EP0_OUT_CONFIG_ADC: {
         debug_printf("> CONFIG_ADC(%u)\r\n", valueAndIndex);
-        lpcsdr_hsadc_set_config(valueAndIndex & 1, valueAndIndex & 2, valueAndIndex & 4);
+        pg2sdr_hsadc_set_config(valueAndIndex & 1, valueAndIndex & 2, valueAndIndex & 4);
         return true;
     }
 
@@ -725,11 +725,11 @@ static bool process_ep0_out(const ipc_message_t *message)
 static void m4_usb_ep0_out(const ipc_message_t *message)
 {
     if (process_ep0_out(message)) {
-        lpcsdr_usb_ep0_out_ack();
+        pg2sdr_usb_ep0_out_ack();
     } else {
         debug_printf("EP0 out: control transfer stall, type=%02x index=%02x value=%02x length=%u\r\n",
                      message->values[0], message->values[1] & 0xFFFF, message->values[1] >> 16, message->values[2]);
-        lpcsdr_usb_ep0_stall();
+        pg2sdr_usb_ep0_stall();
     }
 }
 
@@ -848,22 +848,22 @@ static void disable_unused_clocks(void)
 }
 
 int main(void) {
-    lpcsdr_m4clock_init();
-    lpcsdr_uart_init();
-    lpcsdr_diagnose_reset();
-    lpcsdr_gpio_init();
-    lpcsdr_spifi_init();
-    serial_number = lpcsdr_spifi_read_unique_id();
-    lpcsdr_dma_init();
-    lpcsdr_hsadc_init();
-    lpcsdr_tuner_init();
-    lpcsdr_ipc_init();
-    lpcsdr_usb_init(serial_number);
+    pg2sdr_m4clock_init();
+    pg2sdr_uart_init();
+    pg2sdr_diagnose_reset();
+    pg2sdr_gpio_init();
+    pg2sdr_spifi_init();
+    serial_number = pg2sdr_spifi_read_unique_id();
+    pg2sdr_dma_init();
+    pg2sdr_hsadc_init();
+    pg2sdr_tuner_init();
+    pg2sdr_ipc_init();
+    pg2sdr_usb_init(serial_number);
 
     disable_unused_clocks();
 
     debug_printf("M4 entering main loop\r\n");
-    lpcsdr_ipc_handle_messages_forever(m4_handle_message);
+    pg2sdr_ipc_handle_messages_forever(m4_handle_message);
 
     // not reached
 }

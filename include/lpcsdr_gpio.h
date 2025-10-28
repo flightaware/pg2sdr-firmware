@@ -1,5 +1,5 @@
-#ifndef LPCSDR_GPIO_H
-#define LPCSDR_GPIO_H
+#ifndef PG2SDR_GPIO_H
+#define PG2SDR_GPIO_H
 
 #include <stdbool.h>
 #include "error.h"
@@ -13,12 +13,12 @@ typedef enum Color {
     C_ON,
 } Color;
 
-void lpcsdr_gpio_init(void);
-void lpcsdr_led_set(unsigned led_id, Color c);
+void pg2sdr_gpio_init(void);
+void pg2sdr_led_set(unsigned led_id, Color c);
 
-void lpcsdr_set_rfen(bool onoff);
+void pg2sdr_set_rfen(bool onoff);
 
-bool lpcsdr_read_sw1(void);
-bool lpcsdr_read_sw2(void);
+bool pg2sdr_read_sw1(void);
+bool pg2sdr_read_sw2(void);
 
-#endif /* LPCSDR_GPIO_H */
+#endif /* PG2SDR_GPIO_H */

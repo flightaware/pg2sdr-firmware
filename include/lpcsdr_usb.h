@@ -1,5 +1,5 @@
-#ifndef LPCSDR_USB_H
-#define LPCSDR_USB_H
+#ifndef PG2SDR_USB_H
+#define PG2SDR_USB_H
 
 #include "lpcsdr_common.h"
 #include "lpcsdr_protocol.h"
@@ -74,48 +74,48 @@ typedef volatile struct ALIGN(64) {
 #define DTD_BUFFER_SIZE 10240
 
 /* initialize the full USB stack. Returns LPC_OK if all is OK. */
-ErrorCode_t lpcsdr_usb_init(uint64_t serial_number);
+ErrorCode_t pg2sdr_usb_init(uint64_t serial_number);
 
 /* Get a free dTD and associated buffer.
  * Returns a dTD, or NULL if none are available.
  * DTD_BUFFER_SIZE bytes of buffer space are available at `dtd->buffer`
- * The dTD should later be passed to either lpcsdr_usb_queue_dtd or lpcsdr_usb_free_dtd
+ * The dTD should later be passed to either pg2sdr_usb_queue_dtd or pg2sdr_usb_free_dtd
  */
-USB_DTD_T *lpcsdr_usb_get_dtd(void);
+USB_DTD_T *pg2sdr_usb_get_dtd(void);
 
-/* Put a dTD, previously allocated by lpcsdr_usb_get_dtd, on the queue to be sent via EP 1 IN to the host.
+/* Put a dTD, previously allocated by pg2sdr_usb_get_dtd, on the queue to be sent via EP 1 IN to the host.
  * The first `length` bytes of the associated buffer will be sent.
  *
  * Returns true if it was successfully enqueued, false if something went wrong (concurrent reset, bad length)
  * Either way, the dTD is consumed by the USB stack and should not be used further by the caller.
  */
-bool lpcsdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t length);
+bool pg2sdr_usb_queue_dtd(USB_DTD_T *dtd, uint32_t length);
 
-/* Release a dTD previously allocated by lpcsdr_usb_get_dtd without sending it */
-void lpcsdr_usb_free_dtd(USB_DTD_T *dtd);
+/* Release a dTD previously allocated by pg2sdr_usb_get_dtd without sending it */
+void pg2sdr_usb_free_dtd(USB_DTD_T *dtd);
 
 /* Callback, called to notify that the freelist was previously empty but now has a free dTD.
  *
  * i.e.
- *   call lpcsdr_usb_get_dtd(), returns NULL
- *   at some point later, lpcsdr_usb_space_available() is called by the USB code
- *   now lpcsdr_usb_get_dtd() will return non-NULL (at least once)
+ *   call pg2sdr_usb_get_dtd(), returns NULL
+ *   at some point later, pg2sdr_usb_space_available() is called by the USB code
+ *   now pg2sdr_usb_get_dtd() will return non-NULL (at least once)
  *
  * Called with interrupts disabled from an ISR, don't do anything blocking.
  */
-void lpcsdr_usb_space_available(void);
+void pg2sdr_usb_space_available(void);
 
 /* Disable EP1, clear pending transfers, return STALL to any further IN requests */
-void lpcsdr_usb_ep1_disable(void);
+void pg2sdr_usb_ep1_disable(void);
 
 /* Re-enable EP1, clear STALL state */
-void lpcsdr_usb_ep1_enable(void);
+void pg2sdr_usb_ep1_enable(void);
 
 /* Callback, called to notify that the USB connection/configuration state changed */
-void lpcsdr_usb_state_changed(void);
+void pg2sdr_usb_state_changed(void);
 
 /* Returns true if the USB layer is ready for use */
-bool lpcsdr_usb_is_ready(void);
+bool pg2sdr_usb_is_ready(void);
 
 /*
  * Control endpoint handling. Most of the work is done from the main loop,
@@ -126,18 +126,18 @@ bool lpcsdr_usb_is_ready(void);
  */
 
 /* Shared control-transfer buffer */
-extern uint8_t lpcsdr_usb_control_buffer[512];
+extern uint8_t pg2sdr_usb_control_buffer[512];
 
 /* Respond to an IN control transfer, providing some data */
-void lpcsdr_usb_ep0_data_in(const uint8_t *buf, uint32_t length);
+void pg2sdr_usb_ep0_data_in(const uint8_t *buf, uint32_t length);
 
 /* Respond to an OUT control transfer, successfully completing the transfer (STATUS stage) */
-void lpcsdr_usb_ep0_out_ack();
+void pg2sdr_usb_ep0_out_ack();
 
 /* Respond to an IN or OUT control transfer, stalling the endpoint to indicate an error */
-void lpcsdr_usb_ep0_stall();
+void pg2sdr_usb_ep0_stall();
 
 /* Fill the board status message with USB-related things */
-void lpcsdr_usb_status(ep0_in_board_status_t *status);
+void pg2sdr_usb_status(ep0_in_board_status_t *status);
 
-#endif /* LPCSDR_USB_H */
+#endif /* PG2SDR_USB_H */

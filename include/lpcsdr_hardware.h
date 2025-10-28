@@ -1,7 +1,7 @@
-#ifndef LPCSDR_HARDWARE_H
-#define LPCSDR_HARDWARE_H
+#ifndef PG2SDR_HARDWARE_H
+#define PG2SDR_HARDWARE_H
 
-#if defined(HW_IS_LPCSDR)
+#if defined(HW_IS_PG2SDR)
 
 # define HW_USES_I2C0
 # define HW_TUNER_XTAL 28800000
@@ -38,4 +38,4 @@
 
 #endif
 
-#endif /* LPCSDR_HARDWARE_H */
+#endif /* PG2SDR_HARDWARE_H */

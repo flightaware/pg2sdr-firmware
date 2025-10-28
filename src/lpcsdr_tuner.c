@@ -57,30 +57,30 @@ static void update_tuner_led()
 {
     if (!rf_power) {
         /* RF power is off */
-        lpcsdr_led_set(2, C_OFF);
+        pg2sdr_led_set(2, C_OFF);
         return;
     }
 
     if (i2c_error) {
         /* Saw an I2C error */
-        lpcsdr_led_set(2, C_RED);
+        pg2sdr_led_set(2, C_RED);
         return;
     }
 
     if ((reg_shadow[17] & 0xC0) == 0 || (reg_shadow[23] & 0xC0) == 0) {
         /* LDO is off, PLL not running / tuner not configured */
-        lpcsdr_led_set(2, C_OFF);
+        pg2sdr_led_set(2, C_OFF);
         return;
     }
 
     if ((reg_shadow[2] & 0x40) == 0) {
         /* PLL configured, but no PLL lock */
-        lpcsdr_led_set(2, C_YELLOW);
+        pg2sdr_led_set(2, C_YELLOW);
         return;
     }
 
     /* PLL is running and has lock */
-    lpcsdr_led_set(2, C_GREEN);
+    pg2sdr_led_set(2, C_GREEN);
 }
 
 static bool handle_i2c_error(int status)
@@ -104,7 +104,7 @@ static bool handle_i2c_error(int status)
     return false;
 }
 
-void lpcsdr_tuner_init(void)
+void pg2sdr_tuner_init(void)
 {
     /* configure I2C pins */
 
@@ -120,13 +120,13 @@ void lpcsdr_tuner_init(void)
     /* enable internal I2C clock, reset all the control state */
     Chip_Clock_Enable(LPC_I2C_CLK);
     LPC_I2C->CONCLR = I2C_I2CONCLR_AAC | I2C_I2CONCLR_SIC | I2C_I2CONCLR_STAC | I2C_I2CONCLR_I2ENC;
-    lpcsdr_tuner_clock_update();
+    pg2sdr_tuner_clock_update();
 
     /* we're the only master on the I2C bus, might as well just enable SCL/SDA now */
     LPC_I2C->CONSET = I2C_I2CONSET_I2EN;
 }
 
-void lpcsdr_tuner_clock_update(void)
+void pg2sdr_tuner_clock_update(void)
 {
     /* The I2C0 internal clock uses the APB1 clock, which in turn is driven by PLL1.
      * We configure the timing of SCL in terms of the I2C0 internal clock.
@@ -413,7 +413,7 @@ static int i2c_read(uint8_t slaveAddr, uint8_t *buf, uint8_t len)
 
 
 // read registers 0 .. count-1 into regs[0] .. regs[count-1]
-bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
+bool pg2sdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
 {
     if (!rf_power) {
         return false;
@@ -445,7 +445,7 @@ bool lpcsdr_tuner_read_regs_direct(uint8_t *regs, unsigned count)
 }
 
 // write registers first .. first+count-1 using values from regs[0] .. regs[count-1]
-bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigned count)
+bool pg2sdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigned count)
 {
     if (!rf_power) {
         return false;
@@ -485,7 +485,7 @@ bool lpcsdr_tuner_write_regs_direct(unsigned first, const uint8_t *regs, unsigne
 }
 
 // Read one register, directly for R0..R4 or from our shadow copy for others
-bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value)
+bool pg2sdr_tuner_read_reg(unsigned index, uint8_t *value)
 {
     if (index >= 32) {
         /* out of range */
@@ -494,7 +494,7 @@ bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value)
 
     if (index < 5) {
         // Reading a volatile / read-only register, refresh from the chip every time
-        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, index + 1))
+        if (!pg2sdr_tuner_read_regs_direct(reg_shadow, index + 1))
             return false;
         update_tuner_led();
     }
@@ -504,7 +504,7 @@ bool lpcsdr_tuner_read_reg(unsigned index, uint8_t *value)
 }
 
 // Read many registers, minimizing actual chip access
-bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count)
+bool pg2sdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count)
 {
     if (count > 32 || first + count > 32) {
         /* out of range */
@@ -519,12 +519,12 @@ bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count)
     if (first + count > 5 && !shadow_is_valid) {
         // We want data from non-volatile regs, but the shadow cache isn't valid,
         // reload the entire shadow cache from the tuner
-        if (!lpcsdr_tuner_shadow_from_chip())
+        if (!pg2sdr_tuner_shadow_from_chip())
             return false;
         update_tuner_led();
     } else if (first < 5) {
         // We want data from volatile regs, load only those from the tuner
-        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, (first + count < 5) ? (first + count) : 5))
+        if (!pg2sdr_tuner_read_regs_direct(reg_shadow, (first + count < 5) ? (first + count) : 5))
             return false;
         update_tuner_led();
     }
@@ -535,9 +535,9 @@ bool lpcsdr_tuner_read_regs(unsigned first, uint8_t *regs, unsigned count)
 }
 
 // Force a refresh of our shadow registers, reading actual values from the chip.
-bool lpcsdr_tuner_shadow_from_chip()
+bool pg2sdr_tuner_shadow_from_chip()
 {
-    if (!lpcsdr_tuner_read_regs_direct(reg_shadow, 32)) {
+    if (!pg2sdr_tuner_read_regs_direct(reg_shadow, 32)) {
         shadow_is_valid = false;
         return false;
     }
@@ -549,14 +549,14 @@ bool lpcsdr_tuner_shadow_from_chip()
 }
 
 // Write many registers to the chip, writing through the shadow regs
-bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned count)
+bool pg2sdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned count)
 {
     if (offset < 5 || offset >= 32 || count > 27 || offset + count > 32) {
         /* out of range */
         return false;
     }
 
-    if (!lpcsdr_tuner_write_regs_direct(offset, regs, count)) {
+    if (!pg2sdr_tuner_write_regs_direct(offset, regs, count)) {
         return false;
     }
     memcpy(&reg_shadow[offset], regs, count);
@@ -569,7 +569,7 @@ bool lpcsdr_tuner_write_regs(unsigned offset, const uint8_t *regs, unsigned coun
 // New bit values are taken from `bits[0]` .. `bits[count-1]`
 // Only bits that have a corresponding bit set in `mask[0]` .. `mask[count-1]` are modified,
 // other bits are left unchanged.
-bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count)
+bool pg2sdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_t *mask, unsigned count)
 {
     if (offset >= 32 || offset + count > 32) {
         /* out of range */
@@ -577,7 +577,7 @@ bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_
     }
 
     /* ensure reg_shadow is valid */
-    if (!shadow_is_valid && !lpcsdr_tuner_shadow_from_chip()) {
+    if (!shadow_is_valid && !pg2sdr_tuner_shadow_from_chip()) {
         return false;
     }
 
@@ -599,7 +599,7 @@ bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_
             // Sufficiently large gap with no changed registers,
             // do an incremental write as two smaller writes will
             // be faster than a single large write
-            if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1)) {
+            if (!pg2sdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1)) {
                 return false;
             }
             first_update = last_update = NO_UPDATE;
@@ -608,7 +608,7 @@ bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_
 
     if (first_update != NO_UPDATE) {
         // Do a final write
-        if (!lpcsdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1))
+        if (!pg2sdr_tuner_write_regs_direct(first_update, &reg_shadow[first_update], last_update - first_update + 1))
             return false;
     }
 
@@ -617,7 +617,7 @@ bool lpcsdr_tuner_update_regs(unsigned offset, const uint8_t *bits, const uint8_
 }
 
 // We just turned off the RF power, do anything we need to do in response
-void lpcsdr_tuner_handle_poweroff()
+void pg2sdr_tuner_handle_poweroff()
 {
     i2c_error = false;
     shadow_is_valid = false;
@@ -626,7 +626,7 @@ void lpcsdr_tuner_handle_poweroff()
 }
 
 // We just turned on the RF power, do anything we need to do in response
-void lpcsdr_tuner_handle_poweron()
+void pg2sdr_tuner_handle_poweron()
 {
     i2c_error = false;
     shadow_is_valid = false;
@@ -637,7 +637,7 @@ void lpcsdr_tuner_handle_poweron()
 }
 
 /* Fill in the tuner-related bits of *status */
-void lpcsdr_tuner_status(ep0_in_board_status_t *status)
+void pg2sdr_tuner_status(ep0_in_board_status_t *status)
 {
     if (i2c_error)
         status->flags |= STATUS_TUNER_I2C_ERROR;
@@ -655,7 +655,7 @@ void lpcsdr_tuner_status(ep0_in_board_status_t *status)
  *    0 - PLL did not lock within timeout
  *   <0 - error communicating with the tuner
  */
-int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
+int pg2sdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
 {
     uint32_t start_ticks = StopWatch_Start();
 
@@ -665,7 +665,7 @@ int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
      */
     uint8_t bits[2] = { (vco_current << 5) & 0xE0, 0x00 };
     uint8_t mask[2] = { 0xE0, 0x40 };
-    if (!lpcsdr_tuner_update_regs(18, bits, mask, 2))
+    if (!pg2sdr_tuner_update_regs(18, bits, mask, 2))
         return -1;
 
     /* poll the tuner, waiting for lock */
@@ -675,7 +675,7 @@ int lpcsdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
     do {
         ++loops;
         /* read reg 2 for PLL lock status */
-        if (!lpcsdr_tuner_read_regs_direct(reg_shadow, 3))
+        if (!pg2sdr_tuner_read_regs_direct(reg_shadow, 3))
             return -1;
         if (reg_shadow[2] & 0x40) {
             uint32_t post_lock_ticks = StopWatch_Start();

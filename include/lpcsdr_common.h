@@ -1,5 +1,5 @@
-#ifndef LPCSDR_COMMON_H
-#define LPCSDR_COMMON_H
+#ifndef PG2SDR_COMMON_H
+#define PG2SDR_COMMON_H
 
 #include "lpc_types.h"
 #include "cmsis.h"
@@ -124,7 +124,7 @@ typedef struct {
     volatile uint32_t wwdt;
     volatile uint32_t m0app;
     volatile uint32_t m4;
-} lpcsdr_interrupts_t;
-extern lpcsdr_interrupts_t lpcsdr_interrupts;
+} pg2sdr_interrupts_t;
+extern pg2sdr_interrupts_t pg2sdr_interrupts;
 
 #endif
