@@ -25,10 +25,17 @@
  */
 static void panic_leds(uint8_t onoff)
 {
+#ifdef HW_IS_PG2SDR
+    LPC_GPIO_PORT->B[0][3] = onoff;
     LPC_GPIO_PORT->B[0][8] = onoff;
     LPC_GPIO_PORT->B[0][12] = onoff;
     LPC_GPIO_PORT->B[0][13] = onoff;
     LPC_GPIO_PORT->B[0][15] = onoff;
+#endif
+
+#ifdef HW_IS_AIRSPY
+    LPC_GPIO_PORT->B[0][12] = onoff;
+#endif
 }
 
 /* busy-wait a while */
