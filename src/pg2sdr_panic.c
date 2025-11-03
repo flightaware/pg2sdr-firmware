@@ -1,6 +1,7 @@
 #include "lpc_types.h"
 #include "chip.h"
 
+#include "pg2sdr_common.h"
 #include "pg2sdr_uart.h"
 #include "morse.h"
 
@@ -51,6 +52,7 @@ static inline void panic_delay(uint32_t cycles)
 
 void pg2sdr_hard_reset()
 {
+    shared_memory_barrier();
     LPC_RGU->RESET_CTRL[0] = 1; // CORE_RST=1, reset the whole chip
     while (true)
         __WFI();
