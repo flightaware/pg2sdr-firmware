@@ -167,6 +167,8 @@ void pg2sdr_diagnose_reset()
         debug_printf("unhandled case?\r\n");
         break;
     }
+
+    pg2sdr_uart_flush();
 }
 
 void NMI_Handler(void)
