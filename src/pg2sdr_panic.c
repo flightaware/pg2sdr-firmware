@@ -60,13 +60,35 @@ void pg2sdr_hard_reset()
 
 void pg2sdr_panic(uint32_t pattern)
 {
+    static const char *hexdigits = "0123456789ABCDEF";
+
+    disable_interrupts();
+
     /* record the source of the upcoming reset */
     LPC_REGFILE->REGFILE[0] = RESET_PANIC;
     LPC_REGFILE->REGFILE[1] = pattern;
 
     /* blinkenlights */
     const unsigned DIT = 3000000; /* delay cycles for a dit */
+    /* small initial pause after turning the LEDs off */
+    panic_leds(0);
+    panic_delay(DIT);
     for (uint32_t repeats = 0; repeats < 4; ++repeats) {
+        /* Blindly push some minimal data to the UART, maybe it'll be useful.
+         * This fits in the 16-byte tx fifo, and we have a pause between
+         * loops, so it should transmit okay.
+         */
+        LPC_USART0->THR = '!';
+        LPC_USART0->THR = hexdigits[(pattern>>28) & 0xF];
+        LPC_USART0->THR = hexdigits[(pattern>>24) & 0xF];
+        LPC_USART0->THR = hexdigits[(pattern>>20) & 0xF];
+        LPC_USART0->THR = hexdigits[(pattern>>16) & 0xF];
+        LPC_USART0->THR = hexdigits[(pattern>>12) & 0xF];
+        LPC_USART0->THR = hexdigits[(pattern>>8) & 0xF];
+        LPC_USART0->THR = hexdigits[(pattern>>4) & 0xF];
+        LPC_USART0->THR = hexdigits[(pattern>>0) & 0xF];
+        LPC_USART0->THR = '\r';
+        LPC_USART0->THR = '\n';
         for (uint32_t p = pattern; p; p >>= 8) {
             for (uint32_t letter = p & 255; letter > 1; letter >>= 1) {
                 /* dit = on for 1 dit period, off for one dit period
