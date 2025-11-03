@@ -24,6 +24,7 @@
 #include "pg2sdr_panic.h"
 #include "pg2sdr_m4clock.h"
 #include "pg2sdr_hardware.h"
+#include "morse.h"
 #include <string.h>
 
 pg2sdr_interrupts_t pg2sdr_interrupts;
@@ -847,11 +848,36 @@ static void disable_unused_clocks(void)
     Chip_Clock_DisableBaseClock(CLK_BASE_CGU_OUT1); /* OUT1, unused */
 }
 
+/* startup sanity check that the 12MHz crystal is working
+ * if it is not working, then USB won't work, and switching the CPU
+ * to use the crystal will also fail.
+ */
+static void check_external_crystal()
+{
+    StopWatch_Init();
+
+    uint32_t rcnt, fcnt;
+    measure_frequency_vs_irc(CLKIN_CRYSTAL, &rcnt, &fcnt);
+    double xtal = (rcnt == 0 ? 0 : 12e6 * fcnt / rcnt);
+    debug_printf("XTAL %.2fMHz\r\n", xtal/1e6);
+
+    /* USB wants no more than 2500ppm (0.25%), but we are measuring
+     * using the IRC clock which is only trimmed to within 1-2%, so
+     * accept larger errors here - maybe something will still work.
+     */
+    if (xtal < 11.5e6 || xtal > 12.5e6) /* crystal is no good if not within ~5% */
+        pg2sdr_panic(MORSE_X);          /* blink LEDS (X for XTAL) and reset */
+}
+
 int main(void) {
-    pg2sdr_m4clock_init();
+    /* get a minimal system up before touching the CPU clock */
     pg2sdr_uart_init();
-    pg2sdr_diagnose_reset();
     pg2sdr_gpio_init();
+    pg2sdr_diagnose_reset();
+    check_external_crystal();
+
+    /* now we trust the crystal enough to switch the CPU to use it */
+    pg2sdr_m4clock_init();
     pg2sdr_spifi_init();
     serial_number = pg2sdr_spifi_read_unique_id();
     pg2sdr_dma_init();
