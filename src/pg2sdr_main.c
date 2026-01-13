@@ -1031,8 +1031,6 @@ static void disable_unused_clocks(void)
  */
 static void check_external_crystal()
 {
-    StopWatch_Init();
-
     uint32_t rcnt, fcnt;
     measure_frequency_vs_irc(CLKIN_CRYSTAL, &rcnt, &fcnt);
     double xtal = (rcnt == 0 ? 0 : 12e6 * fcnt / rcnt);
@@ -1048,8 +1046,9 @@ static void check_external_crystal()
 
 int main(void) {
     /* get a minimal system up before touching the CPU clock */
-    pg2sdr_uart_init();
+    StopWatch_Init();
     pg2sdr_gpio_init();
+    pg2sdr_uart_init();
     pg2sdr_diagnose_reset();
     check_external_crystal();
 
