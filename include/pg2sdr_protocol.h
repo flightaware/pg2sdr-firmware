@@ -155,6 +155,7 @@ typedef enum {
     EP0_OUT_SET_RF_POWER = 0x15,      /* Set RF power state; valueAndIndex = 0 (RF power off) / 1 (RF power on) / 2 (power off, then power on -- resets tuner) */
     EP0_OUT_TUNER_WRITE = 0x16,       /* Write tuner registers; value = index of first register to write; index = cache policy (0=write through, 1=bypass) */
     EP0_OUT_TUNER_UPDATE = 0x17,      /* Update tuner registers; value = index of first updated register; see code for formatting of the data payload */
+    EP0_OUT_LOAD_IMAGE = 0x20,        /* load (part of) image to memory. valueAndIndex = start address */
     EP0_OUT_CONFIG_ADC = 0x2C,        /* Change ADC configuration. value = bitwise-or of 1 (DCINNEG) / 2 (DCINPOS) / 4 (TWOS) */
     EP0_OUT_RESET = 0x2D,             /* force device reset */
     EP0_OUT_WATCHDOG_TEST = 0x2E,     /* Trigger watchdog tests */

@@ -813,3 +813,9 @@ ErrorCode_t pg2sdr_usb_init(uint64_t serial_number)
 
     return LPC_OK;
 }
+
+void pg2sdr_usb_disconnect()
+{
+    USBD_API->hw->Connect(usb_handle, 0);
+    NVIC_DisableIRQ(USB0_IRQn);
+}

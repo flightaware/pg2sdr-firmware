@@ -527,6 +527,134 @@ static void m4_usb_ep0_in(const ipc_message_t *message)
     pg2sdr_usb_ep0_data_in(pg2sdr_usb_control_buffer, requested_length);
 }
 
+/* Image upload area for EP0_OUT_LOAD_IMAGE. This overlaps with the DMA buffers,
+ * so DMA must stay halted while the image load happens. load_image_size track this
+ * (it tracks the number of uploaded bytes since we last halted DMA)
+ */
+
+static uint8_t * const load_image_buffer = (uint8_t*) AHB_SRAM_BANK_0;
+static uint8_t * const load_image_buffer_end = (uint8_t*) (AHB_SRAM_BANK_0 + 0xFFFC);
+static uint32_t load_image_size = 0;
+
+static bool try_boot_image()
+{
+    if (load_image_size < 16 + 32) {
+        debug_printf("try_boot_image: %u bytes is too small\r\n", load_image_size);
+        return false; /* not even enough space for the header and initial vectors */
+    }
+
+    /* validate image header */
+    uint32_t *header = (uint32_t *) load_image_buffer;
+    if ((header[0] & 0x3FFF) != 0x3F1A) {
+        debug_printf("try_boot_image: bad header[0]\r\n");
+        return false;
+    }
+    if (header[1] != 0 || header[2] != 0) {
+        debug_printf("try_boot_image: bad header[1..2]\r\n");
+        return false;
+    }
+    if (header[3] != 0xFFFFFFFF) {
+        debug_printf("try_boot_image: bad header[3]\r\n");
+        return false;
+    }
+
+    /* validate vector table */
+    uint32_t *vecs = (uint32_t *)(load_image_buffer + 16);
+    uint32_t sum =
+        vecs[0] + vecs[1] + vecs[2] + vecs[3] +
+        vecs[4] + vecs[5] + vecs[6] + vecs[7];
+    if (sum != 0) {
+        debug_printf("try_boot_image: bad vector table\r\n");
+        return false;
+    }
+
+    uint32_t image_size = (header[0] >> 16) * 512 + 16;
+    if (image_size > load_image_size) {
+        debug_printf("try_boot_image: image_size=%u but load_image_size=%u\r\n", image_size, load_image_size);
+        return false; /* image upload seems incomplete */
+    }
+    uint8_t *image_end = load_image_buffer + image_size;
+
+    /* We use a relocator that implements something like this pseudo-C function:
+     *
+     * void relocate_and_boot(uint32_t reset_r0, uint32_t *dest, uint32_t *src, uint32_t len)
+     * {
+     *   SP = src[0];
+     *   ResetISR = src[1];
+     *   do {
+     *     *dest++ = *src++;
+     *     --len;
+     *   } while (len != 0);
+     *   LR = 0xFFFFFFFF;
+     *   ResetISR(reset_r0);
+     * }
+     *
+     * implemented (in relocator.s) directly in assembly to avoid any other side effects
+     * and work OK even if the code itself is copied around.
+     *
+     * We copy that code to the end of the new image, and then call it in that new location
+     * to relocate the new firmware image into place (overwriting the currently running old
+     * firmware!) and jump to the new image's reset ISR. The copy of the relocation code is
+     * needed so that we're definitely running from somewhere that's not going to be overwritten
+     * by the new firmware mid-relocation.
+     */
+
+    extern uint8_t relocator_start; /* start of relocation function, in relocator.s */
+    extern uint8_t relocator_end;   /* end of relocation function */
+    const uint8_t *relocator_copy_start = &relocator_start;
+    size_t relocator_copy_size = &relocator_end - &relocator_start;
+
+    if (image_end + relocator_copy_size > load_image_buffer_end) {
+        debug_printf("try_boot_image: not enough space for relocation code\r\n");
+        return false;
+    }
+    memcpy(image_end, relocator_copy_start, relocator_copy_size);
+    __asm__ volatile ("dsb" ::: "memory"); /* flush d-cache and i-cache just in case */
+    __asm__ volatile ("isb" ::: "memory");
+
+    /* Everything seems okay. Shut everything down, then pass control to the
+     * copied relocation code which will copy the new firmware image into place and
+     * start it.
+     */
+    debug_printf("Loading new firmware from RAM..\r\n");
+    pg2sdr_uart_flush();
+    pg2sdr_usb_ep0_out_ack();
+    StopWatch_DelayMs(250); /* give the hardware some time to send the USB ack */
+
+    /* turn off hardware, disconnect from USB bus */
+    set_rf_power_off();
+    pg2sdr_usb_disconnect();
+    Chip_CREG_DisableUSB0Phy();
+
+    /* disable all NVIC interrupt sources and SysTick */
+    for (unsigned i = 0; i < 8; ++i) {
+        NVIC->ICER[i] = 0xFFFFFFFF;   /* NVIC ICER0-7, clear-enable all interrupts */
+        NVIC->ICPR[i] = 0xFFFFFFFF;   /* NVIC ICPR0-7, clear-pending all interrupts */
+    }
+    SysTick->CTRL = 0;
+
+    /* set CPU clock to use the IRC clock at 96MHz, disable external crystal */
+    Chip_SetupCoreClock(CLKIN_IRC, 96000000, false);
+    Chip_Clock_DisableCrystal();
+
+    /* set VTOR/MEMMAP to the expected initial values */
+    disable_interrupts();
+    LPC_CREG->MXMEMMAP = 0x10000000;       /* default M4MEMMAP for booting an image from RAM */
+    SCB->VTOR = 0x00000000;                /* default VTOR, remapped to the image vector table via M4MEMMAP */
+
+    /* call relocation code, which will:
+     *  a) copy the new image to 0x10000000 (which will overwrite the currently loaded firmware!)
+     *    .. this is why we copy the relocation patch to the end of load_image_buffer,
+     *    so that code can continue to execute even while the loaded firmware is being overwritten
+     *  b) load SP from the first vector table entry (vStackTop)
+     *  c) jump to the reset ISR address in the second vector table entry to start the new image
+     */
+    void (*relocate_and_start_image)(uint32_t,void*,void*,uint32_t) =
+            (void (*)(uint32_t,void*,void*,uint32_t)) (image_end + 1); /* +1 to set Thumb bit in target interworking address */
+    relocate_and_start_image(0, (void*)0x10000000, load_image_buffer + 16, (image_size-16)/4);
+    pg2sdr_hard_reset(); /* not reached */
+}
+
 static bool process_ep0_out(const ipc_message_t *message)
 {
     ep0_out_request_t request = (ep0_out_request_t) message->values[0];
@@ -570,6 +698,8 @@ static bool process_ep0_out(const ipc_message_t *message)
         /* Set up ADC clock, start transferring data */
         if (length != sizeof(ep0_out_start_transfer_t))
             return false;
+
+        load_image_size = 0; /* enabling DMA will trash any upload in progress */
 
         /* stop DMA and reset EP1 to ensure there's no stale data in the queues */
         pg2sdr_dma_hsadc_stop();
@@ -648,6 +778,53 @@ static bool process_ep0_out(const ipc_message_t *message)
         }
 
         return pg2sdr_tuner_update_regs(valueAndIndex, buf, buf + length/2, length/2);
+    }
+
+    case EP0_OUT_LOAD_IMAGE: {
+        //debug_printf("> LOAD_IMAGE(%08x,%u)\r\n", valueAndIndex, length);
+
+        /* general protocol here is:
+         *
+         *   LOAD_IMAGE(0, <N bytes>)        first call will halt any in-progress DMA
+         *   LOAD_IMAGE(1*N, <N bytes>)      subsequent calls must provide consecutive addresses
+         *   LOAD_IMAGE(2*N, <N bytes>)
+         *     ...
+         *   LOAD_IMAGE(X*N, 0)              final call with 0 length triggers booting the new image
+         *
+         * The uploaded image should start with a valid LPC header.
+         * N must fit into pgs2sdr_usb_control_buffer (currently 512 bytes)
+         *
+         * To cancel an in-progress image load, just don't do the final call, the load will be
+         * abandoned when START_TRANSFER next gets sent.
+         */
+        if (valueAndIndex == 0) {
+            /* start of upload. We are going to reuse the DMA buffer space, so
+             * DMA must be stopped while this happens.
+             */
+            pg2sdr_dma_hsadc_stop();
+            pg2sdr_usb_ep1_disable();
+            pg2sdr_hsadc_conversion_stop();
+            pg2sdr_hsadc_clock_stop();
+            load_image_size = 0;
+        }
+
+        if (valueAndIndex != load_image_size) {
+            /* mis-sequenced upload, or DMA was restarted */
+            return false;
+        }
+
+        if (!length) {
+            /* zero length means "end of image" */
+            return try_boot_image();
+        }
+
+        uint8_t *dest = load_image_buffer + load_image_size;
+        if (dest + length > load_image_buffer_end)
+            return false;
+
+        memcpy(dest, buf, length);
+        load_image_size += length;
+        return true;
     }
 
     case EP0_OUT_RESET: {

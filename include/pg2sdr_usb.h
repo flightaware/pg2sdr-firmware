@@ -140,4 +140,7 @@ void pg2sdr_usb_ep0_stall();
 /* Fill the board status message with USB-related things */
 void pg2sdr_usb_status(ep0_in_board_status_t *status);
 
+/* Disconnect from USB bus */
+void pg2sdr_usb_disconnect();
+
 #endif /* PG2SDR_USB_H */
