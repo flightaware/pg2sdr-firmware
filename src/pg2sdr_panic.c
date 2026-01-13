@@ -2,6 +2,7 @@
 #include "chip.h"
 
 #include "pg2sdr_common.h"
+#include "pg2sdr_protocol.h"
 #include "pg2sdr_uart.h"
 #include "morse.h"
 
@@ -11,15 +12,6 @@
  * from other reset causes. The values have no particular meaning other than being
  * unique values that are unlikely to be randomly set.
  */
-
-/* Power-on-reset. All unknown codes get mapped to this. */
-#define RESET_POR 0
-/* Unexpected reset without firmware intervention (watchdog timer or hard fault) */
-#define RESET_UNEXPECTED 0x554EAAB1
-/* Firmware was asked to reset itself */
-#define RESET_FIRMWARE 0x4649B9B6
-/* Firmware panic causing a reset, reset code stores the panic blink code */
-#define RESET_PANIC 0x5041AFBE
 
 /* set the LED state, minimal version to avoid risking double-faults
  * if there's something wrong in the GPIO code
@@ -120,6 +112,8 @@ void pg2sdr_reset()
 uint32_t pg2sdr_reset_reason = RESET_POR;
 uint32_t pg2sdr_reset_code;
 
+extern unsigned int resetisr_r0_value; /* in cr_startup_lpc43xx */
+
 void pg2sdr_diagnose_reset()
 {
     /* record current reason, update reason to UNEXPECTED
@@ -129,22 +123,34 @@ void pg2sdr_diagnose_reset()
      * firmware, we'll update the reason to something other
      * than UNEXPECTED.
      */
-    uint32_t r0 = LPC_REGFILE->REGFILE[0];
-    uint32_t r1 = LPC_REGFILE->REGFILE[1];
+    uint32_t rtc0 = LPC_REGFILE->REGFILE[0];
+    uint32_t rtc1 = LPC_REGFILE->REGFILE[1];
 
     LPC_REGFILE->REGFILE[0] = RESET_UNEXPECTED;
     LPC_REGFILE->REGFILE[1] = 0;
 
-    if ( (r0 == RESET_FIRMWARE && r1 == 0) ||
-         (r0 == RESET_UNEXPECTED && r1 == 0) ||
-         r0 == RESET_PANIC) {
-        pg2sdr_reset_reason = r0;
-        pg2sdr_reset_code = r1;
+    /* Firmware load-from-RAM via LOAD_IMAGE calls the ResetISR with
+     * a specific value in r0 (RESET_LOAD). Use this to detect the
+     * load-from-RAM case.
+     *
+     * Other reset paths will have the ROM bootloader call ResetISR,
+     * with no particular value in r0. Any previously-running firmware
+     * may have left something for us in the RTC regfile (rtc0/rtc1),
+     * which persists across reset; use that to identify the type of reset.
+     *
+     * Power-on-reset leaves semi-random garbage in the
+     * RTC regs, so assume that any rtc values we don't recognize
+     * are due to that.
+     */
+    if (resetisr_r0_value == RESET_LOAD) {
+        pg2sdr_reset_reason = RESET_LOAD;
+        pg2sdr_reset_code = 0;
+    } else if ((rtc0 == RESET_FIRMWARE && rtc1 == 0) ||
+               (rtc0 == RESET_UNEXPECTED && rtc1 == 0) ||
+               rtc0 == RESET_PANIC) {
+        pg2sdr_reset_reason = rtc0;
+        pg2sdr_reset_code = rtc1;
     } else {
-        /* Power-on-reset leaves semi-random garbage in the
-         * RTC regs, so assume that any values we don't recognize
-         * are due to that.
-         */
         pg2sdr_reset_reason = RESET_POR;
         pg2sdr_reset_code = 0;
     }
@@ -162,6 +168,9 @@ void pg2sdr_diagnose_reset()
         break;
     case RESET_POR:
         debug_printf("power-on reset\r\n");
+        break;
+    case RESET_LOAD:
+        debug_printf("new firmware image was loaded\r\n");
         break;
     default:
         debug_printf("unhandled case?\r\n");

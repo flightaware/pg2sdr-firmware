@@ -651,7 +651,7 @@ static bool try_boot_image()
      */
     void (*relocate_and_start_image)(uint32_t,void*,void*,uint32_t) =
             (void (*)(uint32_t,void*,void*,uint32_t)) (image_end + 1); /* +1 to set Thumb bit in target interworking address */
-    relocate_and_start_image(0, (void*)0x10000000, load_image_buffer + 16, (image_size-16)/4);
+    relocate_and_start_image(RESET_LOAD, (void*)0x10000000, load_image_buffer + 16, (image_size-16)/4);
     pg2sdr_hard_reset(); /* not reached */
 }
 

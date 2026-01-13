@@ -54,7 +54,7 @@ extern void SystemInit(void);
 // automatically take precedence over these weak definitions
 //
 //*****************************************************************************
-void ResetISR(void);
+void ResetISR(unsigned int);
 WEAK void NMI_Handler(void);
 WEAK void HardFault_Handler(void);
 WEAK void MemManage_Handler(void);
@@ -173,7 +173,7 @@ __attribute__ ((used,section(".isr_vector")))
 void (* const g_pfnVectors[])(void) = {
     // Core Level - CM4
     &_vStackTop,                    // The initial stack pointer
-    ResetISR,                       // The reset handler
+    (void (*)(void))ResetISR,       // The reset handler
     NMI_Handler,                    // The NMI handler
     HardFault_Handler,              // The hard fault handler
     MemManage_Handler,              // The MPU fault handler
@@ -296,8 +296,20 @@ extern unsigned int __bss_section_table_end;
 // library.
 //
 //*****************************************************************************
-void ResetISR(void) {
 
+/* We define ResetISR as taking a single unsigned int arg, which the
+ * compiler will expect to see in register R0 on entry. For the normal
+ * case where this code is being called from the bootloader, this value is
+ * unpredictable; but for the case where this code is being called via a
+ * LOAD_IMAGE call, we arrange for R0 to contain a special value (RESET_LOAD)
+ * to indicate that the firmware was chain-loaded from existing firmware, not
+ * from the ROM bootloader.
+ *
+ * We stash the value in R0 into `resetisr_r0_value` for later use by
+ * `pg2sdr_diagnose_reset`.
+ */
+unsigned int resetisr_r0_value;
+void ResetISR(unsigned int r0) {
 // *************************************************************
 // The following conditional block of code manually resets as
 // much of the peripheral set of the LPC43 as possible. This is
@@ -375,6 +387,14 @@ void ResetISR(void) {
         SectionLen = *SectionTableAddr++;
         bss_init(ExeAddr, SectionLen);
     }
+
+    /* This assignment must happen _after_ data_init / bss_init
+     * is done, or our changes will just get overwritten
+     */
+
+    //memory_barrier();
+    __asm__ volatile ("dmb" : : : "memory");
+    resetisr_r0_value = r0;
 
 #if !defined (__USE_LPCOPEN)
 // LPCOpen init code deals with FP and VTOR initialisation

@@ -58,6 +58,7 @@ typedef struct {
 #define RESET_UNEXPECTED 0x554EAAB1  /* Unexpected reset without firmware intervention (watchdog timer or hard fault) */
 #define RESET_FIRMWARE 0x4649B9B6    /* Firmware was asked to reset itself */
 #define RESET_PANIC 0x5041AFBE       /* Firmware panic causing a reset, reset code stores the panic blink code */
+#define RESET_LOAD 0x4C4FB3B0        /* New firmware image was loaded from RAM */
 
 typedef struct {
     /* Flags from STATUS_xxx */
