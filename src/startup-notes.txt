@@ -1,0 +1,153 @@
+Image gets loaded to RAM at 0x1000'0000
+
+Start of image has the ARM vector table, array of 32-bit words
+https://developer.arm.com/documentation/ddi0403/d/System-Level-Architecture/System-Level-Programmers--Model/ARMv7-M-exception-model/The-vector-table
+Annotate the definition with a section attribute so the linker-script knows to put it at the very start.
+
+  [0]  initial value of SP
+       (nb: ARM is a full stack, growing downwards; SP points to the last item
+        pushed onto the stack, and the next item pushed will be stored at (SP-4).
+        Therefore the initial SP should point just beyond the end of the assigned stack area)
+
+exception handlers:
+https://developer.arm.com/documentation/ddi0403/d/System-Level-Architecture/System-Level-Programmers--Model/ARMv7-M-exception-model/Exception-number-definition
+All exception handler addresses that point to code should have bit 0 set (i.e. target executes in thumb mode)
+
+  [1]  Reset
+  [2]  NMI
+  [3]  HardFault
+  [4]  MemManage
+  [5]  BusFault
+  [6]  UsageFault
+  [7]  reserved; user code checksum goes here (see UM10503 6.4.4.1)
+         currently this gets calculated by the linker-script, but it might be easier
+         to move it into the post-link script that adds headers/suffix
+  [8]  reserved; maybe use this one as a pointer to firmware metadata?
+  [9]  reserved
+  [10] reserved
+  [11] SVCall
+  [12] Debug Monitor
+  [13] reserved
+  [14] PendSV
+  [15] SysTick
+
+external interrupts (interrupt #N -> vector table 15+N), see UM10503 8.6.1
+  [16] DAC
+  [17] MAPP
+  [18] DMA
+  [19] reserved
+  [20] FLASHEEPROM
+  [21] ETHERNET
+  [22] SDIO
+  [23] LCD
+  [24] USB0
+  [25] USB1
+  [26] SCT
+  [27] RITIMER
+  [28..31] TIMER0 .. TIMER3
+  [32] MCPWM
+  [33] ADC0
+  [34] I2C0
+  [35] I2C1
+  [36] SPI
+  [37] ADC1
+  [38] SSP0
+  [39] SSP1
+  [40] USART0
+  [41] UART1
+  [42] USART2
+  [43] USART3
+  [44] I2S0
+  [45] I2S1
+  [46] SPIFI
+  [47] SGPIO
+  [48..55] PIN_INT0 .. PIN_INT7
+  [56] GINT0
+  [57] GINT1
+  [58] EVENTROUTER
+  [59] C_CAN1
+  [60] reserved
+  [61] ADCHS
+  [62] ATIMER
+  [63] RTC
+  [64] reserved
+  [65] WWDT
+  [66] M0SUB
+  [67] C_CAN0
+  [68] QEI
+
+Anything we don't care about (most of it) should call the unexpected-interrupt handler
+
+Initial control goes to the Reset handler, with interrupts enabled and SP initialized
+
+Things that the reset handler should do:
+
+1) remember the r0 value (i.e. first parameter) on entry for our boot-reason stuff (but watch out for BSS initialization timing when storing this!)
+
+2) Reset whatever subsysytems of the MCU it can, in case this reset was software-triggered:
+  * disable interrupts
+  * use RESET_CTRL0 and RESET_CTRL1 to reset everything we safely can:
+      M0_SUB_RST
+      LCD_RST
+      USB0_RST
+      USB1_RST
+      DMA_RST
+      SDIO_RST
+      EMC_RST
+      ETHERNET_RST
+      FLASHA_RST
+      EEPROM_RST
+      FLASHB_RST
+      TIMER0_RST
+      TIMER1_RST
+      TIMER2_RST
+      TIMER3_RST
+      RITIMER_RST
+      SCT_RST
+      MOTOCONPWM_RST
+      QEI_RST
+      ADC0_RST
+      ADC1_RST
+      DAC_RST
+      UART0_RST
+      UART1_RST
+      UART2_RST
+      UART3_RST
+      I2C0_RST
+      I2C1_RST
+      SSP0_RST
+      SSP1_RST
+      I2S_RST
+      SPIFI_RST
+      CAN1_RST
+      CAN0_RST
+      M0APP_RST
+      SGPIO_RST
+      SPI_RST
+      ADCHS_RST
+
+  * clear all pending NVIC interrupts (check the LOAD_IMAGE code for how to do this)
+  * re-enable interrupts
+
+3) call SystemInit (or this could be inlined into the reset code, or parts moved to main):
+  * set VTOR to point to RAM location of vector table
+    * probably belongs before main
+  * initialize FPU
+    * chip lib has fpuInit
+    * or set bits 20-23 in CPACR to enable CP10/CP11
+    * probably belongs before main
+  * call SetupCoreClock to set CPU to run from XTAL (or this could happen later?)
+    * fixme: this is going to break if xtal has failed; rely on what we do in main() instead
+  * mangle bits in CREG0 to reset/enable the 32kHz oscillator (required for RTC register access)
+    * power on, reset clear
+    * 1kHz and 32kHz enabled
+    * this could be in main()
+ 
+4) BSS init (zero-initialized data areas)
+  * locate all BSS data areas (needs linker-script help)
+  * memset to zero
+  * this definitely needs to happen before main()
+
+(Don't need to copy data segments, as we're always running from SRAM, not from read-only flash)
+
+5) jump to main()
