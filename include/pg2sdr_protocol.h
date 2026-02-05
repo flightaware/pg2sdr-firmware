@@ -28,6 +28,7 @@ typedef enum {
     EP0_IN_TUNER_READ = 0x0C,         /* read tuner regs; value = first reg to read; index = cache mode (0=use cache if possible, 1=bypass cache, 2=refresh cache) */
     EP0_IN_BOARD_STATUS = 0x0D,       /* read misc board status; valueAndIndex != 0 to also measure clock frequencies (takes longer) */
     EP0_IN_TUNER_LOCK = 0x0E,         /* update vco_current, wait for PLL to lock, return PLL status. value = vco_current to set (0..7), index = timeout in ms */
+    EP0_IN_METADATA = 0x0F,           /* return firmware_metadata_t structure */
 } ep0_in_request_t;
 
 /* structures returned from IN transfers */

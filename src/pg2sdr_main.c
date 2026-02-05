@@ -335,7 +335,7 @@ static uint32_t measure_frequency(CHIP_CGU_CLKIN_T clkin)
  * For fixed-size responses, it's okay to just fill the buffer with the full
  * response regardless of `length`; the caller will sort out the details.
  *
- * The caller guarantees that length <= sizeof lpc_usb_control_buffer
+ * The caller guarantees that length <= sizeof pg2sdr_usb_control_buffer
  *
  * Return true to return data to the host, false to return an endpoint stall
  */
@@ -506,6 +506,12 @@ static bool process_ep0_in(const ipc_message_t *message)
 
         ep0_in_tuner_lock_t *result = (ep0_in_tuner_lock_t *)buf;
         result->pll_locked = lock ? 1 : 0;
+        return true;
+    }
+
+    case EP0_IN_METADATA: {
+        static_assert(sizeof(firmware_metadata) <= sizeof(pg2sdr_usb_control_buffer));
+        memcpy(buf, &firmware_metadata, sizeof(firmware_metadata));
         return true;
     }
 
