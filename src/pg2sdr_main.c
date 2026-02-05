@@ -29,6 +29,20 @@
 
 pg2sdr_interrupts_t pg2sdr_interrupts;
 
+#ifdef DEBUG
+# define BUILD_LABEL "debug"
+#else
+# define BUILD_LABEL "release"
+#endif
+
+firmware_metadata_t firmware_metadata = {
+        .version = PG2_CURRENT_VERSION,
+        .compat = PG2_COMPAT_VERSION,
+        .max_control_transfer = PG2_MAX_CONTROL_TRANSFER,
+        .control_timeout_ms = 1000,
+        .build_type = BUILD_LABEL " " HW_LABEL,
+};
+
 static bool bulk_test_mode = false;
 static bool rf_power = false;
 static uint64_t serial_number = 0;

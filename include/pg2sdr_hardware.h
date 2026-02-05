@@ -3,6 +3,7 @@
 
 #if defined(HW_IS_PG2SDR)
 
+# define HW_LABEL "pg2sdr"
 # define HW_USES_I2C0
 # define HW_TUNER_XTAL 28800000
 /* RF_EN output on P2_12 / GPIO1[12], external pulldown */
@@ -23,6 +24,7 @@
  *  - no UART pins or CLK0/2 test points
  */
 
+# define HW_LABEL "airspymini"
 # define HW_USES_I2C1
 # define HW_TUNER_XTAL 24000000
 # define HW_RFEN_PINGRP 1

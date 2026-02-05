@@ -8,6 +8,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define _VERSION(a,b,c,d) ((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
+#define PG2_CURRENT_VERSION _VERSION(0,9,0,0)
+#define PG2_COMPAT_VERSION _VERSION(0,9,0,0)
+
 #define PG2_MAX_CONTROL_TRANSFER 512
 
 /* --- Control endpoint EP0 --- */
@@ -189,6 +193,15 @@ typedef enum {
     CACHE_BYPASS = 1,
     CACHE_REFRESH = 2
 } tuner_cache_mode_t;
+
+/* firmware metadata returned by EP0_IN_METADATA */
+typedef struct firmware_metadata_s {
+    uint32_t version;
+    uint32_t compat;
+    uint16_t max_control_transfer;
+    uint16_t control_timeout_ms;
+    char build_type[128];
+} firmware_metadata_t;
 
 /* ---  Bulk endpoint EP1   --- */
 
