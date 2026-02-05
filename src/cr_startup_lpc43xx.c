@@ -158,6 +158,8 @@ extern void _vStackTop(void);
 //*****************************************************************************
 WEAK extern void __valid_user_code_checksum();
 
+extern struct firmware_metadata_s firmware_metadata;
+
 //*****************************************************************************
 #if defined (__cplusplus)
 } // extern "C"
@@ -168,19 +170,22 @@ WEAK extern void __valid_user_code_checksum();
 // This relies on the linker script to place at correct location in memory.
 //
 //*****************************************************************************
+
+typedef void (*vector_t)(void);
+
 extern void (* const g_pfnVectors[])(void);
 __attribute__ ((used,section(".isr_vector")))
 void (* const g_pfnVectors[])(void) = {
     // Core Level - CM4
     &_vStackTop,                    // The initial stack pointer
-    (void (*)(void))ResetISR,       // The reset handler
+    (vector_t) ResetISR,            // The reset handler
     NMI_Handler,                    // The NMI handler
     HardFault_Handler,              // The hard fault handler
     MemManage_Handler,              // The MPU fault handler
     BusFault_Handler,               // The bus fault handler
     UsageFault_Handler,             // The usage fault handler
-    __valid_user_code_checksum,             // LPC MCU Checksum
-    0,                              // Reserved
+    __valid_user_code_checksum,     // Reserved - LPC MCU Checksum
+    (vector_t) &firmware_metadata,  // Reserved - firmware metadata pointer
     0,                              // Reserved
     0,                              // Reserved
     SVC_Handler,                    // SVCall handler
