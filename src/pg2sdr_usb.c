@@ -508,7 +508,7 @@ static ErrorCode_t ep1_in_handler(USBD_HANDLE_T handle, void *data, uint32_t eve
 }
 
 /* Shared buffer for control transfer data */
-uint8_t ALIGNED(4) pg2sdr_usb_control_buffer[512];
+uint8_t ALIGNED(4) pg2sdr_usb_control_buffer[PG2_MAX_CONTROL_TRANSFER];
 
 /* True if a control transfer is currently being processed by the main loop */
 static bool ep0_busy;

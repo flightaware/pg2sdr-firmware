@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define PG2_MAX_CONTROL_TRANSFER 512
+
 /* --- Control endpoint EP0 --- */
 
 /* vendor requests, IN (lpc -> host) */
