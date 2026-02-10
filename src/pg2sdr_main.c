@@ -658,7 +658,6 @@ static bool try_boot_image()
     Chip_Clock_DisableCrystal();
 
     /* set VTOR/MEMMAP to the expected initial values */
-    disable_interrupts();
     LPC_CREG->MXMEMMAP = 0x10000000;       /* default M4MEMMAP for booting an image from RAM */
     SCB->VTOR = 0x00000000;                /* default VTOR, remapped to the image vector table via M4MEMMAP */
 
