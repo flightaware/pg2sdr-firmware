@@ -3,6 +3,7 @@ Image gets loaded to RAM at 0x1000'0000
 Start of image has the ARM vector table, array of 32-bit words
 https://developer.arm.com/documentation/ddi0403/d/System-Level-Architecture/System-Level-Programmers--Model/ARMv7-M-exception-model/The-vector-table
 Annotate the definition with a section attribute so the linker-script knows to put it at the very start.
+(The managed linker script expects this to go into a section called ".isr_vectors")
 
   [0]  initial value of SP
        (nb: ARM is a full stack, growing downwards; SP points to the last item
