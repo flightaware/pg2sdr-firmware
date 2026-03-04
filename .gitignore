@@ -4,3 +4,4 @@ __pycache__
 /Debug-Airspy/
 *.tsv
 *.fft
+/Release/
