@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 #define _VERSION(a,b,c,d) ((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
-#define PG2_CURRENT_VERSION _VERSION(0,9,0,0)
+#define PG2_CURRENT_VERSION _VERSION(0,9,1,0)
 #define PG2_COMPAT_VERSION _VERSION(0,9,0,0)
 
 #define PG2_MAX_CONTROL_TRANSFER 512
