@@ -8,16 +8,17 @@
 
 #ifdef HW_HAS_UART
 
-#define NANOPRINTF_IMPLEMENTATION
-#define NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS 1
-#define NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS 1
-#define NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS 1
-#define NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS 0
-#define NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS 0
-#define NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS 0
-#define NANOPRINTF_VISIBILITY_STATIC
-
-#include "nanoprintf.h"
+#ifdef DEBUG
+#  define NANOPRINTF_IMPLEMENTATION
+#  define NANOPRINTF_USE_FIELD_WIDTH_FORMAT_SPECIFIERS 1
+#  define NANOPRINTF_USE_PRECISION_FORMAT_SPECIFIERS 1
+#  define NANOPRINTF_USE_FLOAT_FORMAT_SPECIFIERS 1
+#  define NANOPRINTF_USE_LARGE_FORMAT_SPECIFIERS 0
+#  define NANOPRINTF_USE_BINARY_FORMAT_SPECIFIERS 0
+#  define NANOPRINTF_USE_WRITEBACK_FORMAT_SPECIFIERS 0
+#  define NANOPRINTF_VISIBILITY_STATIC
+#  include "nanoprintf.h"
+#endif
 
 static RINGBUFF_T ring;
 #define RING_SIZE 4096   /* Send */
@@ -125,8 +126,9 @@ void UART0_IRQHandler(void)
     ++pg2sdr_interrupts.usart0;
 }
 
-void debug_printf(const char *format, ...)
+void _debug_printf(const char *format, ...)
 {
+#ifdef DEBUG
     if (!format)
         return;
 
@@ -142,6 +144,7 @@ void debug_printf(const char *format, ...)
         buf[n-1] = '!'; /* truncation indicator */
     }
     pg2sdr_uart_write(buf, n);
+#endif
 }
 
 #else /* ! HW_HAS_UART */
@@ -161,7 +164,7 @@ void pg2sdr_uart_flush(void)
     /* nothing */
 }
 
-void debug_printf(const char *format, ...)
+void _debug_printf(const char *format, ...)
 {
     /* nothing */
 }

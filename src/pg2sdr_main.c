@@ -172,6 +172,7 @@ static void m4_copy_hsadc_buffer(const ipc_message_t *message)
     }
 }
 
+#ifdef DEBUG
 /* a little linear congruential PRNG, just to get some randomness in the USB data we transfer */
 static uint32_t random_state = 123456789;
 static void random_fill_word(uint8_t *buffer, unsigned size)
@@ -193,6 +194,7 @@ static void m4_queue_test_data()
         pg2sdr_usb_queue_dtd(dTD, DTD_BUFFER_SIZE);
     }
 }
+#endif
 
 static void update_cpu_speed(void)
 {
@@ -845,6 +847,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         /* not reached */
     }
 
+#ifdef DEBUG
     case EP0_OUT_WATCHDOG_TEST: {
         /* ack first, to give the host a chance to see the ack before we reset */
         debug_printf("> WATCHDOG_TEST\r\n");
@@ -899,6 +902,7 @@ static bool process_ep0_out(const ipc_message_t *message)
         pg2sdr_hsadc_set_config(valueAndIndex & 1, valueAndIndex & 2, valueAndIndex & 4);
         return true;
     }
+#endif
 
     default:
         return false;
@@ -921,9 +925,11 @@ static void m4_usb_ep0_out(const ipc_message_t *message)
 static void m4_handle_message(const ipc_message_t *message)
 {
     switch (message->message) {
+#ifdef DEBUG
     case M4_QUEUE_TEST_DATA:
         m4_queue_test_data();
         break;
+#endif
 
     case M4_COPY_HSADC_BUFFER:
         m4_copy_hsadc_buffer(message);

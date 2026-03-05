@@ -85,6 +85,7 @@ static void update_tuner_led()
 
 static bool handle_i2c_error(int status)
 {
+#ifdef DEBUG
     const char *err;
     switch (status) {
     case I2C_STATUS_DONE:     err = "DONE (?!)"; break;
@@ -98,6 +99,8 @@ static bool handle_i2c_error(int status)
     }
 
     debug_printf("tuner: I2C error! status=%u (%s)\r\n", status, err);
+#endif
+
     i2c_error = status;
     shadow_is_valid = false;
     update_tuner_led();
@@ -657,7 +660,9 @@ void pg2sdr_tuner_status(ep0_in_board_status_t *status)
  */
 int pg2sdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
 {
+#ifdef DEBUG
     uint32_t start_ticks = StopWatch_Start();
+#endif
 
     /* update vco_current (reg 18, bits 7..5) to the requested vco_current
      *    and vco_mode (reg 19, bit 6) to auto-mode
@@ -678,12 +683,14 @@ int pg2sdr_tuner_lock(uint8_t vco_current, uint32_t timeout)
         if (!pg2sdr_tuner_read_regs_direct(reg_shadow, 3))
             return -1;
         if (reg_shadow[2] & 0x40) {
+#ifdef DEBUG
             uint32_t post_lock_ticks = StopWatch_Start();
             debug_printf("tuner: PLL lock with vco_current=%u in %u+%u us (%u polls)\r\n",
                          vco_current,
                          StopWatch_TicksToUs(post_setup_ticks - start_ticks),
                          StopWatch_TicksToUs(post_lock_ticks - post_setup_ticks),
                          loops);
+#endif
             return 1; /* PLL has lock */
         }
     } while (StopWatch_Elapsed(post_setup_ticks) < timeout_ticks);
