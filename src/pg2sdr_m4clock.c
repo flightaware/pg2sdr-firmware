@@ -31,6 +31,10 @@ static volatile uint32_t idle_cycles_accumulator; /* updated by pg2sdr_m4clock_w
 static volatile uint32_t min_idle_cycles_last;
 static uint32_t min_idle_cycles;
 
+/* lpcopen requires these symbols: */
+const uint32_t ExtRateIn = 0;              /* external clock signal (unused on the PG2SDR) */
+const uint32_t OscRateIn = 12000000;       /* external crystal frequency (Y1, 12MHz) */
+
 void pg2sdr_m4clock_init()
 {
     /* switch the M4 clock to use the crystal immediately */

@@ -116,6 +116,14 @@ extern unsigned int resetisr_r0_value; /* in cr_startup_lpc43xx */
 
 void pg2sdr_diagnose_reset()
 {
+    /* ensure the 1kHz and 32kHz clocks are running before touching the RTC block */
+    LPC_CREG->CREG0 &= ~(
+            (1<<2) |    /* clear RESET32KHZ bit, take 32kHz oscillator out of reset */
+            (1<<3));    /* clear PD32KHZ bit, enable power to 32kHz oscillator */
+    LPC_CREG->CREG0 |= (
+            (1 << 0) |  /* set EN1KHZ bit, enable 1kHz oscillator */
+            (1 << 1));  /* set EN32KHZ bit, enable 32kHz oscillator */
+
     /* record current reason, update reason to UNEXPECTED
      * so that's what is left if we unexpectedly reset.
      *
@@ -126,6 +134,7 @@ void pg2sdr_diagnose_reset()
     uint32_t rtc0 = LPC_REGFILE->REGFILE[0];
     uint32_t rtc1 = LPC_REGFILE->REGFILE[1];
 
+    /* we're _meant_ to wait 2 seconds here before writing to RTC regs, but in practice this seems okay */
     LPC_REGFILE->REGFILE[0] = RESET_UNEXPECTED;
     LPC_REGFILE->REGFILE[1] = 0;
 
