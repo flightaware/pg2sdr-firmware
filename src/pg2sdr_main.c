@@ -1038,6 +1038,8 @@ static void disable_unused_clocks(void)
  */
 static void check_external_crystal()
 {
+    Chip_Clock_EnableCrystal();
+
     uint32_t rcnt, fcnt;
     measure_frequency_vs_irc(CLKIN_CRYSTAL, &rcnt, &fcnt);
     double xtal = (rcnt == 0 ? 0 : 12e6 * fcnt / rcnt);
