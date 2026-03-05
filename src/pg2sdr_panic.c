@@ -227,5 +227,6 @@ void pg2sdr_unexpected_interrupt(void)
 void pg2sdr_assertion_failed(const char *file, unsigned line, const char *assertion)
 {
     debug_printf("%s:%d: assertion failed: %s\r\n", file, line, assertion);
+    pg2sdr_uart_flush();
     pg2sdr_panic(MORSE_A);
 }
