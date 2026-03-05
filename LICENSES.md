@@ -100,19 +100,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # Additional license terms for prebuilt firmware binaries
 
 In addition to the source code licenses above, the prebuilt firmware
-binaries in the `images/` subdirectory include code from libraries
-that have separate licenses:
-
-## newlib
-
-The prebuilt binaries are linked against newlib, which is licensed
-under a variety of open-source-compatible licenses; see
-https://sourceware.org/newlib/
-
-## LPCOpen
-
-The prebuilt binaries are linked against LPCOpen, which is licensed
-under the following NXP LPCOpen license:
+binaries in the `images/` subdirectory include code from the LPCOpen
+library, which is licensed under the following NXP LPCOpen license:
 
 ```
 * Copyright(C) NXP Semiconductors, 2012-2017
