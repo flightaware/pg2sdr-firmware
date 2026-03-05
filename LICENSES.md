@@ -1,13 +1,5 @@
 # Source code licenses
 
-## Remaining problems
-
-`src/cr_startup_lpc43xx.c` and `src/pg2sdr_sysinit.c` still have
-NXP-proprietary license headers and that code needs to be replaced
-with something OSS-friendly before release.  The functionality that
-the new code needs to implement is described in
-`src/startup-notes.txt`
-
 ## Most firmware code
 
 Except as noted below, the contents of this repository are licensed
