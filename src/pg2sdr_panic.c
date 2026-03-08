@@ -30,6 +30,7 @@
 #include "lpc_types.h"
 #include "chip.h"
 
+#include "pg2sdr_panic.h"
 #include "pg2sdr_common.h"
 #include "pg2sdr_protocol.h"
 #include "pg2sdr_uart.h"
