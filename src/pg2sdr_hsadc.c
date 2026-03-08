@@ -46,10 +46,12 @@ static uint32_t compute_mdec(uint32_t msel)
     case 1: return 0x18003;
     case 2: return 0x10003;
     default:
-        uint32_t x = 0x04000;
-        for (uint32_t im = msel; im <= PLL0_MSEL_MAX; im++)
-            x = (((x ^ (x>>1)) & 1) << 14) | ((x>>1) & 0xFFFF);
-        return x;
+        {
+            uint32_t x = 0x04000;
+            for (uint32_t im = msel; im <= PLL0_MSEL_MAX; im++)
+                x = (((x ^ (x>>1)) & 1) << 14) | ((x>>1) & 0xFFFF);
+            return x;
+        }
     }
 }
 
@@ -58,14 +60,16 @@ static uint32_t compute_pdec(uint32_t psel)
     /* from UM10503, 12.6.4.4 */
 #define PLL0_PSEL_MAX (1<<5)
     switch (psel) {
-        case 0: return 0;
-        case 1: return 0x62;
-        case 2: return 0x42;
-        default:
+    case 0: return 0;
+    case 1: return 0x62;
+    case 2: return 0x42;
+    default:
+        {
             uint32_t x = 0x10;
             for (uint32_t ip = psel; ip <= PLL0_PSEL_MAX; ip++)
                 x = (((x ^ (x>>2)) & 1) << 4) | ((x>>1) & 0x3F);
             return x;
+        }
     }
 }
 
@@ -78,10 +82,12 @@ static uint32_t compute_ndec(uint32_t nsel)
         case 1: return 0x302;
         case 2: return 0x202;
         default:
-            uint32_t x = 0x80;
-            for (uint32_t in = nsel; in <= PLL0_NSEL_MAX; in++)
-                x = (((x ^ x>>2 ^ x>>3 ^ x>>4) & 1) << 7) | (x>>1 & 0xFF);
-            return x;
+            {
+                uint32_t x = 0x80;
+                for (uint32_t in = nsel; in <= PLL0_NSEL_MAX; in++)
+                    x = (((x ^ x>>2 ^ x>>3 ^ x>>4) & 1) << 7) | (x>>1 & 0xFF);
+                return x;
+            }
     }
 }
 
