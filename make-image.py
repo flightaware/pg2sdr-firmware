@@ -36,6 +36,7 @@ vector_entry = struct.Struct('<I')
 lpc_header = struct.Struct('<HHQI')
 dfu_suffix_no_crc = struct.Struct('<HHHH3sB')
 dfu_suffix_crc = struct.Struct('<I')
+metadata = struct.Struct('<IIHH128s')
 
 dfu_crc_table = [
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
@@ -110,7 +111,46 @@ def calc_dfu_crc(buf):
         crc = dfu_crc_table[(crc ^ b) & 0xFF] ^ (crc>>8)
     return crc
 
-def make_image(ram_image, revision):
+def make_bcd_revision(version):
+    # turn our 32-bit metadata version number into a
+    # 16-bit DFU release number
+    #
+    # given a metadata version of a.b.c.d (where each
+    # component is 0..255), we produce a DFU release
+    # number that is the BCD-encoded value abcd. If
+    # any of a,b,c,d is >15, then we cap it at 15 and
+    # force all the subsequent values to also be 15.
+    #
+    # i.e. 0.1.2.3 maps to 0123
+    #      0.1.2.15 maps to 012F
+    #      0.1.2.20 also maps to 012F
+    #        (note that this means that the mapping of 0.1.2.20 is >= the mapping of 0.1.2.x for all values of x,
+    #         but it is less than the mapping of 0.1.3.0)
+    #      0.1.20.2 maps to 01FF
+    #      0.15.0.1 maps to 0F01
+    #      0.20.0.1 maps to 0FFF
+    #
+    # most of the time this means we have a 1:1 mapping
+    # and for the cases where we don't, we still have
+    # a sensible order of release numbers.
+
+    a = (version >> 24) & 0xFF
+    b = (version >> 16) & 0xFF
+    c = (version >> 8) & 0xFF
+    d = version & 0xFF
+
+    if a > 15:
+        a = b = c = d = 0xF
+    elif b > 15:
+        b = c = d = 0xF
+    elif c > 15:
+        c = d = 0xF
+    elif d > 14:
+        d = 0xF
+
+    return (a << 12) | (b << 8) | (c << 4) | d
+
+def make_image(ram_image):
     # adjust 8th vector table entry so the vector table
     # checksum is correct (first 8 entries sum to zero)
     vector_sum = 0
@@ -122,9 +162,20 @@ def make_image(ram_image, revision):
                  vector_entry.pack(checksum) +   # new checksum value
                  ram_image[32:])                 # rest of image
 
+    # try to extract version from metadata
+    v, = vector_entry.unpack_from(ram_image, 8*4)
+    if v >= 0x10000000 and v <= 0x1000FFFF:
+        version, compat, max_xfer, timeout_ms, build_type = metadata.unpack_from(ram_image, v - 0x10000000)
+        revision = make_bcd_revision(version)
+        print(f'Using DFU bcdDevice: {revision:04x}', file=sys.stderr)
+    else:
+        print(f"warning: can't make sense of image metadata, setting DFU bcdDevice = 0", file=sys.stderr)
+        revision = 0
+
     # pad loadable image to multiple of 512 bytes
     pad = 512 - len(out_image) % 512
     if pad < 512:
+        print(f"Adding {pad} bytes of padding", file=sys.stderr)
         out_image += b'\xFF' * pad
 
     # construct LPC header
@@ -153,23 +204,23 @@ def make_image(ram_image, revision):
     return out_image
 
 def main(argv):
-    if len(argv) < 4:
-        print(f'syntax: {argv[0]} ELF-FILE IMAGE-FILE REVISION')
+    if len(argv) < 3:
+        print(f'syntax: {argv[0]} ELF-FILE IMAGE-FILE')
         return 1
 
     infile = argv[1]
     outfile = argv[2]
-    revision = int(argv[3])
 
     # construct and read the loadable RAM image
+    print(f'Converting {infile} ..', file=sys.stderr)
     ramfile = infile + '.tmp'
-    subprocess.run(["arm-none-eabi-objcopy", "-v", "-O", "binary", infile, ramfile]).check_returncode()
+    subprocess.run(["arm-none-eabi-objcopy", "-O", "binary", infile, ramfile]).check_returncode()
     with open(ramfile, 'rb') as f:
         ram_image = f.read()
     os.unlink(ramfile)
 
     # add headers/suffix, write the result
-    out_image = make_image(ram_image, revision)
+    out_image = make_image(ram_image)
     with open(outfile, 'wb') as f:
         f.write(out_image)
 
