@@ -10,5 +10,6 @@ set(CMAKE_VERBOSE_MAKEFILE TRUE)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 
+add_subdirectory(string)
 add_subdirectory(src)
 add_subdirectory(lpc_chip_43xx/src)
