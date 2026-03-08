@@ -6,3 +6,4 @@ __pycache__
 *.fft
 /Release/
 /Release-Airspy/
+build
