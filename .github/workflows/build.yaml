@@ -1,0 +1,22 @@
+name: Build firmware on push
+
+on: push
+
+jobs:
+  build:
+    name: Build firmware
+    runs-on: self-hosted
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake gcc-arm-none-eabi python3-minimal
+      - name: Build it
+        run: make update-images
+      - name: Upload built images
+        uses: actions/upload-artifact@v3
+        with:
+          name: firmware-images
+          path: images/*.bin
