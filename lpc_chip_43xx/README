@@ -1,0 +1,9 @@
+This is a copy of the lpc_chip_43xx library from
+LPCOpen 3.02, which is licenced under the NXP
+LPCOpen license. See individual files for details.
+
+The original LPCOpen package is downloadable at
+https://www.nxp.com/design/design-center/software/software-library/lpcopen-software-development-platform-lpc43xx:LPCOPEN-SOFTWARE-FOR-LPC43XX
+
+The only changes to this package are to add CMake support
+(see CMakeLists.txt)

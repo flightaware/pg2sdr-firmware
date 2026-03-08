@@ -1,8 +1,8 @@
 # Source code licenses
 
-## Most firmware code
+## Most firmware source code
 
-Except as noted below, the contents of this repository are licensed
+Except as noted below, the source code in this repository is licensed
 under a BSD 2-clause license, as noted in the individual source code
 files:
 
@@ -31,6 +31,37 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+## LPCOpen chip support library
+
+The contents of `lpc_chip_43xx` are licensed under the following NXP
+LPCOpen license:
+
+```
+* Copyright(C) NXP Semiconductors, 2012-2017
+* All rights reserved.
+*
+* Software that is described herein is for illustrative purposes only
+* which provides customers with programming information regarding the
+* LPC products.  This software is supplied "AS IS" without any warranties of
+* any kind, and NXP Semiconductors and its licensor disclaim any and
+* all warranties, express or implied, including all implied warranties of
+* merchantability, fitness for a particular purpose and non-infringement of
+* intellectual property rights.  NXP Semiconductors assumes no responsibility
+* or liability for the use of the software, conveys no license or rights under any
+* patent, copyright, mask work right, or any other intellectual property rights in
+* or to any products. NXP Semiconductors reserves the right to make changes
+* in the software without notification. NXP Semiconductors also makes no
+* representation or warranty that such application will be suitable for the
+* specified use without further testing or modification.
+*
+* Permission to use, copy, modify, and distribute this software and its
+* documentation is hereby granted, under NXP Semiconductors' and its
+* licensor's relevant copyrights in the software, without fee, provided that it
+* is used in conjunction with NXP Semiconductors microcontrollers.  This
+* copyright, permission, and disclaimer notice must appear in all copies of
+* this code.
 ```
 
 ## nanoprintf
@@ -89,34 +120,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-# Additional license terms for prebuilt firmware binaries
+## Prebuilt firmware images
 
-In addition to the source code licenses above, the prebuilt firmware
-binaries in the `images/` subdirectory include code from the LPCOpen
-library, which is licensed under the following NXP LPCOpen license:
-
-```
-* Copyright(C) NXP Semiconductors, 2012-2017
-* All rights reserved.
-*
-* Software that is described herein is for illustrative purposes only
-* which provides customers with programming information regarding the
-* LPC products.  This software is supplied "AS IS" without any warranties of
-* any kind, and NXP Semiconductors and its licensor disclaim any and
-* all warranties, express or implied, including all implied warranties of
-* merchantability, fitness for a particular purpose and non-infringement of
-* intellectual property rights.  NXP Semiconductors assumes no responsibility
-* or liability for the use of the software, conveys no license or rights under any
-* patent, copyright, mask work right, or any other intellectual property rights in
-* or to any products. NXP Semiconductors reserves the right to make changes
-* in the software without notification. NXP Semiconductors also makes no
-* representation or warranty that such application will be suitable for the
-* specified use without further testing or modification.
-*
-* Permission to use, copy, modify, and distribute this software and its
-* documentation is hereby granted, under NXP Semiconductors' and its
-* licensor's relevant copyrights in the software, without fee, provided that it
-* is used in conjunction with NXP Semiconductors microcontrollers.  This
-* copyright, permission, and disclaimer notice must appear in all copies of
-* this code.
-```
+The prebuilt firmware images in the `images/` subdirectory include
+code compiled from all of the above sources.
