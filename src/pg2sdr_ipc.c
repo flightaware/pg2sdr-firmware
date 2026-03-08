@@ -34,6 +34,7 @@
 
 #include "pg2sdr_common.h"
 #include "pg2sdr_m4clock.h"
+#include "pg2sdr_isr.h"
 
 void pg2sdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
 {

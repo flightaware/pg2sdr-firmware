@@ -32,6 +32,7 @@
 #include "pg2sdr_usb.h"
 #include "pg2sdr_gpio.h"
 #include "pg2sdr_protocol.h"
+#include "pg2sdr_isr.h"
 
 #include "chip.h"
 

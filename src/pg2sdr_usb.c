@@ -35,6 +35,7 @@
 #include "pg2sdr_dma.h"
 #include "pg2sdr_ipc.h"
 #include "pg2sdr_panic.h"
+#include "pg2sdr_isr.h"
 
 #include "chip.h"
 #include "usbd_rom_api.h"
