@@ -36,6 +36,11 @@
 #include "pg2sdr_m4clock.h"
 #include "pg2sdr_isr.h"
 
+//
+// This is set up to allow M4->M4, M4->M0APP and M0APP->M4 IPC,
+// but currently only the M4 is actually used so only the M4->M4 path is live.
+//
+
 void pg2sdr_ipc_receive(ipc_mailbox_t *mailbox, ipc_message_handler_t handler)
 {
     // nb: no mutual exclusion on the reader side, it's assumed there
@@ -75,6 +80,10 @@ static bool ipc_send(ipc_mailbox_t *mailbox, uint32_t message, uint32_t value0, 
 }
 
 #if defined(CORE_M4)
+
+//
+// M4 implementation
+//
 
 volatile bool m4_wakeup_requested;
 
@@ -157,6 +166,10 @@ void pg2sdr_ipc_handle_messages_forever(ipc_message_handler_t handler)
 }
 
 #elif defined(CORE_M0)
+
+//
+// M0APP implementation
+//
 
 volatile bool m0_wakeup_requested;
 

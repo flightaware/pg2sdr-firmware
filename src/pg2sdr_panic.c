@@ -143,7 +143,7 @@ void pg2sdr_reset()
 uint32_t pg2sdr_reset_reason = RESET_POR;
 uint32_t pg2sdr_reset_code;
 
-extern unsigned int resetisr_r0_value; /* in cr_startup_lpc43xx */
+extern unsigned int resetisr_r0_value; /* in pg2sdr_setup */
 
 void pg2sdr_diagnose_reset()
 {
@@ -254,9 +254,7 @@ void PendSV_Handler(void)
     pg2sdr_panic(MORSE_P);
 }
 
-/* We can't directly override IntDefaultHandler because of how cr_startup does symbol aliasing;
- * instead, we do the minimum change necessary in cr_startup to have its IntDefaultHandler call `pg2sdr_unexpected_interrupt` instead
- */
+/* ISR for any interrupt we don't have a specific handler for */
 void pg2sdr_unexpected_interrupt(void)
 {
     uint32_t isr = __get_IPSR() & 255;                       // index of unexpected interrupt
