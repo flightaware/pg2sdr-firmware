@@ -44,10 +44,6 @@
 #define HSADC_NUM_BUFFERS 4
 #define HSADC_BUFFER_SIZE (8176*2)  /* 8176 samples => 16352 bytes => 12264 bytes after packing */
 
-/* base addresses for our buffers: */
-#define AHB_SRAM_BANK_0 0x20000000
-#define AHB_SRAM_BANK_1 0x20008000
-
 /* transfer descriptors for the ADCHS DMA loop */
 typedef struct ALIGN(16) _dma_lli {
     /* read by the DMA controller; these do not change as DMA transfers complete */

@@ -33,6 +33,9 @@
 #include "pg2sdr_gpio.h"
 #include "pg2sdr_protocol.h"
 #include "pg2sdr_isr.h"
+#include "pg2sdr_uart.h"
+#include "pg2sdr_panic.h"
+#include "pg2sdr_mem.h"
 
 #include "chip.h"
 
@@ -97,16 +100,21 @@ void pg2sdr_dma_hsadc_start(void) {
      * X+1 are in different SRAM banks, the CPU and the DMA controller
      * are not competing for access to the same bank of memory.
      */
+    debug_printf("DMA buffers:");
     for (unsigned i = 0; i < HSADC_NUM_BUFFERS; ++i) {
-        uint32_t buffer;
-        if (i % 2 == 0)
-            buffer = AHB_SRAM_BANK_0 + (i/2) * HSADC_BUFFER_SIZE;
-        else
-            buffer = AHB_SRAM_BANK_1 + (i/2) * HSADC_BUFFER_SIZE;
+        uint8_t *buffer;
+        if (i % 2 == 0) {
+            buffer = (uint8_t*)&__dma1_start + (i/2) * HSADC_BUFFER_SIZE;
+            panic_assert(buffer <= (uint8_t*)&__dma1_end);
+        } else {
+            buffer = (uint8_t*)&__dma2_start + (i/2) * HSADC_BUFFER_SIZE;
+            panic_assert(buffer <= (uint8_t*)&__dma2_end);
+        }
+        debug_printf(" %08x", (uint32_t)buffer);
 
         hsadc_dma_buffer[i] = (uint32_t *)buffer;
         hsadc_dma_lli[i].srcaddr = (uint32_t) &LPC_ADCHS->FIFO_OUTPUT[0];      // source = HSADC FIFO read
-        hsadc_dma_lli[i].destaddr = buffer; // destination address = start of buffer
+        hsadc_dma_lli[i].destaddr = (uint32_t) buffer;                         // destination address = start of buffer
         hsadc_dma_lli[i].lli = (uint32_t) &hsadc_dma_lli[(i+1) % HSADC_NUM_BUFFERS]; /* LM=0, load using AHB Master 0 */
         hsadc_dma_lli[i].control =
                 GPDMA_DMACCxControl_TransferSize(HSADC_BUFFER_SIZE/4) |   /* size in number of transfers, transfer size = 1 word */
@@ -123,6 +131,7 @@ void pg2sdr_dma_hsadc_start(void) {
         hsadc_dma_lli[i].status = 0;
         hsadc_dma_lli[i].sequence = 0;
     }
+    debug_printf("\r\n");
 
     hsadc_current_lli = &hsadc_dma_lli[0];
     hsadc_next_sequence = 1;
