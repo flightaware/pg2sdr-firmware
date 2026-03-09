@@ -4,6 +4,8 @@ MEMORY
     IPC       : ORIGIN = 0x1000D800, LENGTH = 0x00800 /* Inter-core mailboxes */
     USB1      : ORIGIN = 0x1000E000, LENGTH = 0x12000 /* First 72kB area for USB buffers */
     USB2      : ORIGIN = 0x10080000, LENGTH = 0x12000 /* Second 72kB area for USB buffers */
+    DMA1      : ORIGIN = 0x20000000, LENGTH = 0x08000 /* First 32kB area for DMA buffers */
+    DMA2      : ORIGIN = 0x20008000, LENGTH = 0x08000 /* Second 32kB area for DMA buffers */
 }
 
 ENTRY(ResetISR)
@@ -80,4 +82,16 @@ SECTIONS
         __usb2_start = ORIGIN(USB2);
         __usb2_end = ORIGIN(USB2) + LENGTH(USB2);
     } > USB2
+
+    .dma1 (NOLOAD) :
+    {
+        __dma1_start = ORIGIN(DMA1);
+        __dma1_end = ORIGIN(DMA1) + LENGTH(DMA1);
+    } > DMA1
+
+    .dma2 (NOLOAD) :
+    {
+        __dma2_start = ORIGIN(DMA2);
+        __dma2_end = ORIGIN(DMA2) + LENGTH(DMA2);
+    } > DMA2
 }
