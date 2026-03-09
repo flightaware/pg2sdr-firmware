@@ -35,6 +35,7 @@
 #include "pg2sdr_dma.h"
 #include "pg2sdr_ipc.h"
 #include "pg2sdr_panic.h"
+#include "pg2sdr_uart.h"
 #include "pg2sdr_isr.h"
 
 #include "chip.h"
@@ -273,6 +274,15 @@ void USB0_IRQHandler(void)
 
 /* Pointers to the dTDs and corresponding data buffers */
 static USB_DTD_T *usb_dtds[NUM_DTDS];
+
+/* USB ROM working area. We just allocate this in the firmware data space
+ * for simplicity.
+ *
+ * nb: the API requires that this is 2048-byte aligned
+ *
+ * Actual required size (at least for this LPC4370 ROM revision) is 1576 bytes
+ */
+uint8_t usb_rom_workspace[2048] __attribute__((used,aligned(2048)));
 
 static volatile USB_DTD_T *dtd_active_head = NULL; /* active dTD list, head */
 static volatile USB_DTD_T *dtd_active_tail = NULL; /* active dTD list, tail */
@@ -778,8 +788,8 @@ ErrorCode_t pg2sdr_usb_init(uint64_t serial_number)
 
     static USBD_API_INIT_PARAM_T usb_param = {
             .usb_reg_base = LPC_USB0_BASE,
-            .mem_base = USB_MEM_BASE,
-            .mem_size = USB_MEM_SIZE,
+            .mem_base = (uint32_t)&usb_rom_workspace,
+            .mem_size = sizeof(usb_rom_workspace),
             .max_num_ep = USB_MAX_EP_NUM,
             .USB_Reset_Event = reset_handler,
             .USB_Configure_Event = configure_handler,
@@ -797,11 +807,13 @@ ErrorCode_t pg2sdr_usb_init(uint64_t serial_number)
 
     };
 
-    /* Allocate the space that the USB ROM API wants */
+    /* Check the space that the USB ROM API wants */
     usb_param.mem_size = USBD_API->hw->GetMemSize(&usb_param);
+    debug_printf("USBROM mem: %u@%08x\r\n", usb_param.mem_size, usb_param.mem_base);
+    panic_assert(usb_param.mem_size <= sizeof(usb_rom_workspace));
 
     /* todo: break this out into a reasonable allocator */
-    uint32_t usb_pool = USB_MEM_BASE + usb_param.mem_size;
+    uint32_t usb_pool = USB_MEM_BASE;
     uint32_t usb_pool_end = USB_MEM_BASE + USB_MEM_SIZE;
 
     /* Allocate space for transfer dTDs and their associated buffers */
