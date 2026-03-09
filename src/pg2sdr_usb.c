@@ -272,8 +272,10 @@ void USB0_IRQHandler(void)
     ++pg2sdr_interrupts.usb0;
 }
 
-/* Pointers to the dTDs and corresponding data buffers */
-static USB_DTD_T *usb_dtds[NUM_DTDS];
+/* USB dTDs; we allocate these in the firmware data space.
+ * Hardware requires that dTDs are 32-byte aligned.
+ */
+static USB_DTD_T usb_dtds[NUM_DTDS] __attribute__((aligned(32)));
 
 /* USB ROM working area. We just allocate this in the firmware data space
  * for simplicity.
@@ -340,7 +342,7 @@ static void reset_dtd_lists_interrupts_disabled()
     dtd_active_head = dtd_active_tail = NULL;
     dtd_free_head = NULL;
     for (unsigned i = 0; i < NUM_DTDS; ++i) {
-        USB_DTD_T *dtd = usb_dtds[i];
+        USB_DTD_T *dtd = &usb_dtds[i];
         if (dtd->total_bytes_ioc_multo_status == DTD_STATUS_BUSY)   /* Being filled by the main loop, can't free it yet.. */
             dtd->total_bytes_ioc_multo_status = DTD_STATUS_CANCEL;  /* .. so mark it for reclamation later */
         else {
@@ -818,15 +820,11 @@ void pg2sdr_usb_init(uint64_t serial_number)
 
     /* Allocate space for transfer dTDs and their associated buffers */
     for (unsigned i = 0; i < NUM_DTDS; ++i) {
-        usb_pool = ALIGN_TO(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
-        panic_assert(usb_pool + sizeof(USB_DTD_T) <= usb_pool_end);
-        usb_dtds[i] = (USB_DTD_T*) usb_pool;
-        memset((void*) usb_dtds[i], 0, sizeof(USB_DTD_T));
-        usb_pool += sizeof(USB_DTD_T);
+        memset((void*) &usb_dtds[i], 0, sizeof(USB_DTD_T));
 
         usb_pool = ALIGN_TO(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
         panic_assert(usb_pool + DTD_BUFFER_SIZE <= usb_pool_end);
-        usb_dtds[i]->buffer = (uint8_t*) usb_pool;
+        usb_dtds[i].buffer = (uint8_t*) usb_pool;
         usb_pool += DTD_BUFFER_SIZE;
     }
 
