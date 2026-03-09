@@ -36,6 +36,17 @@
 #include "pg2sdr_m4clock.h"
 #include "pg2sdr_isr.h"
 
+/* Shared mailboxes at well-known addresses.
+ * (Technically, the m4-to-m4 and m0-to-m0 mailboxes don't need
+ * well-known addresses, but this is simple enough)
+ */
+ipc_mailbox_t ipc_mailboxes[4] __attribute__((section(".mailboxes"),used));
+
+#define m4_to_m0_mailbox (ipc_mailboxes + 0)
+#define m4_to_m4_mailbox (ipc_mailboxes + 1)
+#define m0_to_m0_mailbox (ipc_mailboxes + 2)
+#define m0_to_m4_mailbox (ipc_mailboxes + 3)
+
 //
 // This is set up to allow M4->M4, M4->M0APP and M0APP->M4 IPC,
 // but currently only the M4 is actually used so only the M4->M4 path is live.

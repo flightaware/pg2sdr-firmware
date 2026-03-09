@@ -96,17 +96,6 @@ bool pg2sdr_ipc_pending(ipc_mailbox_t *mailbox);
 /* Main loop: run forever, processing messages addressed to this core via `handler` */
 void pg2sdr_ipc_handle_messages_forever(ipc_message_handler_t handler) __attribute__(( noreturn ));
 
-/* Shared mailboxes at well-known addresses. There is a separate
- * mailbox for each pair of sending+receiving cores.
- * (Technically, the m4-to-m4 and m0-to-m0 mailboxes don't need
- * well-known addresses, but this is simple enough)
- */
-#define SHARED_MAILBOXES ((ipc_mailbox_t *) 0x10008000)
-#define m4_to_m0_mailbox (SHARED_MAILBOXES + 0)
-#define m4_to_m4_mailbox (SHARED_MAILBOXES + 1)
-#define m0_to_m0_mailbox (SHARED_MAILBOXES + 2)
-#define m0_to_m4_mailbox (SHARED_MAILBOXES + 3)
-
 /* Send a message to the M4 main loop. Returns true if successfully queued, false if the queue is full.
  * Does not wait for delivery to complete. Safe to call from interrupt handlers and from the main loop.
  */

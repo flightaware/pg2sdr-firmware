@@ -52,6 +52,12 @@ SECTIONS
         _ebss = .;
     } > RAM
 
-    /* put an 8kB stack at the end of the memory region we're using */
-    PROVIDE(_vStackTop = ORIGIN(RAM) + LENGTH(RAM));
+    /* 4kB stack following BSS, with 8-byte alignment */
+    _vStackTop = ALIGN(_ebss,8) + 4096;
+
+    /* Mailboxes for IPC at a well-known address */
+    .mailboxes 0x1000C800 (NOLOAD) : ALIGN(4)
+    {
+        *(.mailboxes);
+    } > RAM
 }
