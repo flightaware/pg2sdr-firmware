@@ -67,4 +67,9 @@
 
 #endif
 
+/* Disable UART in release builds entirely */
+#ifndef DEBUG
+# undef HW_HAS_UART
+#endif
+
 #endif /* PG2SDR_HARDWARE_H */
