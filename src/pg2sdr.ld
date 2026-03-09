@@ -55,8 +55,12 @@ SECTIONS
         _ebss = .;
     } > RAM
 
-    /* 4kB stack following BSS, with 8-byte alignment */
-    _vStackTop = ALIGN(_ebss,8) + 4096;
+    /* 4kB stack with 8-byte alignment */
+    .stack (NOLOAD) : ALIGN(8)
+    {
+        . += 4096;
+        _vStackTop = .;
+    }
 
     /* Mailboxes for IPC at a well-known address */
     .mailboxes 0x1000C800 (NOLOAD) : ALIGN(4)
