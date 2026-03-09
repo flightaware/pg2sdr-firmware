@@ -87,18 +87,30 @@ typedef volatile struct ALIGN(64) {
 
 /* Number and size of USB buffers/dTDs to allocate.
  *
- * We will allocate the buffers in the 72kB local SRAM starting at 10080000;
- * we also need some of that SRAM for the dTD structures and the ROM USB memory requirements
+ * We have two pools of memory available to place the buffers:
+ *  72kB in the first SRAM bank, above the firmware code (1000E000 - 1001FFFF)
+ *  72kB in the second SRAM bank (10080000 - 10091FFF)
  *
- * say N buffers, each a multiple of 512 bytes, with at least 20 bytes of header space, fitting into 70kB (leaving 2kB for other USB stack space)
+ * Into that space we want to fit many USB buffers of the same size with some constraints:
+ *  - buffer size must be a multiple of 512
+ *    (larger buffer sizes are possible, but the buffer cannot span more than 5 4kB-aligned pages, which makes
+ *     allocation trickier)
+ *  - each buffer needs a header of 20 bytes, followed by sample data in multiples of 12 bytes, followed by unused padding space
  *
- * N=5, buffer: 14336 (28 * 512) bytes = 9544 samples + 20 bytes header, total: 71680, spare: 2048
- * N=6, buffer: 11776 (23 * 512) bytes = 6376 samples + 28 bytes header, total: 70656, spare: 3072
  * N=7, buffer: 10240 (20 * 512) bytes = 6808 samples + 28 bytes header, total: 71680, spare: 2048   <== use this
- * N=8, buffer: 8704  (17 * 512) bytes = 5784 samples + 28 bytes header, total: 69632, spare: 4096
+ * Out of the available options, we use this:
+ *
+ *   buffer size: 12288 bytes (= 24 * 512); 6 buffers exactly fits into 72kB
+ *        header:    20 bytes
+ *       samples: 12264 bytes = 8176 samples per buffer
+ *           pad:     4 bytes
+ *
+ * 6 buffers of 12288 bytes each, totalling exactly 72kB
  */
-#define NUM_DTDS 7
-#define DTD_BUFFER_SIZE 10240
+
+#define DTDS_PER_POOL 6
+#define DTD_BUFFER_SIZE 12288
+#define NUM_DTDS (DTDS_PER_POOL * 2)
 
 /* initialize the full USB stack */
 void pg2sdr_usb_init(uint64_t serial_number);

@@ -34,7 +34,7 @@
 /* Bounce buffers for ADCHS, in AHB SRAM */
 
 /* constraints on this:
- *    packed sample data for one buffer has to fit into a USB buffer, leaving space for a 20-byte header (see pg2sdr_usb.h)
+ *    packed sample data for one buffer has to fit exactly a USB buffer, leaving space for a 20-byte header (see pg2sdr_usb.h)
  *      (4 bytes in the HSADC buffer becomes 3 bytes in the USB buffer)
  *    HSADC_NUM_BUFFERS must be even (we allocate half the buffers in one AHB SRAM bank and half in the other bank, to reduce contention when
  *      the M4 main loop is reading a buffer and packing samples while the ADC DMA channel writes to the next buffer)
@@ -42,7 +42,7 @@
  *    HSADC_BUFFER_SIZE must be a multiple of 4 (we do word-size transfers)
  */
 #define HSADC_NUM_BUFFERS 4
-#define HSADC_BUFFER_SIZE 13616    /* 6808 samples = 10212 bytes after packing */
+#define HSADC_BUFFER_SIZE (8176*2)  /* 8176 samples => 16352 bytes => 12264 bytes after packing */
 
 /* base addresses for our buffers: */
 #define AHB_SRAM_BANK_0 0x20000000
