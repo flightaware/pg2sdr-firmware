@@ -34,9 +34,7 @@
 #include "pg2sdr_isr.h"
 #include "pg2sdr_panic.h"
 #include "pg2sdr_hardware.h"
-
-/* linker-provided top-of-stack symbol */
-extern uint32_t _vStackTop;
+#include "pg2sdr_mem.h"
 
 /* our firmware metadata */
 extern struct firmware_metadata_s firmware_metadata;

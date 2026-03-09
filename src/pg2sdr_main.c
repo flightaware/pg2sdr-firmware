@@ -41,6 +41,7 @@
 #include "pg2sdr_panic.h"
 #include "pg2sdr_m4clock.h"
 #include "pg2sdr_hardware.h"
+#include "pg2sdr_mem.h"
 #include "morse.h"
 #include <string.h>
 
@@ -571,8 +572,8 @@ static void m4_usb_ep0_in(const ipc_message_t *message)
  * (it tracks the number of uploaded bytes since we last halted DMA)
  */
 
-static uint8_t * const load_image_buffer = (uint8_t*) AHB_SRAM_BANK_0;
-static uint8_t * const load_image_buffer_end = (uint8_t*) (AHB_SRAM_BANK_0 + 0xFFFC);
+static uint8_t * const load_image_buffer = (uint8_t*)&__dma1_start;
+static uint8_t * const load_image_buffer_end = (uint8_t*)&__dma2_end;
 static uint32_t load_image_size = 0;
 
 static bool try_boot_image()
@@ -638,10 +639,9 @@ static bool try_boot_image()
      * by the new firmware mid-relocation.
      */
 
-    extern uint8_t relocator_start; /* start of relocation function, in relocator.s */
-    extern uint8_t relocator_end;   /* end of relocation function */
-    const uint8_t *relocator_copy_start = &relocator_start;
-    size_t relocator_copy_size = &relocator_end - &relocator_start;
+    const uint8_t *relocator_copy_start = (uint8_t*)&relocator_start;
+    const uint8_t *relocator_copy_end = (uint8_t*)&relocator_end;
+    const size_t relocator_copy_size = relocator_copy_end - relocator_copy_start;
 
     if (image_end + relocator_copy_size > load_image_buffer_end) {
         debug_printf("try_boot_image: not enough space for relocation code\r\n");

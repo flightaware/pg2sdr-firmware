@@ -37,6 +37,7 @@
 #include "pg2sdr_panic.h"
 #include "pg2sdr_uart.h"
 #include "pg2sdr_isr.h"
+#include "pg2sdr_mem.h"
 
 #include "chip.h"
 #include "usbd_rom_api.h"
@@ -773,12 +774,6 @@ static void write_serial(uint8_t *pDesc, uint64_t serial)
     }
 }
 
-/* Linker symbols for the USB pools */
-extern uint8_t __usb1_start;
-extern uint8_t __usb1_end;
-extern uint8_t __usb2_start;
-extern uint8_t __usb2_end;
-
 void pg2sdr_usb_init(uint64_t serial_number)
 {
     static_assert(sizeof(USB_DTD_T) == 32, "wrong USB_DTD_T size");
@@ -823,11 +818,11 @@ void pg2sdr_usb_init(uint64_t serial_number)
 
         uint8_t *pool_buffer;
         if (i % 2 == 0) {
-            pool_buffer = &__usb1_start + (i/2) * DTD_BUFFER_SIZE;
-            panic_assert(pool_buffer + DTD_BUFFER_SIZE <= &__usb1_end);
+            pool_buffer = (uint8_t*)&__usb1_start + (i/2) * DTD_BUFFER_SIZE;
+            panic_assert(pool_buffer + DTD_BUFFER_SIZE <= (uint8_t*)&__usb1_end);
         } else {
-            pool_buffer = &__usb2_start + (i/2) * DTD_BUFFER_SIZE;
-            panic_assert(pool_buffer + DTD_BUFFER_SIZE <= &__usb2_end);
+            pool_buffer = (uint8_t*)&__usb2_start + (i/2) * DTD_BUFFER_SIZE;
+            panic_assert(pool_buffer + DTD_BUFFER_SIZE <= (uint8_t*)&__usb2_end);
         }
         debug_printf(" %08x", (uint32_t)pool_buffer);
         panic_assert(((uint32_t)pool_buffer & 31) == 0); /* hardware requires DTD buffers to be 32-byte aligned */
