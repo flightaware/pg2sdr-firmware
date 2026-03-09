@@ -43,10 +43,6 @@
 
 #include <string.h>
 
-/* Use 72kB local SRAM at 1008 0000 .. 1009 1FFF for USB stack workspace and buffers */
-#define USB_MEM_BASE   0x10080000
-#define USB_MEM_SIZE   0x00012000
-
 const USBD_API_T* g_pUsbApi;
 static USBD_HANDLE_T usb_handle;
 
@@ -777,6 +773,12 @@ static void write_serial(uint8_t *pDesc, uint64_t serial)
     }
 }
 
+/* Linker symbols for the USB pools */
+extern uint8_t __usb1_start;
+extern uint8_t __usb1_end;
+extern uint8_t __usb2_start;
+extern uint8_t __usb2_end;
+
 void pg2sdr_usb_init(uint64_t serial_number)
 {
     static_assert(sizeof(USB_DTD_T) == 32, "wrong USB_DTD_T size");
@@ -814,19 +816,24 @@ void pg2sdr_usb_init(uint64_t serial_number)
     debug_printf("USBROM mem: %u@%08x\r\n", usb_param.mem_size, usb_param.mem_base);
     panic_assert(usb_param.mem_size <= sizeof(usb_rom_workspace));
 
-    /* todo: break this out into a reasonable allocator */
-    uint32_t usb_pool = USB_MEM_BASE;
-    uint32_t usb_pool_end = USB_MEM_BASE + USB_MEM_SIZE;
-
-    /* Allocate space for transfer dTDs and their associated buffers */
+    /* Initialize dTDs and their associated buffers */
+    debug_printf("USB buffers:");
     for (unsigned i = 0; i < NUM_DTDS; ++i) {
         memset((void*) &usb_dtds[i], 0, sizeof(USB_DTD_T));
 
-        usb_pool = ALIGN_TO(usb_pool, 32);     /* DTDs must be 32-byte aligned (address bits 4:0 are zero) */
-        panic_assert(usb_pool + DTD_BUFFER_SIZE <= usb_pool_end);
-        usb_dtds[i].buffer = (uint8_t*) usb_pool;
-        usb_pool += DTD_BUFFER_SIZE;
+        uint8_t *pool_buffer;
+        if (i % 2 == 0) {
+            pool_buffer = &__usb1_start + (i/2) * DTD_BUFFER_SIZE;
+            panic_assert(pool_buffer + DTD_BUFFER_SIZE <= &__usb1_end);
+        } else {
+            pool_buffer = &__usb2_start + (i/2) * DTD_BUFFER_SIZE;
+            panic_assert(pool_buffer + DTD_BUFFER_SIZE <= &__usb2_end);
+        }
+        debug_printf(" %08x", (uint32_t)pool_buffer);
+        panic_assert(((uint32_t)pool_buffer & 31) == 0); /* hardware requires DTD buffers to be 32-byte aligned */
+        usb_dtds[i].buffer = pool_buffer;
     }
+    debug_printf("\r\n");
 
     /* Put everything on the freelist */
     reset_dtd_lists_interrupts_disabled();

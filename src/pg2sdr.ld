@@ -1,6 +1,9 @@
 MEMORY
 {
     RAM (rwx) : ORIGIN = 0x10000000, LENGTH = 0xD000 /* limit firmware image to first 56kB, leaving 72kB for USB buffers */
+    RAM (rwx) : ORIGIN = 0x10000000, LENGTH = 0x0D800 /* Firmware space, limited to ~56kB to leave more space for USB buffers */
+    USB1      : ORIGIN = 0x1000E000, LENGTH = 0x12000 /* First 72kB area for USB buffers */
+    USB2      : ORIGIN = 0x10080000, LENGTH = 0x12000 /* Second 72kB area for USB buffers */
 }
 
 ENTRY(ResetISR)
@@ -60,4 +63,18 @@ SECTIONS
     {
         *(.mailboxes);
     } > RAM
+
+    /* USB and DMA pools */
+    .usb1 (NOLOAD) :
+    {
+        __usb1_start = ORIGIN(USB1);
+        __usb1_end = ORIGIN(USB1) + LENGTH(USB1);
+    } > USB1
+
+    .usb2 (NOLOAD) :
+    {
+        __usb2_start = ORIGIN(USB2);
+        __usb2_end = ORIGIN(USB2) + LENGTH(USB2);
+    } > USB2
+
 }
