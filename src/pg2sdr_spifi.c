@@ -213,7 +213,7 @@ ErrorCode_t pg2sdr_spifi_sector_erase(uint32_t address)
     return spifi_wait_for_completion(300); // datasheet max sector erase time = 300ms
 }
 
-ErrorCode_t pg2sdr_spifi_init(void)
+void pg2sdr_spifi_init(void)
 {
     // warning: this assumes we are _not_ executing code over SPIFI!
 
@@ -288,6 +288,4 @@ ErrorCode_t pg2sdr_spifi_init(void)
                         SPIFI_CMD_INTER(0),                               // No intermediate bytes
                         0,                                                // No address
                         status, 2);                                       // Two bytes of data to write
-
-    return LPC_OK;
 }

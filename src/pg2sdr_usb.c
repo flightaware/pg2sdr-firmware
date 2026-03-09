@@ -775,7 +775,7 @@ static void write_serial(uint8_t *pDesc, uint64_t serial)
     }
 }
 
-ErrorCode_t pg2sdr_usb_init(uint64_t serial_number)
+void pg2sdr_usb_init(uint64_t serial_number)
 {
     static_assert(sizeof(USB_DTD_T) == 32, "wrong USB_DTD_T size");
     static_assert(sizeof(USB_DQH_T) == 64, "wrong USB_DQH_T size");
@@ -836,24 +836,22 @@ ErrorCode_t pg2sdr_usb_init(uint64_t serial_number)
     /* Initialize the USB ROM API and patch errata */
     ErrorCode_t ret = USBD_API->hw->Init(&usb_handle, &desc, &usb_param);
     if (ret != LPC_OK)
-        return ret;
+        pg2sdr_assertion_failed("USBROM Init failed");
     errata_usbrom2_patch(usb_handle);
 
     /* handler for setup packets received on EP0*/
     ret = USBD_API->core->RegisterClassHandler(usb_handle, ep0_handler, NULL);
     if (ret != LPC_OK)
-        return ret;
+        pg2sdr_assertion_failed("USBROM RegisterClassHandler failed");
 
     /* handler for EP1-IN events (specifically, notification when one or more dTDs are completed) */
     ret = USBD_API->core->RegisterEpHandler(usb_handle, EP_IN_INDEX(1), ep1_in_handler, NULL);
     if (ret != LPC_OK)
-        return ret;
+        pg2sdr_assertion_failed("USBROM RegisterEpHandler failed");
 
     /* enable USB interrupts, connect to the host to start enumeration */
     NVIC_EnableIRQ(USB0_IRQn);
     USBD_API->hw->Connect(usb_handle, 1);
-
-    return LPC_OK;
 }
 
 void pg2sdr_usb_disconnect()

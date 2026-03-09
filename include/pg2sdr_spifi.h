@@ -31,7 +31,7 @@
 #include "lpc_types.h"
 #include "error.h"
 
-ErrorCode_t pg2sdr_spifi_init(void);
+void pg2sdr_spifi_init(void);
 
 uint16_t pg2sdr_spifi_read_manufacturer_device_id();
 uint64_t pg2sdr_spifi_read_unique_id();

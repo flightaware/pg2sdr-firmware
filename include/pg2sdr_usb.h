@@ -100,8 +100,8 @@ typedef volatile struct ALIGN(64) {
 #define NUM_DTDS 7
 #define DTD_BUFFER_SIZE 10240
 
-/* initialize the full USB stack. Returns LPC_OK if all is OK. */
-ErrorCode_t pg2sdr_usb_init(uint64_t serial_number);
+/* initialize the full USB stack */
+void pg2sdr_usb_init(uint64_t serial_number);
 
 /* Get a free dTD and associated buffer.
  * Returns a dTD, or NULL if none are available.

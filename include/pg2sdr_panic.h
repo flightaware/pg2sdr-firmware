@@ -30,6 +30,7 @@
 
 #include <stdint.h>
 #include "chip.h"
+#include "morse.h"
 
 /* Reboot / panic related stuff */
 
@@ -56,10 +57,12 @@ void pg2sdr_panic(uint32_t pattern) __attribute__(( noreturn ));
  */
 void pg2sdr_diagnose_reset();
 
-void pg2sdr_assertion_failed(const char *file, unsigned line, const char *assertion) __attribute__(( noreturn ));
+void _pg2sdr_assertion_failed(const char *file, unsigned line, const char *assertion) __attribute__(( noreturn ));
+
+#define pg2sdr_assertion_failed(message) _pg2sdr_assertion_failed(__FILE__, __LINE__, message)
 
 #define panic_assert(_x) do {                                    \
-    if (!(_x)) pg2sdr_assertion_failed(__FILE__, __LINE__, #_x); \
+  if (!(_x)) pg2sdr_assertion_failed(#_x);                       \
 } while(0)
 
 extern uint32_t pg2sdr_reset_reason;
