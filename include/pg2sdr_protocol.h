@@ -35,6 +35,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* VID/PID of ROM bootloader */
+#define VID_ROM 0x1fc9
+#define PID_ROM 0x000c
+
+/* VID/PID of normal firmware */
+#define VID_PG2SDR 0xDEAD
+#define PID_PG2SDR 0xBEEF
+
 #define _VERSION(a,b,c,d) ((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
 #define PG2_CURRENT_VERSION _VERSION(0,9,3,0)
 #define PG2_COMPAT_VERSION _VERSION(0,9,0,0)
