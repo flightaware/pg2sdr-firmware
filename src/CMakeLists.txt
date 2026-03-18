@@ -4,7 +4,7 @@ macro(make_firmware_image target image hwmacro)
   add_executable(${target}
     pg2sdr_dma.c pg2sdr_gpio.c pg2sdr_hsadc.c pg2sdr_ipc.c pg2sdr_m4clock.c
     pg2sdr_main.c pg2sdr_panic.c pg2sdr_spifi.c pg2sdr_startup.c pg2sdr_tuner.c
-    pg2sdr_uart.c pg2sdr_usb.c relocator.s)
+    pg2sdr_uart.c pg2sdr_usb.c pg2sdr_led.c relocator.s)
 
   target_compile_options(${target} PRIVATE -Os -Wall -Wmissing-declarations -Werror -Wstack-usage=512 -fstack-usage -fsingle-precision-constant)
   target_compile_options(${target} PRIVATE -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/=)

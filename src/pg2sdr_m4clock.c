@@ -123,6 +123,7 @@ void pg2sdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
     SystemCoreClockUpdate();
     StopWatch_Init();
     pg2sdr_tuner_clock_update();
+    pg2sdr_led_clock_update();
 
     WITH_DISABLED_INTERRUPTS {
         systick_count = 0;

@@ -1,5 +1,5 @@
-#ifndef PG2SDR_ISR_H
-#define PG2SDR_ISR_H
+#ifndef PG2SDR_LED_H
+#define PG2SDR_LED_H
 
 /*
  *  Copyright (c) 2026 FlightAware All rights reserved.
@@ -28,26 +28,18 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* ISR prototypes */
+#include "pg2sdr_common.h"
+#include "pg2sdr_gpio.h"
 
-/* handlers for internal exceptions */
-void ResetISR(uint32_t r0);
-void NMI_Handler(void);
-void HardFault_Handler(void);
-void MemManage_Handler(void);
-void BusFault_Handler(void);
-void UsageFault_Handler(void);
-void SVC_Handler(void);
-void DebugMon_Handler(void);
-void PendSV_Handler(void);
-void SysTick_Handler(void);
+/* LED status & blink patterns, overriding normal behaviour,
+ * driven by the RITIMER
+ */
+void pg2sdr_led_init();
+/* set blink pattern (0 = disable) */
+void pg2sdr_led_set_pattern(uint32_t pattern);
+/* handle M4 clock change */
+void pg2sdr_led_clock_update();
+/* set "normal" state of LEDs (might be overriden by blinking) */
+void pg2sdr_led_set(unsigned led_id, Color c);
 
-/* handlers for external interrupt sources */
-void DMA_IRQHandler(void);
-void M0APP_IRQHandler(void);
-void WDT_IRQHandler(void);
-void UART0_IRQHandler(void);
-void USB0_IRQHandler(void);
-void RITIMER_IRQHandler(void);
-
-#endif /* PG2SDR_ISR_H */
+#endif

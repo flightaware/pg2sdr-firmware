@@ -28,7 +28,7 @@
  */
 
 #include "pg2sdr_tuner.h"
-#include "pg2sdr_gpio.h"
+#include "pg2sdr_led.h"
 #include "pg2sdr_uart.h"
 #include "pg2sdr_hardware.h"
 

@@ -44,7 +44,7 @@
 #define PID_PG2SDR 0xBEEF
 
 #define _VERSION(a,b,c,d) ((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
-#define PG2_CURRENT_VERSION _VERSION(0,9,3,0)
+#define PG2_CURRENT_VERSION _VERSION(0,9,4,0)
 #define PG2_COMPAT_VERSION _VERSION(0,9,0,0)
 
 #define PG2_MAX_CONTROL_TRANSFER 512
@@ -199,6 +199,9 @@ typedef enum {
     EP0_OUT_TUNER_WRITE = 0x16,       /* Write tuner registers; value = index of first register to write; index = cache policy (0=write through, 1=bypass) */
     EP0_OUT_TUNER_UPDATE = 0x17,      /* Update tuner registers; value = index of first updated register; see code for formatting of the data payload */
     EP0_OUT_LOAD_IMAGE = 0x20,        /* load (part of) image to memory. valueAndIndex = start address */
+    EP0_OUT_LED_PATTERN = 0x2B,       /* set LED override pattern, valueAndIndex = pattern or 0 for no override.
+                                       * min version 0.9.4.0
+                                       */
     EP0_OUT_CONFIG_ADC = 0x2C,        /* Change ADC configuration. value = bitwise-or of 1 (DCINNEG) / 2 (DCINPOS) / 4 (TWOS) */
     EP0_OUT_RESET = 0x2D,             /* force device reset */
     EP0_OUT_WATCHDOG_TEST = 0x2E,     /* Trigger watchdog tests */

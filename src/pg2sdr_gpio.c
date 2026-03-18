@@ -112,13 +112,13 @@ void pg2sdr_gpio_init(void)
 
     /* test pattern, cycle all the LEDS */
     for (unsigned i = 0; i < NUM_LEDS; ++i) {
-        pg2sdr_led_set(i, C_ON);
+        pg2sdr_gpio_led_set(i, C_ON);
         StopWatch_DelayMs(250);
-        pg2sdr_led_set(i, C_OFF);
+        pg2sdr_gpio_led_set(i, C_OFF);
     }
 }
 
-void pg2sdr_led_set(unsigned led_id, Color c)
+void pg2sdr_gpio_led_set(unsigned led_id, Color c)
 {
     if (led_id >= NUM_LEDS)
         return;

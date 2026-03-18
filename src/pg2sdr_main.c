@@ -42,6 +42,7 @@
 #include "pg2sdr_m4clock.h"
 #include "pg2sdr_hardware.h"
 #include "pg2sdr_mem.h"
+#include "pg2sdr_led.h"
 #include "morse.h"
 #include <string.h>
 
@@ -865,6 +866,11 @@ static bool process_ep0_out(const ipc_message_t *message)
         return true;
     }
 
+    case EP0_OUT_LED_PATTERN:
+        debug_printf("> LED_PATTERN %08x\r\n", valueAndIndex);
+        pg2sdr_led_set_pattern(valueAndIndex);
+        return true;
+
     case EP0_OUT_RESET: {
         /* ack, then delay a bit before the reset to give the host a chance to see the ack */
         debug_printf("> RESET\r\n");
@@ -1015,7 +1021,7 @@ static void disable_unused_clocks(void)
     Chip_Clock_Disable(CLK_MX_SSP0);
     /* CLK_MX_TIMER0 needed (for StopWatch_*) */
     Chip_Clock_Disable(CLK_MX_TIMER1);
-    Chip_Clock_Disable(CLK_MX_RITIMER);
+    /* CLK_MX_RITIMER needed (for LED blinking) */;
     Chip_Clock_Disable(CLK_MX_UART2);
     Chip_Clock_Disable(CLK_MX_UART3);
     Chip_Clock_Disable(CLK_MX_TIMER2);
@@ -1097,6 +1103,7 @@ int main(void) {
     check_external_crystal();
 
     /* now we trust the crystal enough to switch the CPU to use it */
+    pg2sdr_led_init();
     pg2sdr_m4clock_init();
     pg2sdr_spifi_init();
     serial_number = pg2sdr_spifi_read_unique_id();

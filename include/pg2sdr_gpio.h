@@ -33,15 +33,17 @@
 
 /* for single color LEDs, anything other than "off" is considered "on" */
 typedef enum Color {
-    C_OFF,
-    C_RED,
-    C_GREEN,
-    C_YELLOW,
-    C_ON,
+    C_OFF = 0,
+    C_RED = 1,
+    C_GREEN = 2,
+    C_YELLOW = 3,
+    C_ON = 4,
 } Color;
 
 void pg2sdr_gpio_init(void);
-void pg2sdr_led_set(unsigned led_id, Color c);
+
+/* low-level GPIO LED state (see pg2sdr_led.h for higher-level interface) */
+void pg2sdr_gpio_led_set(unsigned led_id, Color c);
 
 void pg2sdr_set_rfen(bool onoff);
 

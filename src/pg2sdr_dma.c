@@ -30,7 +30,7 @@
 #include "pg2sdr_common.h"
 #include "pg2sdr_dma.h"
 #include "pg2sdr_usb.h"
-#include "pg2sdr_gpio.h"
+#include "pg2sdr_led.h"
 #include "pg2sdr_protocol.h"
 #include "pg2sdr_isr.h"
 #include "pg2sdr_uart.h"
