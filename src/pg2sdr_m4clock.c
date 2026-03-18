@@ -29,6 +29,7 @@
 
 #include "pg2sdr_m4clock.h"
 #include "pg2sdr_tuner.h"
+#include "pg2sdr_led.h"
 #include "pg2sdr_isr.h"
 
 #include "chip.h"
