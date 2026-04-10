@@ -1128,6 +1128,15 @@ int main(void) {
 
     disable_unused_clocks();
 
+    /* make unexpected resets/panics more visible */
+    if (pg2sdr_reset_reason == RESET_UNEXPECTED) {
+        /* 01001 00110: alternating off-green-red, off-red-green */
+        pg2sdr_led_set_pattern(0x00000126);
+    } else if (pg2sdr_reset_reason == RESET_PANIC) {
+        /* 11001 10110: alternating yellow-green-red, yellow-red-green */
+        pg2sdr_led_set_pattern(0x00000336);
+    }
+
     debug_printf("M4 entering main loop\r\n");
     pg2sdr_ipc_handle_messages_forever(m4_handle_message);
 
