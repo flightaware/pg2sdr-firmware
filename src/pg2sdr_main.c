@@ -937,6 +937,19 @@ static bool process_ep0_out(const ipc_message_t *message)
         pg2sdr_hsadc_set_config(valueAndIndex & 1, valueAndIndex & 2, valueAndIndex & 4);
         return true;
     }
+
+    case EP0_OUT_PANIC_TEST: {
+        /* ack first, to give the host a chance to see the ack before we reset */
+        debug_printf("> PANIC_TEST\r\n");
+        pg2sdr_usb_ep0_out_ack();
+        pg2sdr_delay_ms(100);
+        debug_printf(" .. now\r\n");
+        pg2sdr_panic((MORSE_T<<0) | (MORSE_E<<8) | (MORSE_S<<16) | (MORSE_T<<24));
+        debug_printf(" ... apparently I didn't reset?\r\n");
+        return true;
+    }
+
+
 #endif
 
     default:
