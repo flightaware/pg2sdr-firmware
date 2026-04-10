@@ -32,7 +32,7 @@
 #include "pg2sdr_protocol.h"
 
 void pg2sdr_m4clock_init();
-void pg2sdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init);
+void pg2sdr_m4clock_set_freq(uint32_t new_freq);
 void pg2sdr_m4clock_status(ep0_in_board_status_t *status);
 
 /* Works like __WFI(), pausing until an interrupt becomes pending, but also updates

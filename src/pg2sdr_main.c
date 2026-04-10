@@ -230,7 +230,7 @@ static void m4_queue_test_data()
 static void update_cpu_speed(void)
 {
     uint32_t hsadc_frequency = pg2sdr_hsadc_get_sampling_rate();
-    pg2sdr_m4clock_set_freq(hsadc_frequency * 5, false);
+    pg2sdr_m4clock_set_freq(hsadc_frequency * 5);
 }
 
 static void set_rf_power_off(void)

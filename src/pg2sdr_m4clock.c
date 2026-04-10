@@ -41,8 +41,9 @@
 #define MIN_M4_FREQ 24000000      /* 12MHz seems to tickle some USB race conditions, don't go that slow */
 #define MAX_M4_FREQ 204000000
 
-/* current M4 frequency, Hz */
-static uint32_t current_freq;
+/* assume the bootloader starts our code with the M4 clock at 96MHz */
+#define M4_INIT_FREQ 96000000
+static uint32_t m4_current_freq = M4_INIT_FREQ;      /* current M4 frequency, Hz */
 
 /* number of M4 clock cycles per systick interrupt */
 #define SYSTICK_INTERVAL (MIN_M4_FREQ/4)
@@ -66,6 +67,8 @@ static uint32_t min_idle_cycles;
 const uint32_t ExtRateIn = 0;              /* external clock signal (unused on the PG2SDR) */
 const uint32_t OscRateIn = 12000000;       /* external crystal frequency (Y1, 12MHz) */
 
+static void m4clock_changed(uint32_t new_freq);
+
 void pg2sdr_m4clock_init()
 {
     /* switch the M4 clock to use the crystal immediately */
@@ -74,7 +77,7 @@ void pg2sdr_m4clock_init()
     Chip_Clock_SetBaseClock(CLK_BASE_APB3, CLKIN_MAINPLL, true, false);
 
     /* reset internal state, initialize timers */
-    pg2sdr_m4clock_set_freq(current_freq, true);
+    m4clock_changed(MIN_M4_FREQ);
 
     /* start systick */
     SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk;   /* use processor clock source, do generate interrupts */
@@ -101,7 +104,7 @@ void SysTick_Handler(void)
     ++pg2sdr_interrupts.systick;
 }
 
-void pg2sdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
+void pg2sdr_m4clock_set_freq(uint32_t new_freq)
 {
     if (new_freq < MIN_M4_FREQ)
         new_freq = MIN_M4_FREQ;
@@ -111,16 +114,18 @@ void pg2sdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
     /* force frequency to a multiple of 12MHz, so MAINPLL can stay in integer mode */
     new_freq = (new_freq + 11999999) / 12000000 * 12000000;
 
-    if (new_freq == current_freq && !first_time_init) {
+    if (new_freq == m4_current_freq) {
       /* nothing to do */
       return;
     }
 
-    if (!first_time_init) {
-        Chip_SetupCoreClock(CLKIN_CRYSTAL, new_freq, false);
-    }
+    Chip_SetupCoreClock(CLKIN_CRYSTAL, new_freq, false);
+    m4clock_changed(new_freq);
+}
 
-    current_freq = new_freq;
+static void m4clock_changed(uint32_t new_freq)
+{
+    m4_current_freq = new_freq;
     SystemCoreClockUpdate();
     StopWatch_Init();
     pg2sdr_tuner_clock_update();
@@ -128,7 +133,7 @@ void pg2sdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
 
     WITH_DISABLED_INTERRUPTS {
         systick_count = 0;
-        systick_max_count = current_freq / SYSTICK_INTERVAL;  /* update once a second */
+        systick_max_count = m4_current_freq / SYSTICK_INTERVAL;  /* update once a second */
         idle_cycles_last = idle_cycles = 0;
         min_idle_cycles_last = min_idle_cycles = SYSTICK_INTERVAL;
         SysTick->VAL = 0;                   /* restart SysTick */
@@ -137,7 +142,7 @@ void pg2sdr_m4clock_set_freq(uint32_t new_freq, bool first_time_init)
 
 void pg2sdr_m4clock_status(ep0_in_board_status_t *status)
 {
-    status->m4_freq = current_freq;
+    status->m4_freq = m4_current_freq;
     status->m4_mean_idle = idle_cycles_last;
     status->m4_mean_idle_scale = SYSTICK_INTERVAL * systick_max_count;
     status->m4_min_idle = min_idle_cycles_last;
