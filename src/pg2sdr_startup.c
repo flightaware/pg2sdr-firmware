@@ -210,6 +210,10 @@ void ResetISR(uint32_t r0)
     /* turn on the FPU */
     fpuInit();
 
+    /* enable CYCCNT for pg2sdr_delay_{ms,us}() */
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
     /* The linker script constructs a table of (address of section, size of section)
      * between __bss_section_table and __bss_section_table_end containing all the
      * BSS sections (i.e. data that should be zero-initialized). We're responsible

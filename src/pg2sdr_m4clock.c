@@ -44,6 +44,8 @@
 /* assume the bootloader starts our code with the M4 clock at 96MHz */
 #define M4_INIT_FREQ 96000000
 static uint32_t m4_current_freq = M4_INIT_FREQ;      /* current M4 frequency, Hz */
+uint32_t m4_cycles_per_us = M4_INIT_FREQ / 1000000U; /* M4 clock cycles per microsecond, for cycle-based delays */
+uint32_t m4_cycles_per_ms = M4_INIT_FREQ / 1000U;    /* M4 clock cycles per milliecond, for cycle-based delays */
 
 /* number of M4 clock cycles per systick interrupt */
 #define SYSTICK_INTERVAL (MIN_M4_FREQ/4)
@@ -126,6 +128,8 @@ void pg2sdr_m4clock_set_freq(uint32_t new_freq)
 static void m4clock_changed(uint32_t new_freq)
 {
     m4_current_freq = new_freq;
+    m4_cycles_per_ms = new_freq / 1000U;
+    m4_cycles_per_us = new_freq / 1000000U;
     SystemCoreClockUpdate();
     StopWatch_Init();
     pg2sdr_tuner_clock_update();

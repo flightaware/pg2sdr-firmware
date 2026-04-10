@@ -40,4 +40,30 @@ void pg2sdr_m4clock_status(ep0_in_board_status_t *status);
  */
 void pg2sdr_m4clock_wfi();
 
+/* busy-wait delay functions using the cycle counter.
+ * Both of these should be good for delays of up to
+ * about
+ */
+extern uint32_t m4_cycles_per_ms;
+extern uint32_t m4_cycles_per_us;
+static inline void pg2sdr_delay_ms(uint32_t ms)
+{
+    const uint32_t cycles = m4_cycles_per_ms * ms;
+    const uint32_t start = DWT->CYCCNT;
+    uint32_t now;
+    do {
+        now = DWT->CYCCNT;
+    } while ((now - start) < cycles);
+}
+
+static inline void pg2sdr_delay_us(uint32_t us)
+{
+    const uint32_t cycles = m4_cycles_per_us * us;
+    const uint32_t start = DWT->CYCCNT;
+    uint32_t now;
+    do {
+        now = DWT->CYCCNT;
+    } while ((now - start) < cycles);
+}
+
 #endif
