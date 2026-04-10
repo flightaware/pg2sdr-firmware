@@ -36,6 +36,7 @@
 #include "pg2sdr_uart.h"
 #include "pg2sdr_isr.h"
 #include "pg2sdr_hardware.h"
+#include "pg2sdr_m4clock.h"
 #include "morse.h"
 
 /* Reset codes (RESET_* in pg2sdr_protocol.h) are stored in the RTC "regfile" memory.
@@ -63,15 +64,20 @@ static void panic_leds(uint8_t onoff)
 #endif
 }
 
-/* busy-wait a while */
-static inline void panic_delay(uint32_t cycles)
+/* busy-wait a while, feeding the watchdog */
+static void panic_delay(uint32_t ms)
 {
-    while (--cycles)
-        __NOP();
+    while (ms >= 100) {
+        /* for longer delays, ensure we feed the watchdog at least every 100ms */
+        LPC_WWDT->FEED = 0xAA;
+        LPC_WWDT->FEED = 0x55;
+        pg2sdr_delay_ms(100);
+        ms -= 100;
+    }
 
-    /* make sure to feed the watchdog periodically */
     LPC_WWDT->FEED = 0xAA;
     LPC_WWDT->FEED = 0x55;
+    pg2sdr_delay_ms(ms);
 }
 
 void pg2sdr_hard_reset()
@@ -91,7 +97,7 @@ void pg2sdr_panic(uint32_t pattern)
     LPC_REGFILE->REGFILE[1] = pattern;
 
     /* blinkenlights */
-    const unsigned DIT = 3000000; /* delay cycles for a dit */
+    const unsigned DIT = 150; /* milliseconds for a dit */
     /* small initial pause after turning the LEDs off */
     panic_leds(0);
     panic_delay(DIT);
