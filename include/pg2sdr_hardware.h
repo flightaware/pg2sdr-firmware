@@ -39,8 +39,13 @@
 # define HW_RFEN_GPIO_PORT 1
 # define HW_RFEN_GPIO_PIN 12
 # define HW_HAS_UART
-/* HW_HAS_CLKOUT can be enabled here if CLK0/CLK2 output is needed */
-# undef HW_HAS_CLKOUT
+
+/* enable CLK0/2 test points in debug builds */
+# ifdef DEBUG
+#  define HW_HAS_CLKOUT
+# else
+#  undef HW_HAS_CLKOUT
+# endif
 
 #elif defined(HW_IS_AIRSPY)
 
