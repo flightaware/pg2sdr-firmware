@@ -116,25 +116,41 @@ static uint32_t compute_ndec(uint32_t nsel)
 static uint32_t hsadc_frequency;  /* programmed frequency of PLL0AUDIO, 0 if inactive */
 static bool hsadc_running;        /* true if HSADC block has been triggered & is running */
 
-bool pg2sdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (0 = bypass divider */
-                              uint32_t m_divisor,     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part */
-                              uint32_t p_divisor,     /* PLL0AUDIO post-divisor (0 = bypass divider */
-                              uint32_t idiv_divisor)
+/* current HSADC clock configuration (if hsadc_frequency != 0) */
+static uint32_t hsadc_n_divisor;
+static uint32_t hsadc_m_divisor;
+static uint32_t hsadc_p_divisor;
+static uint32_t hsadc_idiv_divisor;
+
+/* Configure the HSADC clock from XTAL with no PLL */
+static bool set_hsadc_xtal(uint32_t idiv_divisor, uint32_t *fADCOut, CHIP_CGU_CLKIN_T *clockSrcOut)
 {
-    /* divisor sanity checks */
-    if (n_divisor > 256)
-        return false;
+    if (idiv_divisor) {
+        /* XTAL -> IDIV_E -> HSADC */
+        Chip_Clock_SetDivider(CLK_IDIV_E, CLKIN_CRYSTAL, idiv_divisor);
+        *clockSrcOut = CLKIN_IDIVE;
+        *fADCOut = CRYSTAL_FREQ / idiv_divisor;
+    } else {
+        /* XTAL -> HSADC, disable IDIV_E */
+        Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
+        *clockSrcOut = CLKIN_CRYSTAL;
+        *fADCOut = CRYSTAL_FREQ;
+    }
 
-    if (p_divisor > 32)
-        return false;
+    /* Power down PLL0AUDIO */
+    LPC_CGU->PLL[CGU_AUDIO_PLL].PLL_CTRL |= PLL_CTRL_PD | PLL_CTRL_MOD_PD;
 
-    if (idiv_divisor > 256)
-        return false;
+    return true;
+}
 
+/* Configure the HSADC clock via PLL0AUDIO */
+static bool set_hsadc_pll0audio(uint32_t n_divisor, uint32_t m_divisor, uint32_t p_divisor, uint32_t idiv_divisor,
+                                uint32_t *fADCOut, CHIP_CGU_CLKIN_T *clockSrcOut)
+{
     uint32_t integer_m = m_divisor >> 15;
     bool fractional = (m_divisor & 0x7FFF) != 0;
 
-    if (m_divisor == 0 || (!fractional && integer_m > 32768) || (fractional && integer_m > 128))
+    if ((!fractional && integer_m > 32768) || (fractional && integer_m > 128))
         return false;
 
     /* derive fCCO, fADC */
@@ -158,11 +174,6 @@ bool pg2sdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (
 
     if (fADC > HSADC_MAX_FREQ)
         return false;
-
-    if (fADC == hsadc_frequency) {
-        /* Already set up for this frequency */
-        return true;
-    }
 
     /* encode PLL0AUDIO register settings */
     uint32_t ctrl = PLL_CTRL_CLK_SEL(CLKIN_CRYSTAL) | PLL_CTRL_AUTOBLOCK;
@@ -216,23 +227,65 @@ bool pg2sdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (
     if (idiv_divisor) {
         /* PLL0AUDIO -> IDIV_E -> HSADC */
         Chip_Clock_SetDivider(CLK_IDIV_E, CLKIN_AUDIOPLL, idiv_divisor);
-        Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKIN_IDIVE, true, false);
-#ifdef HW_HAS_CLKOUT
-        Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKIN_IDIVE, true, false);
-#endif
+        *clockSrcOut = CLKIN_IDIVE;
     } else {
         /* PLL0AUDIO -> HSADC, disable IDIV_E */
         Chip_Clock_SetDivider(CLK_IDIV_E, CLKINPUT_PD, 1);
-        Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, CLKIN_AUDIOPLL, true, false);
-#ifdef HW_HAS_CLKOUT
-        Chip_Clock_SetBaseClock(CLK_BASE_OUT, CLKIN_AUDIOPLL, true, false);
-#endif
+        *clockSrcOut = CLKIN_AUDIOPLL;
     }
 
-    /* Enable ADC branch clock */
+    *fADCOut = fADC;
+    return true;
+}
+
+bool pg2sdr_hsadc_clock_start(uint32_t n_divisor,     /* PLL0AUDIO pre-divisor (0 = bypass pre-divider) */
+                              uint32_t m_divisor,     /* PLL0AUDIO feedback divisor, fixed point, 15 bit fractional part (0 = bypass PLL0AUDIO) */
+                              uint32_t p_divisor,     /* PLL0AUDIO post-divisor (0 = bypass post-divider) */
+                              uint32_t idiv_divisor)  /* IDIV_E divisor (0 = bypass IDIV_E) */
+{
+    /* divisor sanity checks */
+    if (n_divisor > 256)
+        return false;
+
+    if (p_divisor > 32)
+        return false;
+
+    if (idiv_divisor > 256)
+        return false;
+
+    if (hsadc_frequency != 0 &&
+        hsadc_n_divisor == n_divisor &&
+        hsadc_m_divisor == m_divisor &&
+        hsadc_p_divisor == p_divisor &&
+        hsadc_idiv_divisor == idiv_divisor) {
+        /* already configured like this */
+        return true;
+    }
+
+    /* Configure HSADC clock source */
+    uint32_t fADC;
+    CHIP_CGU_CLKIN_T adcClockSrc;
+    if (!m_divisor) {
+        if (!set_hsadc_xtal(idiv_divisor, &fADC, &adcClockSrc))
+            return false;
+    } else {
+        if (!set_hsadc_pll0audio(n_divisor, m_divisor, p_divisor, idiv_divisor, &fADC, &adcClockSrc))
+            return false;
+    }
+
+    /* Enable HSADC branch clock */
+    Chip_Clock_SetBaseClock(CLK_BASE_ADCHS, adcClockSrc, true, false);
+#ifdef HW_HAS_CLKOUT
+    Chip_Clock_SetBaseClock(CLK_BASE_OUT, adcClockSrc, true, false);
+#endif
     Chip_Clock_EnableOpts(CLK_ADCHS, true, true, 1);
 
     hsadc_frequency = fADC;
+    hsadc_n_divisor = n_divisor;
+    hsadc_m_divisor = m_divisor;
+    hsadc_p_divisor = p_divisor;
+    hsadc_idiv_divisor = idiv_divisor;
+
     return true;
 }
 
@@ -244,8 +297,8 @@ void pg2sdr_hsadc_clock_stop(void)
     }
 
     if (hsadc_running) {
-      /* best to stop the ADC first before messing with the branch clock */
-      pg2sdr_hsadc_conversion_stop();
+        /* best to stop the ADC first before messing with the branch clock */
+        pg2sdr_hsadc_conversion_stop();
     }
 
     /* Disable ADC branch clock */
