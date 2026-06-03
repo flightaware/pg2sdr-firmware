@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install build prerequisites
         run: |
           sudo apt-get update
@@ -16,7 +16,7 @@ jobs:
       - name: Build it
         run: make update-images
       - name: Upload built images
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-images
           path: images/*.bin
