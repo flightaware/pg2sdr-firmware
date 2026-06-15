@@ -35,10 +35,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* VID/PID of ROM bootloader */
-#define VID_ROM 0x1fc9
-#define PID_ROM 0x000c
-
 /* VID/PID of normal firmware */
 #define VID_PG2SDR 0xDEAD
 #define PID_PG2SDR 0xBEEF
