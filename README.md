@@ -10,8 +10,9 @@ Prebuilt firmware images are available in the `images/` subdirectory.
 ## Applying firmware updates
 
 See the
-[libpg2sdr documentation](https://github.com/flightaware/libpg2sdr/doc/firmware-update.md)
-for details on how to apply a new firmware image to a ProStick Gen 2 device.
+[libpg2sdr documentation](https://github.com/flightaware/libpg2sdr/blob/master/doc/firmware-update.md)
+for details on how to apply a new firmware image to a ProStick Gen 2 device
+using `pg2-util`.
 
 ## Build prerequisites
 
@@ -60,7 +61,7 @@ that is somewhat incomplete / out of date, but FWIW:
 
 ## Related repositories
 
-* [liblpcsdr](https://github.com/flightaware/liblpcsdr) -- host
+* [libpg2sdr](https://github.com/flightaware/libpg2sdr) -- host
   library for talking to a PG2SDR
 * Python scripts for firmware development (TBA)
 * Python scripts for characterizing the hardware (TBA)
