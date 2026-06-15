@@ -69,6 +69,6 @@ relocate:
         mov lr, #0xFFFFFFFF   @ make LR be the expected on-reset value
         bx r4                 @ branch to reset ISR, preserving r0 from our caller
 
-		.p2align 2
+        .p2align 2
         relocator_end = .
         .global relocator_end
