@@ -1,0 +1,27 @@
+name: Build firmware image for release
+
+on:
+  release:
+    types: [published, edited]
+
+jobs:
+  build-and-attach:
+    name: Build release firmware
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake gcc-arm-none-eabi python3-minimal
+      - name: Build PG2SDR firmware image
+        run: make pg2sdr-release
+      - name: Attach firmware image to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} images/pg2sdr-firmware-*.bin --clobber
