@@ -12,6 +12,11 @@ add_library(lpc_chip_43xx STATIC
 
 target_compile_options(lpc_chip_43xx PRIVATE
   -Os -Wall -Wstack-usage=512 -fstack-usage -ffunction-sections -fdata-sections -fsingle-precision-constant)
+# The library build is noisy with warnings, turn some off for now
+target_compile_options(lpc_chip_43xx PRIVATE
+  -Wno-strict-aliasing
+  -Wno-unused-but-set-variable
+  -Wno-incompatible-pointer-types)
 target_compile_definitions(lpc_chip_43xx PUBLIC CORE_M4)
 target_include_directories(lpc_chip_43xx PUBLIC ../inc ../inc/config_43xx ../inc/usbd_rom)
 target_link_libraries(lpc_chip_43xx PRIVATE string)
