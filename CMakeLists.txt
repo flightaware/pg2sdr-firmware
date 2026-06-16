@@ -4,11 +4,20 @@ cmake_minimum_required(VERSION 3.15)
 set(CMAKE_TOOLCHAIN_FILE "lpc4370.cmake" CACHE FILEPATH
   "LPC4370 cmake toolchain file")
 
-project(pg2sdr-firmware LANGUAGES C ASM)
+# Extract firmware version from pg2sdr_protocol.h
+file(STRINGS "include/pg2sdr_protocol.h" VERSION_MACRO REGEX "^#define PG2_CURRENT_VERSION")
+string(REGEX MATCH "^#define PG2_CURRENT_VERSION _VERSION\\(([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\)" _ ${VERSION_MACRO})
+set(FIRMWARE_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}.${CMAKE_MATCH_4}")
+
+project(pg2sdr-firmware
+  LANGUAGES C ASM
+  VERSION ${FIRMWARE_VERSION})
 
 set(CMAKE_VERBOSE_MAKEFILE TRUE)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+
+message(STATUS "Building firmware version ${FIRMWARE_VERSION}")
 
 add_subdirectory(string)
 add_subdirectory(src)
