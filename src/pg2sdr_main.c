@@ -60,6 +60,7 @@ firmware_metadata_t firmware_metadata = {
         .max_control_transfer = PG2_MAX_CONTROL_TRANSFER,
         .control_timeout_ms = 1000,
         .build_type = BUILD_LABEL " " HW_LABEL,
+        .boot_mode = BOOT_MODE_FLASH,
 };
 
 static bool bulk_test_mode = false;

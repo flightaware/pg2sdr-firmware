@@ -40,7 +40,7 @@
 #define PID_PG2SDR 0xBEEF
 
 #define _VERSION(a,b,c,d) ((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
-#define PG2_CURRENT_VERSION _VERSION(0,9,6,0)
+#define PG2_CURRENT_VERSION _VERSION(0,9,7,0)
 #define PG2_COMPAT_VERSION _VERSION(0,9,0,0)
 
 #define PG2_MAX_CONTROL_TRANSFER 512
@@ -228,6 +228,14 @@ typedef enum {
     CACHE_REFRESH = 2
 } tuner_cache_mode_t;
 
+/* possible modes for firmware_metadata_t.boot_mode */
+typedef enum {
+    BOOT_MODE_UNKNOWN = 0,     /* unspecifed boot mode */
+    BOOT_MODE_FLASH = 1,       /* unmodified image loaded from flash (default value) */
+    BOOT_MODE_LOAD_IMAGE = 2,  /* image loaded via LOAD_IMAGE control transfers */
+    BOOT_MODE_RECOVERY = 3,    /* image loaded via DFU control transfers (recovery mode) */
+} boot_mode_t;
+
 /* firmware metadata returned by EP0_IN_METADATA */
 typedef struct firmware_metadata_s {
     uint32_t version;
@@ -235,6 +243,7 @@ typedef struct firmware_metadata_s {
     uint16_t max_control_transfer;
     uint16_t control_timeout_ms;
     char build_type[128];
+    uint16_t boot_mode; /* since 0.9.7.0 */
 } firmware_metadata_t;
 
 /* ---  Bulk endpoint EP1   --- */
