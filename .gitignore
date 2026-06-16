@@ -1,9 +1,3 @@
-Debug
 *~
-__pycache__
-/Debug-Airspy/
-*.tsv
-*.fft
-/Release/
-/Release-Airspy/
-build
+build/
+images/
