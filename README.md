@@ -36,7 +36,7 @@ then you will need to edit `lpc4370.cmake` accordingly.
 ## Building it
 
 `make all` to build everything. Built firmware images can be found in
-`build/{debug,release}/src/*.bin`
+`build/pg2sdr-{debug,release}/pg2sdr-firmware-*.bin`
 
 `make update-images` will copy the built images out into the `images/`
 subdir.
