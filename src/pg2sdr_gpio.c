@@ -62,7 +62,7 @@ static const led_pair_t led_pairs[] = {
             .b = { .valid = true, .pingrp = 1, .pinnum = 20, .gpioport = 0, .gpiopin = 15 }, }, /* P1_20, GPIO0[15], DS2B (DS2, red LED) */
 #endif
 
-#ifdef HW_IS_AIRSPY
+#ifdef HW_IS_AIRSPYMINI
     [0] = { .bicolor = false,
             .a = { .valid = true, .pingrp = 1, .pinnum = 17, .gpioport = 0, .gpiopin = 12 },
             .b = { .valid = false }, },

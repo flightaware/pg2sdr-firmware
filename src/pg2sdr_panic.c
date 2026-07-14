@@ -59,7 +59,7 @@ static void panic_leds(uint8_t onoff)
     LPC_GPIO_PORT->B[0][15] = onoff;
 #endif
 
-#ifdef HW_IS_AIRSPY
+#ifdef HW_IS_AIRSPYMINI
     LPC_GPIO_PORT->B[0][12] = onoff;
 #endif
 }

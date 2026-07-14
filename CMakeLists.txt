@@ -16,7 +16,7 @@ project(pg2sdr-firmware
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 
-set(TARGET_HARDWARE PG2SDR CACHE STRING "Target hardware (PG2SDR or AIRSPY)")
+set(TARGET_HARDWARE PG2SDR CACHE STRING "Target hardware (PG2SDR or AIRSPYMINI)")
 
 message(STATUS "Building firmware version ${FIRMWARE_VERSION}")
 message(STATUS "  for target hardware ${TARGET_HARDWARE}")

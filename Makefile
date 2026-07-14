@@ -1,4 +1,4 @@
-all: pg2sdr-debug pg2sdr-release airspy-debug airspy-release
+all: pg2sdr-debug pg2sdr-release airspymini-debug airspymini-release
 
 pg2sdr-debug:
 	cmake -B build/pg2sdr-debug                \
@@ -14,21 +14,21 @@ pg2sdr-release:
 	cmake --build build/pg2sdr-release
 	mkdir -p images; cp build/pg2sdr-release/pg2sdr-firmware-*.bin images/
 
-airspy-debug:
-	cmake -B build/airspy-debug                \
+airspymini-debug:
+	cmake -B build/airspymini-debug            \
 	      -DCMAKE_BUILD_TYPE=Debug             \
-	      -DTARGET_HARDWARE=AIRSPY
-	cmake --build build/airspy-debug
-	mkdir -p images; cp build/airspy-debug/airspy-firmware-*.bin images/
+	      -DTARGET_HARDWARE=AIRSPYMINI
+	cmake --build build/airspymini-debug
+	mkdir -p images; cp build/airspymini-debug/airspymini-firmware-*.bin images/
 
-airspy-release:
-	cmake -B build/airspy-release              \
+airspymini-release:
+	cmake -B build/airspymini-release          \
 	      -DCMAKE_BUILD_TYPE=Release           \
-	      -DTARGET_HARDWARE=AIRSPY
-	cmake --build build/airspy-release
-	mkdir -p images; cp build/airspy-release/airspy-firmware-*.bin images/
+	      -DTARGET_HARDWARE=AIRSPYMINI
+	cmake --build build/airspymini-release
+	mkdir -p images; cp build/airspymini-release/airspymini-firmware-*.bin images/
 
 clean:
 	rm -fr build images
 
-.PHONY: all pg2sdr-debug pg2sdr-release airspy-debug airspy-release clean
+.PHONY: all pg2sdr-debug pg2sdr-release airspymini-debug airspymini-release clean

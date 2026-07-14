@@ -427,8 +427,8 @@ static bool process_ep0_in(const ipc_message_t *message)
 #ifdef HW_IS_PG2SDR
         result->flags |= STATUS_IS_PG2SDR;
 #endif
-#ifdef HW_IS_AIRSPY
-        result->flags |= STATUS_IS_AIRSPY;
+#ifdef HW_IS_AIRSPYMINI
+        result->flags |= STATUS_IS_AIRSPYMINI;
 #endif
 
         result->usb_samples_per_block = HSADC_BUFFER_SIZE/2;

@@ -89,7 +89,7 @@ typedef struct {
 #define STATUS_TUNER_PLL_LOCK   256  /* Tuner PLL has lock */
 #define STATUS_PLL0AUDIO_RUN    512  /* PLL0AUDIO PLL (HSADC clock) is programmed and running */
 #define STATUS_IS_PG2SDR       1024  /* firmware built for pg2sdr hardware */
-#define STATUS_IS_AIRSPY       2048  /* firmware built for airspy hardware */
+#define STATUS_IS_AIRSPYMINI   2048  /* firmware built for airspy mini hardware */
 
 /* Reset reasons stored in ep0_in_board_status_t.reset_reason */
 #define RESET_POR 0                  /* Power-on-reset. All unknown codes get mapped to this. */

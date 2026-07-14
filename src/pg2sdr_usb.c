@@ -185,6 +185,7 @@ static ALIGNED(4) uint8_t usb_string_desc[] = {
         'e', 0,
 
         /* [2] = product */
+#if defined(HW_IS_PG2SDR)
         2 + 2*15,                   /* bLength */
         USB_STRING_DESCRIPTOR_TYPE, /* bDescriptorType */
         'P', 0,
@@ -202,6 +203,26 @@ static ALIGNED(4) uint8_t usb_string_desc[] = {
         'n', 0,
         ' ', 0,
         '2', 0,
+#elif defined(HW_IS_AIRSPYMINI)
+        2 + 2*14,                   /* bLength */
+        USB_STRING_DESCRIPTOR_TYPE, /* bDescriptorType */
+        'P', 0,
+        'G', 0,
+        '2', 0,
+        '/', 0,
+        'A', 0,
+        'i', 0,
+        'r', 0,
+        's', 0,
+        'p', 0,
+        'y', 0,
+        'M', 0,
+        'i', 0,
+        'n', 0,
+        'i', 0,
+#else
+# error hardware type not recognized
+#endif
 
         /* [3] = serial (nb: this is a placeholder value that is mutated later) */
         2 + 2*16,                    /* bLength */

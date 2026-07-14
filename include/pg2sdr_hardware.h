@@ -47,7 +47,7 @@
 #  undef HW_HAS_CLKOUT
 # endif
 
-#elif defined(HW_IS_AIRSPY)
+#elif defined(HW_IS_AIRSPYMINI)
 
 /* main Airspy Mini hardware differences:
  *  - tuner connected to I2C1, not I2C0
@@ -57,6 +57,8 @@
  */
 
 # define HW_LABEL "airspymini"
+# define HW_VID VID_AIRSPYMINI
+# define HW_PID PID_AIRSPYMINI
 # define HW_USES_I2C1
 # define HW_TUNER_XTAL 24000000
 # define HW_RFEN_PINGRP 1
