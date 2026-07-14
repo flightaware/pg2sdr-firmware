@@ -31,6 +31,8 @@
 #if defined(HW_IS_PG2SDR)
 
 # define HW_LABEL "pg2sdr"
+# define HW_VID VID_PG2SDR
+# define HW_PID PID_PG2SDR
 # define HW_USES_I2C0
 # define HW_TUNER_XTAL 28800000
 /* RF_EN output on P2_12 / GPIO1[12], external pulldown */

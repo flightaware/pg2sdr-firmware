@@ -35,9 +35,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* VID/PID of normal firmware */
-#define VID_PG2SDR 0xDEAD
-#define PID_PG2SDR 0xBEEF
+/* VID/PID of firmware built for Gen 2 hardware*/
+#define VID_PG2SDR 0x39DD
+#define PID_PG2SDR 0x2000
+
+/* VID/PID of firmware built for Airspy Mini hardware */
+#define VID_AIRSPYMINI 0x39DD
+#define PID_AIRSPYMINI 0x2A00
 
 #define _VERSION(a,b,c,d) ((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
 #define PG2_CURRENT_VERSION _VERSION(0,9,7,0)
