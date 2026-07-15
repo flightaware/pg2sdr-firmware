@@ -122,5 +122,5 @@ LPCOpen license:
 
 ## Prebuilt firmware images
 
-The prebuilt firmware images in the `images/` subdirectory include
-code compiled from all of the above sources.
+The prebuilt firmware images attached to GitHub releases include code
+compiled from all of the above sources.
