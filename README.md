@@ -1,12 +1,12 @@
 # PG2SDR firmware
 
-&#x26A0; Work in progress, not finalized yet! &#x26A0; 
-
-This repository contains the source code for the Prostick Gen 2
+This repository contains the source code for the Pro Stick Gen 2
 firmware.
 
 Prebuilt firmware images are available in the `images/` subdirectory.
 
+#### *The FlightAware Pro Stick Gen 2 is currently in beta testing and is not yet publicly available. This firmware is published for early access and community testing ahead of launch.*
+___
 ## Applying firmware updates
 
 See the
