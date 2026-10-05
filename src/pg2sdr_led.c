@@ -49,6 +49,16 @@ void pg2sdr_led_clock_update()
      * as the RIT counter runs off the M4 clock
      */
     Chip_RIT_SetTimerInterval(LPC_RITIMER, 250 /* milliseconds */);
+
+    /* SetTimerInterval doesn't touch the current count value, so
+     * the current counter might actually be larger than our compare
+     * value, which produces an unexpectedly long (minutes) interval
+     * before the counter wraps at 0xFFFFFFFF.
+     *
+     * So explicitly reset the counter to 0 whenever we change the
+     * compare value due to a clock rate change.
+     */
+    LPC_RITIMER->COUNTER = 0;
 }
 
 void pg2sdr_led_set(unsigned led_id, Color c)
